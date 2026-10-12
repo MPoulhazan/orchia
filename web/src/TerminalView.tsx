@@ -5,6 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { api } from './api';
+import { SMOOTH_SCROLL_MS, useSmoothScroll } from './smoothScroll';
 
 interface Props {
   sessionId: string;
@@ -26,6 +27,9 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
   fontSizeRef.current = fontSize;
   const autoFocusRef = useRef(autoFocus);
   autoFocusRef.current = autoFocus;
+  const smoothScroll = useSmoothScroll().enabled;
+  const smoothScrollRef = useRef(smoothScroll);
+  smoothScrollRef.current = smoothScroll;
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -39,6 +43,7 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
       lineHeight: 1.2,
       cursorBlink: true,
       scrollback: 5000,
+      smoothScrollDuration: smoothScrollRef.current ? SMOOTH_SCROLL_MS : 0,
       allowProposedApi: true,
       theme: themeRef.current,
     });
@@ -190,6 +195,10 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.smoothScrollDuration = smoothScroll ? SMOOTH_SCROLL_MS : 0;
+  }, [smoothScroll]);
 
   useEffect(() => {
     if (focusKey) termRef.current?.focus();

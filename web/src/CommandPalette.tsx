@@ -171,7 +171,7 @@ export function CommandPalette(props: Props) {
   useEffect(() => setActive(0), [query]);
 
   useEffect(() => {
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }, [active, items]);
 
   function runItem(item: Item | undefined) {

@@ -224,7 +224,7 @@ export function SkillPicker({
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }, [active]);
 
   function dismiss(name: string) {

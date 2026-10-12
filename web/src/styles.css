@@ -271,6 +271,12 @@ kbd {
   }
 }
 
+/* Set from Settings > Smooth scrolling. scroll-behavior isn't inherited, so it goes on every scroller. */
+:root[data-smooth-scroll],
+:root[data-smooth-scroll] * {
+  scroll-behavior: smooth;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status-dot[data-status='working'] {
     animation: none;

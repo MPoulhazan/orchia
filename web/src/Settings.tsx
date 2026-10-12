@@ -4,6 +4,7 @@ import { api, type PermissionMode, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
 import type { NotifyState } from './notifications';
+import { useSmoothScroll, type SmoothScrollPref } from './smoothScroll';
 
 const PERMISSION_MODES: { value: PermissionMode | null; label: string; description: string }[] = [
   { value: null, label: 'Default', description: 'Uses the permission mode from your Claude Code settings.' },
@@ -19,7 +20,13 @@ const THEMES: [ThemePref, typeof Monitor, string][] = [
   ['dark', Moon, 'Dark'],
 ];
 
-/** App-wide settings: defaults for new sessions (kept by the server), notifications and theme (kept in this browser). */
+const SMOOTH_SCROLL: { value: SmoothScrollPref; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+];
+
+/** App-wide settings: defaults for new sessions (kept by the server), notifications, theme and scrolling (kept in this browser). */
 export function SettingsDialog(props: {
   settings: Settings;
   themePref: ThemePref;
@@ -30,6 +37,7 @@ export function SettingsDialog(props: {
 }) {
   const { settings } = props;
   const [error, setError] = useState('');
+  const smoothScroll = useSmoothScroll();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose();
@@ -101,6 +109,9 @@ export function SettingsDialog(props: {
                   </button>
                 ))}
               </div>
+            </Field>
+            <Field label="Smooth scrolling" description="Animates scrolling in terminals and panels. System follows your computer's reduce-motion setting.">
+              <Options items={SMOOTH_SCROLL} value={smoothScroll.pref} onChange={smoothScroll.setPref} />
             </Field>
           </section>
         </div>
