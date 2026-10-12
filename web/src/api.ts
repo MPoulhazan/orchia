@@ -104,10 +104,18 @@ export interface AvailableSkills {
   plugins: { id: string; name: string; description: string; installs: number }[];
 }
 
+/** What a GitHub repository holds; `added` when the project already has a skill by that name. */
+export interface RepoSkills {
+  repo: string;
+  skills: { name: string; description: string; path: string; url: string; added: boolean }[];
+  picked: string[];
+}
+
 export type SkillChange =
   | { action: 'toggle'; id: string; on: boolean }
   | { action: 'copy'; path: string; scope: SkillScope }
   | { action: 'install'; id: string; scope: SkillScope }
+  | { action: 'import'; source: string; names: string[]; scope: SkillScope }
   | { action: 'create'; description: string; scope: SkillScope }
   | { action: 'reload' };
 
@@ -142,6 +150,9 @@ export const api = {
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
+  /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */
+  repoSkills: (id: string, source: string) =>
+    request<RepoSkills>(`/api/sessions/${id}/skills/github?source=${encodeURIComponent(source)}`),
   changeSkills: (id: string, change: SkillChange) =>
     request<{ ok: true; reload?: boolean; sessionId?: string }>(`/api/sessions/${id}/skills`, 'POST', change),
   /** Saves an image for the session's Claude and returns where it went. */

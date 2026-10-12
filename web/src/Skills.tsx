@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FolderInput, Package, PenLine, Plus } from 'lucide-react';
-import { api, type AvailableSkills, type SessionInfo, type Skill, type SkillChange, type SkillScope } from './api';
+import { ArrowLeft, Download, ExternalLink, FolderInput, Package, PenLine, Plus } from 'lucide-react';
+import { parseGitHubSource } from '../../server/githubSource';
+import { api, type AvailableSkills, type RepoSkills, type SessionInfo, type Skill, type SkillChange, type SkillScope } from './api';
 import { fuzzyScore } from './fuzzy';
 import { InspectorSection } from './ui';
 
@@ -130,6 +131,7 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
 type Choice =
   | { kind: 'copy'; name: string; description: string; path: string; project: string }
   | { kind: 'plugin'; name: string; description: string; id: string; installs: number }
+  | { kind: 'github'; source: string; repo: string }
   | { kind: 'new'; description: string };
 
 interface Item {
@@ -166,8 +168,15 @@ export function SkillPicker({
   }, [session.id]);
 
   const items = useMemo<Item[]>(() => {
-    if (!available) return [];
     const q = query.trim();
+    const out: Item[] = [];
+    // A pasted link or `npx skills add` line: offered first, even before the catalog loads.
+    const github = parseGitHubSource(q);
+    if (github) {
+      const repo = `${github.owner}/${github.repo}${github.path ? `/${github.path}` : ''}`;
+      out.push({ key: `github:${q}`, group: 'From GitHub', choice: { kind: 'github', source: q, repo } });
+    }
+    if (!available) return out;
     const rank = <T,>(list: T[], text: (t: T) => string) =>
       q
         ? list
@@ -176,7 +185,6 @@ export function SkillPicker({
             .sort((a, b) => (b.score as number) - (a.score as number))
             .map((r) => r.t)
         : list;
-    const out: Item[] = [];
     for (const s of rank(available.elsewhere, (s) => s.name)) {
       out.push({ key: `copy:${s.path}`, group: 'In your other projects', choice: { kind: 'copy', ...s } });
     }
@@ -231,11 +239,11 @@ export function SkillPicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Search skills and plugins, or describe a new one…"
+              placeholder="Search, paste a GitHub link, or describe a new skill…"
             />
             {error && <div className="palette-error">{error}</div>}
             <div className="palette-list" ref={listRef}>
-              {!available && !error && <div className="palette-empty">Loading the plugin catalog…</div>}
+              {!available && !error && !items.length && <div className="palette-empty">Loading the plugin catalog…</div>}
               {items.map((item, i) => {
                 const header = item.group !== lastGroup ? <div className="palette-group">{item.group}</div> : null;
                 lastGroup = item.group;
@@ -250,16 +258,18 @@ export function SkillPicker({
                       onClick={() => setPicked(c)}
                     >
                       <span className="palette-icon">
-                        {c.kind === 'copy' ? <FolderInput size={15} /> : c.kind === 'plugin' ? <Package size={15} /> : <PenLine size={15} />}
+                        {c.kind === 'copy' ? <FolderInput size={15} /> : c.kind === 'plugin' ? <Package size={15} /> : c.kind === 'github' ? <Download size={15} /> : <PenLine size={15} />}
                       </span>
                       <span className="skill-item-text">
-                        <b>{c.kind === 'new' ? (c.description ? `Write a new skill: “${c.description}”` : 'Write a new skill…') : c.name}</b>
+                        <b>{c.kind === 'new' ? (c.description ? `Write a new skill: “${c.description}”` : 'Write a new skill…') : c.kind === 'github' ? c.repo : c.name}</b>
                         <small>
                           {c.kind === 'copy'
                             ? `From ${c.project}${c.description ? ` · ${c.description}` : ''}`
                             : c.kind === 'plugin'
                               ? c.description
-                              : 'Describe it and a new session writes it for you'}
+                              : c.kind === 'github'
+                                ? 'Add skills from this GitHub repository'
+                                : 'Describe it and a new session writes it for you'}
                         </small>
                       </span>
                       {c.kind === 'plugin' && <span className="palette-detail">{installs(c.installs)}</span>}
@@ -295,6 +305,29 @@ function Confirm({
   const [description, setDescription] = useState(choice.kind === 'new' ? choice.description : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [repo, setRepo] = useState<RepoSkills | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (choice.kind !== 'github') return;
+    api
+      .repoSkills(session.id, choice.source)
+      .then((r) => {
+        // What the link asked for on top, what is already there at the bottom.
+        const rank = (s: RepoSkills['skills'][number]) => (s.added ? 2 : r.picked.includes(s.name) ? 0 : 1);
+        setRepo({ ...r, skills: [...r.skills].sort((a, b) => rank(a) - rank(b)) });
+        setPicked(new Set(r.picked.filter((name) => !r.skills.find((s) => s.name === name)?.added)));
+      })
+      .catch((err) => setError(err.message));
+  }, [choice, session.id]);
+
+  const togglePick = (name: string) =>
+    setPicked((p) => {
+      const next = new Set(p);
+      if (!next.delete(name)) next.add(name);
+      return next;
+    });
+  const missing = choice.kind === 'new' ? !description.trim() : choice.kind === 'github' ? picked.size === 0 : false;
 
   async function add() {
     const change: SkillChange =
@@ -302,7 +335,9 @@ function Confirm({
         ? { action: 'copy', path: choice.path, scope }
         : choice.kind === 'plugin'
           ? { action: 'install', id: choice.id, scope }
-          : { action: 'create', description, scope };
+          : choice.kind === 'github'
+            ? { action: 'import', source: choice.source, names: [...picked], scope }
+            : { action: 'create', description, scope };
     setBusy(true);
     setError('');
     try {
@@ -318,13 +353,24 @@ function Confirm({
   function onKeyDown(e: React.KeyboardEvent) {
     const tag = (e.target as HTMLElement).tagName;
     if (e.key !== 'Enter' || busy || tag === 'BUTTON' || (tag === 'TEXTAREA' && !e.ctrlKey)) return;
-    if (choice.kind === 'new' && !description.trim()) return;
+    if (missing) return;
     e.preventDefault();
     add();
   }
 
-  const title = choice.kind === 'new' ? 'Write a new skill' : choice.name;
-  const label = choice.kind === 'new' ? 'Start writing it' : choice.kind === 'plugin' ? `Install ${choice.name}` : `Add ${choice.name}`;
+  const title = choice.kind === 'new' ? 'Write a new skill' : choice.kind === 'github' ? choice.repo : choice.name;
+  const label =
+    choice.kind === 'new'
+      ? 'Start writing it'
+      : choice.kind === 'plugin'
+        ? `Install ${choice.name}`
+        : choice.kind === 'github'
+          ? picked.size === 1
+            ? `Add ${[...picked][0]}`
+            : picked.size
+              ? `Add ${picked.size} skills`
+              : 'Add skills'
+          : `Add ${choice.name}`;
   return (
     <div className="skill-confirm" onKeyDown={onKeyDown}>
       <button className="btn btn-ghost skill-back" onClick={onBack}>
@@ -344,6 +390,42 @@ function Confirm({
           />
           <p className="skill-hint">A new session opens in this project and writes the skill. You can follow along and answer its questions.</p>
         </>
+      ) : choice.kind === 'github' ? (
+        <>
+          {!repo && !error && <p className="skill-desc">Looking for skills in {choice.repo}…</p>}
+          {repo && (
+            <div className="repo-skills" role="group" aria-label={`Skills in ${repo.repo}`}>
+              {repo.skills.length > 1 && (
+                <div className="repo-skills-head">
+                  <span>
+                    {repo.skills.length} skills · {picked.size} picked
+                  </span>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() =>
+                      setPicked(picked.size ? new Set() : new Set(repo.skills.filter((s) => !s.added).map((s) => s.name)))
+                    }
+                  >
+                    {picked.size ? 'Clear' : 'Pick all'}
+                  </button>
+                </div>
+              )}
+              {repo.skills.map((s) => (
+                <label key={s.name} className="repo-skill" data-added={s.added}>
+                  <input type="checkbox" checked={s.added || picked.has(s.name)} disabled={s.added} onChange={() => togglePick(s.name)} />
+                  <span className="skill-item-text">
+                    <b>{s.name}</b>
+                    <small title={s.description}>{s.added ? 'Already added' : s.description || 'No description.'}</small>
+                  </span>
+                  <a href={s.url} target="_blank" rel="noreferrer" title="Read its SKILL.md on GitHub" aria-label={`Read ${s.name} on GitHub`}>
+                    <ExternalLink size={13} />
+                  </a>
+                </label>
+              ))}
+            </div>
+          )}
+          <p className="skill-hint">A skill is instructions Claude follows. Read it first and add only what you trust.</p>
+        </>
       ) : (
         <p className="skill-desc">{choice.description || 'No description.'}</p>
       )}
@@ -360,7 +442,7 @@ function Confirm({
       </div>
       {error && <p className="skill-error">{error}</p>}
       <div className="skill-actions">
-        <button className="btn btn-primary" autoFocus={choice.kind !== 'new'} onClick={add} disabled={busy || (choice.kind === 'new' && !description.trim())}>
+        <button className="btn btn-primary" autoFocus={choice.kind !== 'new'} onClick={add} disabled={busy || missing}>
           {busy ? (choice.kind === 'plugin' ? 'Installing…' : 'Adding…') : label}
         </button>
       </div>

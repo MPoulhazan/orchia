@@ -14,7 +14,8 @@ import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
-import { copySkill, installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
+import { importSkills, previewRepo } from './githubSkills.ts';
+import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AGENTHUB_PORT ?? 4317);
@@ -262,6 +263,17 @@ const routes: [string, RegExp, Handler][] = [
       plugins: plugins.filter((p) => !installed.has(p.id)),
     };
   }],
+  // The skills in a pasted GitHub link, before adding some.
+  ['GET', /^\/api\/sessions\/([\w-]+)\/skills\/github$/, async (_req, url, [id]) => {
+    const session = findSession(id);
+    try {
+      const [preview, have] = await Promise.all([previewRepo(url.searchParams.get('source') ?? ''), projectSkills(session.cwd)]);
+      const names = new Set(have.filter((s) => s.kind === 'skill').map((s) => s.name));
+      return { ...preview, skills: preview.skills.map((s) => ({ ...s, added: names.has(s.name) })) };
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+  }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/skills$/, async (req, _url, [id]) => {
     const session = findSession(id);
     const body = await readJson(req);
@@ -274,6 +286,11 @@ const routes: [string, RegExp, Handler][] = [
         case 'copy':
           copySkill(session.cwd, String(body.path), scope);
           return { ok: true, reload: false };
+        case 'import': {
+          const names = Array.isArray(body.names) ? body.names.map(String) : [];
+          await importSkills(session.cwd, String(body.source ?? ''), names, scope);
+          return { ok: true, reload: false };
+        }
         case 'install':
           await installPlugin(session.cwd, String(body.id), scope);
           return { ok: true, reload: true };

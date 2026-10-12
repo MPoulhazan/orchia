@@ -2312,6 +2312,82 @@ kbd {
   font-size: 12.5px;
 }
 
+.repo-skills {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.repo-skills-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.repo-skills-head .btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.skill-confirm .repo-skill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 5px 10px;
+  color: var(--text);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.repo-skill + .repo-skill {
+  border-top: 1px solid var(--border);
+}
+
+.repo-skill:hover {
+  background: var(--hover);
+}
+
+.repo-skill[data-added='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.repo-skill input {
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.repo-skill .skill-item-text b {
+  font: 700 12.5px var(--font-mono);
+}
+
+.repo-skill a {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--text-faint);
+}
+
+.repo-skill a:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
 .skill-scope {
   display: flex;
   align-items: center;

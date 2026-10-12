@@ -49,6 +49,9 @@ const PERSONAL_DIR = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.cla
 const projectSkillsDir = (cwd: string) => join(cwd, '.claude', 'skills');
 const localSettingsFile = (cwd: string) => join(cwd, '.claude', 'settings.local.json');
 
+/** Where a new skill goes: the project's folder, or the personal one for every project. */
+export const skillsDir = (cwd: string, scope: SkillScope) => (scope === 'all' ? PERSONAL_DIR : projectSkillsDir(cwd));
+
 // ---- Reading skills -------------------------------------------------------------
 
 interface SkillFile {
@@ -259,7 +262,7 @@ export async function setEnabled(cwd: string, id: string, on: boolean) {
 /** Copies another project's skill into this project, or into the personal folder. */
 export function copySkill(cwd: string, from: string, scope: SkillScope) {
   if (!existsSync(join(from, 'SKILL.md'))) throw new Error('That skill is gone');
-  const target = join(scope === 'all' ? PERSONAL_DIR : projectSkillsDir(cwd), basename(from));
+  const target = join(skillsDir(cwd, scope), basename(from));
   if (existsSync(target)) throw new Error(`A skill named ${basename(from)} is already there`);
   cpSync(from, target, { recursive: true });
 }
@@ -271,7 +274,7 @@ export async function installPlugin(cwd: string, id: string, scope: SkillScope) 
 
 /** The prompt for a session that writes a new skill from a description. */
 export function newSkillPrompt(cwd: string, description: string, scope: SkillScope): string {
-  const dir = (scope === 'all' ? PERSONAL_DIR : projectSkillsDir(cwd)).replace(/\\/g, '/');
+  const dir = skillsDir(cwd, scope).replace(/\\/g, '/');
   return (
     `Create a new Claude Code skill in ${dir}/<skill-name>/SKILL.md. What it should do: ${description.replace(/\s+/g, ' ').trim()}. ` +
     'Pick a short kebab-case name. Start SKILL.md with YAML frontmatter holding name and a description that says what the skill does and when to use it. ' +

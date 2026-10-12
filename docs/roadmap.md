@@ -16,6 +16,25 @@ Mockups: https://claude.ai/artifact/33SN8zsCpe6svQYQJ3iMKd (proposal 2).
   that writes the SKILL.md in the right folder.
 - Worth it once there are enough skills to need an overview of what is used where.
 
+## Suggested skills
+
+Up to 3 skills suggested in the Add skill palette, each saying why ("Because it uses
+Playwright"), with a ✕ to dismiss it for that project. Builds on the GitHub import in
+the palette.
+
+- **Catalog**: a hand-picked JSON file shipped with the app (10–15 entries, frozen, no
+  remote updates). Each entry: repo, a pinned commit, the skills to add, a one-line
+  summary, a category, the signals that make it relevant, and the reason shown.
+- **Ranking**: relevance to the project, from local signals only (dependencies, files,
+  MCP servers configured). Popularity is never the ranking, only shown.
+- **Exclusions**: skills already there, skills whose category is already covered (two
+  frontend-design skills fight over the same tasks), and dismissed ones. No suggestion
+  beats a wrong one, so signals stay conservative.
+- **Popularity**: GitHub stars beside a suggestion, cached 24 h, hidden if the call fails.
+- **Inspector**: only when a project has no skills, one quiet line ("2 suggestions for
+  this project"). No badges.
+- Later, the Skills library gets a Discover tab with the whole catalog by category.
+
 ## Settings, next lots
 
 The Settings dialog has defaults for new sessions (model, effort, permission mode),
