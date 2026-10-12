@@ -1650,7 +1650,36 @@ kbd {
   font-weight: 800;
 }
 
-.insp-block h3 > span {
+.insp-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: -3px -4px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.insp-toggle:hover {
+  color: var(--text);
+}
+
+.insp-toggle .chevron {
+  margin-left: -2px;
+}
+
+.insp-sum {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-faint);
   font-family: var(--font-mono);
   font-weight: 400;

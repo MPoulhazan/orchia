@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, GitBranch, X } from 'lucide-react';
 import { api, type Inspection, type SessionInfo } from './api';
 import { SkillsSection, type SkillsChange } from './Skills';
+import { InspectorSection } from './ui';
 
 const POLL_MS = 3000;
 
@@ -30,37 +31,26 @@ export function Inspector({
         </button>
       </header>
 
-      <section className="insp-block">
-        <h3>
-          Context
-          {usage?.contextUsed != null && usage.contextSize ? (
-            <span>
-              {tokens(usage.contextUsed)} / {tokens(usage.contextSize)}
-            </span>
-          ) : null}
-        </h3>
+      <InspectorSection
+        id="context"
+        title="Context"
+        summary={usage?.contextUsed != null && usage.contextSize ? `${tokens(usage.contextUsed)} / ${tokens(usage.contextSize)}` : null}
+      >
         <ContextMeter used={usage?.contextUsed ?? null} size={usage?.contextSize ?? null} />
-      </section>
-
-      <dl className="insp-kv">
-        <dt title="Estimated by Claude Code at list price. Starts over with a new conversation.">Cost so far</dt>
-        <dd>{usage?.costUsd != null ? dollars(usage.costUsd) : '—'}</dd>
-        <dt title="Time spent waiting for the model">Model time</dt>
-        <dd>{usage?.apiMs != null ? duration(usage.apiMs) : '—'}</dd>
-        <dt>Turns</dt>
-        <dd>{data ? data.turns : '—'}</dd>
-      </dl>
+        <dl className="insp-kv">
+          <dt title="Estimated by Claude Code at list price. Starts over with a new conversation.">Cost so far</dt>
+          <dd>{usage?.costUsd != null ? dollars(usage.costUsd) : '—'}</dd>
+          <dt title="Time spent waiting for the model">Model time</dt>
+          <dd>{usage?.apiMs != null ? duration(usage.apiMs) : '—'}</dd>
+          <dt>Turns</dt>
+          <dd>{data ? data.turns : '—'}</dd>
+        </dl>
+      </InspectorSection>
 
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
       {data && data.plan.length > 0 && (
-        <section className="insp-block">
-          <h3>
-            Plan
-            <span>
-              {data.plan.filter((p) => p.status === 'completed').length} / {data.plan.length}
-            </span>
-          </h3>
+        <InspectorSection id="plan" title="Plan" summary={`${data.plan.filter((p) => p.status === 'completed').length} / ${data.plan.length}`}>
           <ul className="insp-plan">
             {data.plan.map((item) => (
               <li key={item.id} data-status={item.status}>
@@ -69,19 +59,22 @@ export function Inspector({
               </li>
             ))}
           </ul>
-        </section>
+        </InspectorSection>
       )}
 
       {git !== undefined && (
-        <section className="insp-block">
-          <h3 title="Changes in the project folder since the last commit, made by any session or by you">
-            Uncommitted changes
-            {git && git.fileCount > 0 && (
-              <span>
+        <InspectorSection
+          id="changes"
+          title="Uncommitted changes"
+          hint="Changes in the project folder since the last commit, made by any session or by you"
+          summary={
+            git && git.fileCount > 0 ? (
+              <>
                 <span className="insp-add">+{git.added}</span> <span className="insp-del">−{git.removed}</span>
-              </span>
-            )}
-          </h3>
+              </>
+            ) : null
+          }
+        >
           {!git ? (
             <p className="insp-empty">Not a git repository</p>
           ) : git.fileCount === 0 ? (
@@ -106,18 +99,17 @@ export function Inspector({
               {git.fileCount > git.files.length && <p className="insp-empty">and {git.fileCount - git.files.length} more</p>}
             </div>
           )}
-        </section>
+        </InspectorSection>
       )}
 
       {git && (
-        <section className="insp-block">
-          <h3>Branch</h3>
+        <InspectorSection id="branch" title="Branch" summary={git.branch ?? 'detached HEAD'} foldedOnly>
           <div className="insp-branch">
             <GitBranch size={14} />
             <span className="insp-path">{git.branch ?? 'detached HEAD'}</span>
             <small>{remoteState(git.ahead, git.behind)}</small>
           </div>
-        </section>
+        </InspectorSection>
       )}
     </aside>
   );

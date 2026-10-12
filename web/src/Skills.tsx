@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, FolderInput, Package, PenLine, Plus } from 'lucide-react';
 import { api, type AvailableSkills, type SessionInfo, type Skill, type SkillChange, type SkillScope } from './api';
 import { fuzzyScore } from './fuzzy';
+import { InspectorSection } from './ui';
 
 /**
  * Skills in the inspector, and the dialog that adds them.
@@ -69,11 +70,25 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
   };
 
   return (
-    <section className="insp-block">
-      <h3 title="Claude uses a skill on its own when a task calls for it">
-        Skills
-        {current && <span>{skills.filter((s) => s.enabled).length} on</span>}
-      </h3>
+    <InspectorSection
+      id="skills"
+      title="Skills"
+      hint="Claude uses a skill on its own when a task calls for it"
+      summary={current ? `${skills.filter((s) => s.enabled).length} on` : null}
+      footer={
+        <>
+          {needsReload && (
+            <div className="skill-reload">
+              <span>Plugins load at start. Reload them to use the change in this session.</span>
+              <button className="btn btn-secondary" onClick={reload} disabled={session.activity === 'working' || session.activity === 'waiting'}>
+                Run /reload-plugins
+              </button>
+            </div>
+          )}
+          {error && <p className="skill-error">{error}</p>}
+        </>
+      }
+    >
       {!current ? (
         <p className="insp-empty">Loading…</p>
       ) : (
@@ -106,16 +121,7 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
           </button>
         </div>
       )}
-      {needsReload && (
-        <div className="skill-reload">
-          <span>Plugins load at start. Reload them to use the change in this session.</span>
-          <button className="btn btn-secondary" onClick={reload} disabled={session.activity === 'working' || session.activity === 'waiting'}>
-            Run /reload-plugins
-          </button>
-        </div>
-      )}
-      {error && <p className="skill-error">{error}</p>}
-    </section>
+    </InspectorSection>
   );
 }
 
