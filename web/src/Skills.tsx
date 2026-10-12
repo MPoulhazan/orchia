@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Download, ExternalLink, FolderInput, Package, PenLine, Plus } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, FolderInput, Package, PenLine, Plus, Sparkles, X } from 'lucide-react';
 import { parseGitHubSource } from '../../server/githubSource';
 import { api, type AvailableSkills, type RepoSkills, type SessionInfo, type Skill, type SkillChange, type SkillScope } from './api';
 import { fuzzyScore } from './fuzzy';
@@ -22,7 +22,7 @@ export interface SkillsChange {
 }
 
 export function SkillsSection({ session, change, onAdd }: { session: SessionInfo; change: SkillsChange; onAdd: () => void }) {
-  const [data, setData] = useState<{ id: string; skills: Skill[]; lastUsed: { name: string; at: number } | null } | null>(null);
+  const [data, setData] = useState<{ id: string; skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number } | null>(null);
   const [error, setError] = useState('');
   const [needsReload, setNeedsReload] = useState(false);
 
@@ -94,7 +94,14 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
         <p className="insp-empty">Loading…</p>
       ) : (
         <div className="skill-list">
-          {skills.length === 0 && <p className="insp-empty">None yet</p>}
+          {skills.length === 0 &&
+            (current.suggested ? (
+              <button className="skill-suggest" onClick={onAdd}>
+                <Sparkles size={13} /> {current.suggested === 1 ? '1 suggestion' : `${current.suggested} suggestions`} for this project
+              </button>
+            ) : (
+              <p className="insp-empty">None yet</p>
+            ))}
           {skills.map((s) => (
             <div key={s.id} className="skill-row" data-enabled={s.enabled} title={s.description || undefined}>
               <button
@@ -131,7 +138,8 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
 type Choice =
   | { kind: 'copy'; name: string; description: string; path: string; project: string }
   | { kind: 'plugin'; name: string; description: string; id: string; installs: number }
-  | { kind: 'github'; source: string; repo: string }
+  /** A pasted link, or a catalog skill (then `repo` is its name and `summary` says what it does). */
+  | { kind: 'github'; source: string; repo: string; summary?: string; reason?: string; stars?: number }
   | { kind: 'new'; description: string };
 
 interface Item {
@@ -177,6 +185,11 @@ export function SkillPicker({
       out.push({ key: `github:${q}`, group: 'From GitHub', choice: { kind: 'github', source: q, repo } });
     }
     if (!available) return out;
+    if (!q && !github) {
+      for (const s of available.suggested) {
+        out.push({ key: `suggested:${s.name}`, group: 'Suggested for this project', choice: { kind: 'github', ...s, repo: s.name } });
+      }
+    }
     const rank = <T,>(list: T[], text: (t: T) => string) =>
       q
         ? list
@@ -187,6 +200,13 @@ export function SkillPicker({
         : list;
     for (const s of rank(available.elsewhere, (s) => s.name)) {
       out.push({ key: `copy:${s.path}`, group: 'In your other projects', choice: { kind: 'copy', ...s } });
+    }
+    if (q) {
+      const catalog = [
+        ...rank(available.catalog, (s) => s.name),
+        ...available.catalog.filter((s) => fuzzyScore(q, s.name) === null && s.summary.toLowerCase().includes(q.toLowerCase())),
+      ];
+      for (const s of catalog) out.push({ key: `catalog:${s.name}`, group: 'Skill catalog', choice: { kind: 'github', ...s, repo: s.name } });
     }
     // Names first; descriptions catch the rest ("pdf" finds a plugin that only mentions PDFs).
     const plugins = q
@@ -206,6 +226,11 @@ export function SkillPicker({
   useEffect(() => {
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
+
+  function dismiss(name: string) {
+    setAvailable((a) => a && { ...a, suggested: a.suggested.filter((s) => s.name !== name) });
+    api.changeSkills(session.id, { action: 'dismiss', name }).catch((err) => setError(err.message));
+  }
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') {
@@ -258,7 +283,7 @@ export function SkillPicker({
                       onClick={() => setPicked(c)}
                     >
                       <span className="palette-icon">
-                        {c.kind === 'copy' ? <FolderInput size={15} /> : c.kind === 'plugin' ? <Package size={15} /> : c.kind === 'github' ? <Download size={15} /> : <PenLine size={15} />}
+                        {c.kind === 'copy' ? <FolderInput size={15} /> : c.kind === 'plugin' ? <Package size={15} /> : c.kind === 'github' ? c.reason ? <Sparkles size={15} /> : <Download size={15} /> : <PenLine size={15} />}
                       </span>
                       <span className="skill-item-text">
                         <b>{c.kind === 'new' ? (c.description ? `Write a new skill: “${c.description}”` : 'Write a new skill…') : c.kind === 'github' ? c.repo : c.name}</b>
@@ -268,11 +293,27 @@ export function SkillPicker({
                             : c.kind === 'plugin'
                               ? c.description
                               : c.kind === 'github'
-                                ? 'Add skills from this GitHub repository'
+                                ? c.reason
+                                  ? `${c.reason} · ${c.summary}`
+                                  : (c.summary ?? 'Add skills from this GitHub repository')
                                 : 'Describe it and a new session writes it for you'}
                         </small>
                       </span>
                       {c.kind === 'plugin' && <span className="palette-detail">{installs(c.installs)}</span>}
+                      {c.kind === 'github' && c.stars ? <span className="palette-detail">{stars(c.stars)}</span> : null}
+                      {c.kind === 'github' && c.reason && (
+                        <button
+                          className="skill-dismiss"
+                          title="Not for this project"
+                          aria-label={`Don't suggest ${c.repo} for this project`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dismiss(c.repo);
+                          }}
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -448,6 +489,10 @@ function Confirm({
       </div>
     </div>
   );
+}
+
+function stars(n: number): string {
+  return `${n >= 1000 ? `${+(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : n} ★`;
 }
 
 function installs(n: number): string {

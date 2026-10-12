@@ -2312,6 +2312,49 @@ kbd {
   font-size: 12.5px;
 }
 
+.skill-dismiss {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.palette-item[data-active='true'] .skill-dismiss,
+.skill-dismiss:focus-visible {
+  opacity: 1;
+}
+
+.skill-dismiss:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.skill-suggest {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.skill-suggest:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 .repo-skills {
   display: flex;
   flex-direction: column;

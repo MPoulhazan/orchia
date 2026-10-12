@@ -97,7 +97,19 @@ export interface Skill {
   skillCount?: number;
 }
 
+/** A skill from the app's catalog; `source` is a GitHub link the import reads. */
+export interface CatalogSkill {
+  name: string;
+  summary: string;
+  repo: string;
+  source: string;
+}
+
 export interface AvailableSkills {
+  /** Up to three catalog skills that fit the project, with why. */
+  suggested: (CatalogSkill & { reason: string; stars?: number })[];
+  /** The rest of the catalog, for searching. */
+  catalog: CatalogSkill[];
   /** Skills in other projects, which can be copied over. */
   elsewhere: { name: string; description: string; project: string; path: string }[];
   /** Plugins from Claude Code's marketplaces, most installed first. */
@@ -117,6 +129,7 @@ export type SkillChange =
   | { action: 'install'; id: string; scope: SkillScope }
   | { action: 'import'; source: string; names: string[]; scope: SkillScope }
   | { action: 'create'; description: string; scope: SkillScope }
+  | { action: 'dismiss'; name: string }
   | { action: 'reload' };
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -148,7 +161,7 @@ export const api = {
   answerPermission: (id: string, permissionId: string, allow: boolean) =>
     request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow }),
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
-  skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null }>(`/api/sessions/${id}/skills`),
+  skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */
   repoSkills: (id: string, source: string) =>

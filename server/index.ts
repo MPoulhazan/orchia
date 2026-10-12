@@ -15,6 +15,7 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
+import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
 import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
 const HOST = '127.0.0.1';
@@ -251,14 +252,22 @@ const routes: [string, RegExp, Handler][] = [
   // Skills: per project, since Claude Code has no per-session skills (see skills.ts).
   ['GET', /^\/api\/sessions\/([\w-]+)\/skills$/, async (_req, _url, [id]) => {
     const session = findSession(id);
-    return { skills: await projectSkills(session.cwd), lastUsed: session.lastSkill };
+    const skills = await projectSkills(session.cwd);
+    const dismissed = projects.get(session.projectId)?.dismissedSkills ?? [];
+    return { skills, lastUsed: session.lastSkill, suggested: suggestSkills(session.cwd, skills, dismissed).length };
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/skills\/available$/, async (_req, _url, [id]) => {
     const session = findSession(id);
     const have = await projectSkills(session.cwd);
     const installed = new Set(have.filter((s) => s.kind === 'plugin').map((s) => s.id.slice('plugin:'.length)));
-    const plugins = await pluginCatalog(session.cwd).catch(() => []);
+    const dismissed = projects.get(session.projectId)?.dismissedSkills ?? [];
+    const [plugins, suggested] = await Promise.all([
+      pluginCatalog(session.cwd).catch(() => []),
+      suggestionsWithStars(session.cwd, have, dismissed),
+    ]);
     return {
+      suggested,
+      catalog: catalogSkills(have),
       elsewhere: skillsElsewhere(session.cwd, projects.list(), have),
       plugins: plugins.filter((p) => !installed.has(p.id)),
     };
@@ -294,6 +303,10 @@ const routes: [string, RegExp, Handler][] = [
         case 'install':
           await installPlugin(session.cwd, String(body.id), scope);
           return { ok: true, reload: true };
+        case 'dismiss':
+          projects.dismissSkill(session.projectId, String(body.name ?? ''));
+          broadcast();
+          return { ok: true };
         case 'reload':
           // Typed into the prompt, so only between turns.
           if (session.status !== 'running' || (session.activity !== 'idle' && session.activity !== 'starting')) throw new Error('Wait until Claude is idle');

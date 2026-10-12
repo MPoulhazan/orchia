@@ -8,6 +8,8 @@ export interface Project {
   name: string;
   path: string;
   addedAt: number;
+  /** Suggested skills turned down with ✕. */
+  dismissedSkills?: string[];
 }
 
 interface Config {
@@ -66,6 +68,13 @@ export class ProjectStore {
     this.config.projects.push(project);
     this.save();
     return project;
+  }
+
+  dismissSkill(id: string, name: string) {
+    const project = this.get(id);
+    if (!project) throw new Error('Project not found');
+    project.dismissedSkills = [...new Set([...(project.dismissedSkills ?? []), name])];
+    this.save();
   }
 
   remove(id: string) {
