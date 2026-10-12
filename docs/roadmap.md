@@ -2,6 +2,30 @@
 
 Ideas agreed on but not built yet.
 
+## MCP connectors (in progress)
+
+A **Connectors** section in the session inspector, under Skills, built like it.
+Mockups: https://claude.ai/artifact/SFWthcC34G5Uigy3ZzDr1i (proposal 1, plus the
+"Needs you" card from proposal 3).
+
+1. **See them**: every MCP server the session's project can use (user, local, `.mcp.json`
+   and claude.ai connectors), with its state (connected, needs sign-in, failed) and
+   "used just now" from the `mcp__<server>__<tool>` hook events.
+2. **Turn on and off** for this project only (`disabledMcpServers` in the project entry of
+   `~/.claude.json`, `disabledMcpjsonServers` for `.mcp.json` servers). Servers load at
+   start, so offer "Restart session", which keeps the conversation.
+3. **Add**: the same picker as skills, with *Suggested for this project* (from local
+   signals, like `skillCatalog.ts`), *From your Claude account*, *Popular* (Supabase,
+   GitHub, Vercel, Playwright, Notion), and a pasted URL or command. Scope *This project*
+   (local scope, private to this machine) or *All my projects* (user scope). Sharing
+   through `.mcp.json` is left out for now.
+4. **Sign in**: a Sign in button (`claude mcp login <name>`), a SIGN-IN card in
+   "Needs you" when a connector of a running session needs it, and "Add connector…"
+   in Ctrl K.
+
+Later, if needed: a Connectors tab in Settings for an overview of accounts and projects,
+or one "Tools" section for skills and connectors together.
+
 ## Skills library (sidebar)
 
 Comes after the Skills section in the session inspector, and reuses its skill picker.

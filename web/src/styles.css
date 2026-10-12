@@ -2234,6 +2234,33 @@ kbd {
   font-size: 12.5px;
 }
 
+/* ---- Connectors ------------------------------------------------------------------ */
+
+/* Waiting on the user (sign in, approve) gets the highlighter, as everywhere else. */
+.conn-row[data-state='needs-auth'],
+.conn-row[data-state='pending'] {
+  margin-inline: -6px;
+  padding-inline: 6px;
+  border-radius: var(--radius);
+  background: var(--hl-soft);
+}
+
+.conn-state {
+  font-weight: 700;
+}
+
+.skill-reload .btn.conn-restart {
+  font-family: inherit;
+}
+
+.conn-state.is-wait {
+  color: var(--text);
+}
+
+.conn-state.is-bad {
+  color: var(--danger);
+}
+
 .palette-item.skill-item {
   height: auto;
   min-height: 34px;

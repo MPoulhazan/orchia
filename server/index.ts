@@ -15,6 +15,7 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
+import { projectConnectors, setConnectorEnabled } from './mcp.ts';
 import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
 import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
@@ -320,6 +321,25 @@ const routes: [string, RegExp, Handler][] = [
           writer.sendWhenReady(newSkillPrompt(session.cwd, description, scope));
           return { ok: true, sessionId: writer.id };
         }
+      }
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    throw new HttpError(400, 'Unknown action');
+  }],
+  // Connectors (MCP servers): per project too, see mcp.ts. `fresh` waits for a new health check.
+  ['GET', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (_req, url, [id]) => {
+    const session = findSession(id);
+    const { connectors, checkedAt } = await projectConnectors(session.cwd, url.searchParams.has('fresh'));
+    return { connectors, checkedAt, lastUsed: session.lastConnector };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (req, _url, [id]) => {
+    const session = findSession(id);
+    const body = await readJson(req);
+    try {
+      if (body.action === 'toggle') {
+        setConnectorEnabled(session.cwd, String(body.name ?? ''), body.on === true);
+        return { ok: true };
       }
     } catch (err) {
       throw new HttpError(400, (err as Error).message);

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Check, GitBranch, X } from 'lucide-react';
 import { api, type Inspection, type SessionInfo } from './api';
+import { ConnectorsSection } from './Connectors';
 import { SkillsSection, type SkillsChange } from './Skills';
 import { InspectorSection } from './ui';
 
 const POLL_MS = 3000;
 
-/** Right-hand panel of the focus view: context, cost, skills, plan, uncommitted changes and branch. */
+/** Right-hand panel of the focus view: context, cost, skills, connectors, plan, uncommitted changes and branch. */
 export function Inspector({
   session,
   onClose,
@@ -48,6 +49,8 @@ export function Inspector({
       </InspectorSection>
 
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
+
+      <ConnectorsSection session={session} />
 
       {data && data.plan.length > 0 && (
         <InspectorSection id="plan" title="Plan" summary={`${data.plan.filter((p) => p.status === 'completed').length} / ${data.plan.length}`}>

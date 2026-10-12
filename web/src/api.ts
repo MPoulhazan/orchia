@@ -123,6 +123,22 @@ export interface RepoSkills {
   picked: string[];
 }
 
+/** Where a connector is set up: the claude.ai account, every project, this project only, the repo's `.mcp.json`, or a plugin. */
+export type ConnectorSource = 'account' | 'user' | 'local' | 'project' | 'plugin';
+
+/** An MCP server the session's project can use, with the state of its last health check. */
+export interface Connector {
+  name: string;
+  label: string;
+  source: ConnectorSource;
+  target: string;
+  state: 'connected' | 'needs-auth' | 'failed' | 'disabled' | 'pending' | 'unknown';
+  detail: string;
+  toolPrefix: string;
+}
+
+export type ConnectorChange = { action: 'toggle'; name: string; on: boolean };
+
 export type SkillChange =
   | { action: 'toggle'; id: string; on: boolean }
   | { action: 'copy'; path: string; scope: SkillScope }
@@ -168,6 +184,9 @@ export const api = {
     request<RepoSkills>(`/api/sessions/${id}/skills/github?source=${encodeURIComponent(source)}`),
   changeSkills: (id: string, change: SkillChange) =>
     request<{ ok: true; reload?: boolean; sessionId?: string }>(`/api/sessions/${id}/skills`, 'POST', change),
+  connectors: (id: string) =>
+    request<{ connectors: Connector[]; checkedAt: number; lastUsed: { toolPrefix: string; at: number } | null }>(`/api/sessions/${id}/connectors`),
+  changeConnectors: (id: string, change: ConnectorChange) => request<{ ok: true }>(`/api/sessions/${id}/connectors`, 'POST', change),
   /** Saves an image for the session's Claude and returns where it went. */
   pasteImage: async (id: string, image: Blob) => {
     const res = await fetch(`/api/sessions/${id}/paste`, {

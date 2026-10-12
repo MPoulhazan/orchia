@@ -99,7 +99,7 @@ export function frontmatter(text: string): Record<string, string> {
   return out;
 }
 
-function readJsonFile(file: string): any {
+export function readJsonFile(file: string): any {
   try {
     return JSON.parse(readFileSync(file, 'utf8'));
   } catch {
@@ -107,7 +107,7 @@ function readJsonFile(file: string): any {
   }
 }
 
-function writeJsonFile(file: string, data: unknown) {
+export function writeJsonFile(file: string, data: unknown) {
   mkdirSync(join(file, '..'), { recursive: true });
   const tmp = `${file}.tmp`;
   writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');

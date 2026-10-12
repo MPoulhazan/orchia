@@ -116,6 +116,8 @@ export class Session extends EventEmitter {
   turns: number;
   /** The skill Claude last used, from the hooks. */
   lastSkill: { name: string; at: number } | null = null;
+  /** The MCP server whose tool Claude last called, as in the tool name: `mcp__<server>__<tool>`. */
+  lastConnector: { toolPrefix: string; at: number } | null = null;
   /** Shared with the hooks so only this session's claude can report its activity. */
   readonly token = randomBytes(24).toString('hex');
 
@@ -310,6 +312,8 @@ export class Session extends EventEmitter {
       const name = String(input.skill ?? input.command ?? input.name ?? '').replace(/^\//, '');
       if (name) this.lastSkill = { name, at: Date.now() };
     }
+    const mcp = event === 'PostToolUse' && String(payload.tool_name ?? '').match(/^mcp__(.+?)__/);
+    if (mcp) this.lastConnector = { toolPrefix: mcp[1], at: Date.now() };
     // The user answered Claude Code's own prompt: the call ran, or the turn moved on.
     if (event === 'PostToolUse') this.releasePermissions((p) => p.key === permissionKey(payload));
     if (event === 'UserPromptSubmit' || event === 'Stop' || event === 'StopFailure') this.releasePermissions();
