@@ -15,7 +15,9 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
-import { projectConnectors, setConnectorEnabled } from './mcp.ts';
+import { addConnector, projectConnectors, setConnectorEnabled } from './mcp.ts';
+import { catalogConnectors } from './mcpCatalog.ts';
+import { configFrom } from './mcpSource.ts';
 import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
 import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
@@ -333,12 +335,23 @@ const routes: [string, RegExp, Handler][] = [
     const { connectors, checkedAt } = await projectConnectors(session.cwd, url.searchParams.has('fresh'));
     return { connectors, checkedAt, lastUsed: session.lastConnector };
   }],
+  ['GET', /^\/api\/sessions\/([\w-]+)\/connectors\/available$/, async (_req, _url, [id]) => {
+    const session = findSession(id);
+    const { connectors } = await projectConnectors(session.cwd);
+    return { catalog: catalogConnectors(session.cwd, connectors) };
+  }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (req, _url, [id]) => {
     const session = findSession(id);
     const body = await readJson(req);
     try {
       if (body.action === 'toggle') {
         setConnectorEnabled(session.cwd, String(body.name ?? ''), body.on === true);
+        return { ok: true };
+      }
+      if (body.action === 'add') {
+        const server = configFrom(body.server);
+        if (!server) throw new Error('Give a server URL or the command that starts it');
+        addConnector(session.cwd, String(body.name ?? '').trim(), server, body.scope === 'all' ? 'all' : 'project');
         return { ok: true };
       }
     } catch (err) {

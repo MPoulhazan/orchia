@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, GitBranch, X } from 'lucide-react';
 import { api, type Inspection, type SessionInfo } from './api';
-import { ConnectorsSection } from './Connectors';
+import { ConnectorsSection, type ConnectorsChange } from './Connectors';
 import { SkillsSection, type SkillsChange } from './Skills';
 import { InspectorSection } from './ui';
 
@@ -13,11 +13,15 @@ export function Inspector({
   onClose,
   skillsChange,
   onAddSkill,
+  connectorsChange,
+  onAddConnector,
 }: {
   session: SessionInfo;
   onClose: () => void;
   skillsChange: SkillsChange;
   onAddSkill: () => void;
+  connectorsChange: ConnectorsChange;
+  onAddConnector: () => void;
 }) {
   const data = useInspection(session);
   const usage = data?.usage ?? null;
@@ -50,7 +54,7 @@ export function Inspector({
 
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
-      <ConnectorsSection session={session} />
+      <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} />
 
       {data && data.plan.length > 0 && (
         <InspectorSection id="plan" title="Plan" summary={`${data.plan.filter((p) => p.status === 'completed').length} / ${data.plan.length}`}>

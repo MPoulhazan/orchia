@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { describeServer, NAME, type McpServerConfig } from './mcpSource.ts';
 import { samePath } from './projects.ts';
 import { cleanEnv } from './session.ts';
 import { readJsonFile, writeJsonFile } from './skills.ts';
@@ -44,6 +45,16 @@ const localSettingsFile = (cwd: string) => join(cwd, '.claude', 'settings.local.
 /** The project's entries in `~/.claude.json`: keyed by path with forward slashes, sometimes once per drive-letter case. */
 function projectEntries(config: any, cwd: string): [string, any][] {
   return Object.entries(config?.projects ?? {}).filter(([path]) => samePath(path, cwd)) as [string, any][];
+}
+
+/** The project's entries, to change: a new one, keyed the way Claude Code does, when there is none yet. */
+function ownEntries(config: any, cwd: string): any[] {
+  config.projects ??= {};
+  const entries = projectEntries(config, cwd).map(([, entry]) => entry);
+  if (entries.length) return entries;
+  const entry = {};
+  config.projects[cwd.replace(/\\/g, '/')] = entry;
+  return [entry];
 }
 
 /** The part of a tool name Claude Code builds from the server name. */
@@ -161,14 +172,7 @@ export function setConnectorEnabled(cwd: string, name: string, on: boolean) {
     // Read right before writing: Claude Code writes this file often.
     const config = readJsonFile(CLAUDE_JSON);
     if (!config) throw new Error(`Can't read ${CLAUDE_JSON}`);
-    config.projects ??= {};
-    const entries = projectEntries(config, cwd);
-    if (!entries.length) {
-      const key = cwd.replace(/\\/g, '/');
-      config.projects[key] = {};
-      entries.push([key, config.projects[key]]);
-    }
-    for (const [, entry] of entries) entry.disabledMcpServers = toggled(entry.disabledMcpServers, name, on);
+    for (const entry of ownEntries(config, cwd)) entry.disabledMcpServers = toggled(entry.disabledMcpServers, name, on);
     writeJsonFile(CLAUDE_JSON, config);
   }
   // Shown at once; the next check says whether it connects.
@@ -179,4 +183,44 @@ export function setConnectorEnabled(cwd: string, name: string, on: boolean) {
     );
     hit.at = 0;
   }
+}
+
+/** Where an added server goes: this project only (Claude Code's local scope), or every project (user scope). */
+export type ConnectorScope = 'project' | 'all';
+
+/** Adds a server to `~/.claude.json`, the way `claude mcp add --scope local|user` does. */
+export function addConnector(cwd: string, name: string, server: McpServerConfig, scope: ConnectorScope) {
+  if (!NAME.test(name)) throw new Error('Use letters, digits, dots, dashes or underscores for the name');
+  const known = cache.get(cwd.toLowerCase())?.connectors ?? [];
+  if (known.some((c) => c.name === name)) throw new Error(`There is already a connector named ${name}`);
+  const config = readJsonFile(CLAUDE_JSON);
+  if (!config) throw new Error(`Can't read ${CLAUDE_JSON}`);
+  const entry = toClaudeConfig(server);
+  if (scope === 'all') {
+    config.mcpServers = { ...config.mcpServers, [name]: entry };
+  } else {
+    for (const project of ownEntries(config, cwd)) project.mcpServers = { ...project.mcpServers, [name]: entry };
+  }
+  writeJsonFile(CLAUDE_JSON, config);
+  // Listed at once; the next check says whether it connects.
+  const hit = cache.get(cwd.toLowerCase());
+  if (hit) {
+    hit.connectors = [
+      ...hit.connectors,
+      { name, label: name, source: scope === 'all' ? 'user' : 'local', target: describeServer(server), state: 'unknown', detail: 'Checking…', toolPrefix: toolPrefix(name) },
+    ];
+    hit.at = 0;
+  }
+}
+
+/** The entry Claude Code keeps. On Windows, npx and the like are batch files that only start through cmd. */
+function toClaudeConfig(server: McpServerConfig): Record<string, unknown> {
+  if (server.type !== 'stdio') return { type: server.type, url: server.url, ...(server.headers ? { headers: server.headers } : {}) };
+  const wrap = process.platform === 'win32' && /^(npx|bunx|pnpm|uvx|pipx)$/i.test(server.command);
+  return {
+    type: 'stdio',
+    command: wrap ? 'cmd' : server.command,
+    args: wrap ? ['/c', server.command, ...server.args] : server.args,
+    env: server.env ?? {},
+  };
 }

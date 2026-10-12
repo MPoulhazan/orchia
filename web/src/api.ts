@@ -1,3 +1,5 @@
+import type { McpServerConfig } from '../../server/mcpSource';
+
 export interface Project {
   id: string;
   name: string;
@@ -137,7 +139,18 @@ export interface Connector {
   toolPrefix: string;
 }
 
-export type ConnectorChange = { action: 'toggle'; name: string; on: boolean };
+/** A well-known server from the app's catalog; `reason` when it fits this project. */
+export interface ConnectorCatalogItem {
+  name: string;
+  title: string;
+  summary: string;
+  server: McpServerConfig;
+  reason?: string;
+}
+
+export type ConnectorChange =
+  | { action: 'toggle'; name: string; on: boolean }
+  | { action: 'add'; name: string; server: McpServerConfig; scope: SkillScope };
 
 export type SkillChange =
   | { action: 'toggle'; id: string; on: boolean }
@@ -186,6 +199,7 @@ export const api = {
     request<{ ok: true; reload?: boolean; sessionId?: string }>(`/api/sessions/${id}/skills`, 'POST', change),
   connectors: (id: string) =>
     request<{ connectors: Connector[]; checkedAt: number; lastUsed: { toolPrefix: string; at: number } | null }>(`/api/sessions/${id}/connectors`),
+  availableConnectors: (id: string) => request<{ catalog: ConnectorCatalogItem[] }>(`/api/sessions/${id}/connectors/available`),
   changeConnectors: (id: string, change: ConnectorChange) => request<{ ok: true }>(`/api/sessions/${id}/connectors`, 'POST', change),
   /** Saves an image for the session's Claude and returns where it went. */
   pasteImage: async (id: string, image: Blob) => {

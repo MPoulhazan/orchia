@@ -266,6 +266,9 @@ function projectSignals(cwd: string): Signals {
   return signals;
 }
 
+/** The packages the project and its direct sub-folders depend on. */
+export const projectDeps = (cwd: string) => projectSignals(cwd).deps;
+
 /** What made an entry match, said the way the reason shows it. */
 function match(entry: CatalogEntry, signals: Signals): string | null {
   for (const [dep, label] of Object.entries(entry.when.deps ?? {})) if (signals.deps.has(dep)) return `it uses ${label}`;

@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   Monitor,
   Package,
+  Plug,
   Moon,
   PanelLeft,
   PanelRight,
@@ -52,6 +53,7 @@ interface Props {
   onToggleInspector?: () => void;
   /** With a session shown. */
   onAddSkill?: () => void;
+  onAddConnector?: () => void;
 }
 
 const ICON = 15;
@@ -156,6 +158,9 @@ export function CommandPalette(props: Props) {
       ...(props.onAddSkill
         ? [{ id: 'add-skill', group: 'Actions', label: `Add skill to ${currentProject?.name ?? 'this project'}…`, icon: <Package size={ICON} />, run: () => (props.onAddSkill!(), true) }]
         : []),
+      ...(props.onAddConnector
+        ? [{ id: 'add-connector', group: 'Actions', label: `Add connector to ${currentProject?.name ?? 'this project'}…`, icon: <Plug size={ICON} />, run: () => (props.onAddConnector!(), true) }]
+        : []),
       { id: 'settings', group: 'Actions', label: 'Settings…', icon: <Settings size={ICON} />, run: () => (props.onOpenSettings(), true) },
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
       { id: 'theme-light', group: 'Actions', label: 'Theme: Light', icon: <Sun size={ICON} />, run: () => props.onSetTheme('light') },
@@ -166,7 +171,7 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'add-path', group: 'Add', label: `Add ${q}`, icon: <FolderPlus size={ICON} />, run: () => add(q) });
     }
     return out;
-  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill]);
+  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector]);
 
   useEffect(() => setActive(0), [query]);
 

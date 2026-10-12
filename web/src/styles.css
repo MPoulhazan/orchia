@@ -2249,6 +2249,30 @@ kbd {
   font-weight: 700;
 }
 
+.conn-target {
+  padding: 6px 9px;
+  border-radius: var(--radius);
+  background: var(--hover);
+  color: var(--text-muted);
+  font: 12.5px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.conn-name {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font: 13px var(--font-mono);
+}
+
+.conn-name:focus {
+  border-color: var(--focus);
+  outline: none;
+}
+
 .skill-reload .btn.conn-restart {
   font-family: inherit;
 }

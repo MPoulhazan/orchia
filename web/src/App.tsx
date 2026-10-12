@@ -9,6 +9,7 @@ import { CommandPalette, type PaletteMode } from './CommandPalette';
 import { SessionPane } from './SessionPane';
 import { SessionTabs } from './SessionTabs';
 import { Inspector } from './Inspector';
+import { ConnectorPicker, type ConnectorsChange } from './Connectors';
 import { SkillPicker, type SkillsChange } from './Skills';
 import { SettingsDialog } from './Settings';
 import { needsAttention, statusOf, timeAgo } from './status';
@@ -48,6 +49,8 @@ export function App() {
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [focusKey, setFocusKey] = useState(0);
   const [skillPicker, setSkillPicker] = useState(false);
+  const [connectorPicker, setConnectorPicker] = useState(false);
+  const [connectorsChange, setConnectorsChange] = useState<ConnectorsChange>(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsChange, setSkillsChange] = useState<SkillsChange>({ n: 0, reload: false });
   const pendingId = useRef<string | null>(null);
@@ -384,7 +387,14 @@ export function App() {
                 />
               </div>
               {inspectorOpen && (
-                <Inspector session={selected} onClose={toggleInspector} skillsChange={skillsChange} onAddSkill={() => setSkillPicker(true)} />
+                <Inspector
+                  session={selected}
+                  onClose={toggleInspector}
+                  skillsChange={skillsChange}
+                  onAddSkill={() => setSkillPicker(true)}
+                  connectorsChange={connectorsChange}
+                  onAddConnector={() => setConnectorPicker(true)}
+                />
               )}
             </>
           ) : (
@@ -426,6 +436,14 @@ export function App() {
                 }
               : undefined
           }
+          onAddConnector={
+            selected
+              ? () => {
+                  setPalette(null);
+                  setConnectorPicker(true);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -438,6 +456,22 @@ export function App() {
           onToggleNotify={notify.toggle}
           onClose={() => {
             setSettingsOpen(false);
+            refocus();
+          }}
+        />
+      )}
+
+      {connectorPicker && selected && (
+        <ConnectorPicker
+          session={selected}
+          projectName={selectedProject?.name ?? 'this project'}
+          onClose={() => {
+            setConnectorPicker(false);
+            refocus();
+          }}
+          onDone={() => {
+            setConnectorPicker(false);
+            setConnectorsChange((n) => n + 1);
             refocus();
           }}
         />
