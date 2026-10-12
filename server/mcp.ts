@@ -1,10 +1,13 @@
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describeServer, NAME, type McpServerConfig } from './mcpSource.ts';
 import { samePath } from './projects.ts';
 import { cleanEnv } from './session.ts';
 import { readJsonFile, writeJsonFile } from './skills.ts';
+
+const pty: typeof import('@lydell/node-pty') = createRequire(import.meta.url)('@lydell/node-pty');
 
 /**
  * MCP servers ("connectors") a session can use, and turning them off per project.
@@ -125,8 +128,19 @@ async function load(cwd: string): Promise<Connector[]> {
     toolPrefix: toolPrefix(name),
   }));
   cache.set(cwd.toLowerCase(), { at: Date.now(), connectors });
+  for (const listener of listeners) listener();
   return connectors;
 }
+
+const listeners = new Set<() => void>();
+
+/** Called after every check of a project's connectors. */
+export function onConnectorsChecked(listener: () => void) {
+  listeners.add(listener);
+}
+
+/** The last check's result, without checking. */
+export const cachedConnectors = (cwd: string): Connector[] => cache.get(cwd.toLowerCase())?.connectors ?? [];
 
 /**
  * The project's connectors. Answers from the cache when there is one and checks
@@ -223,4 +237,62 @@ function toClaudeConfig(server: McpServerConfig): Record<string, unknown> {
     args: wrap ? ['/c', server.command, ...server.args] : server.args,
     env: server.env ?? {},
   };
+}
+
+// ---- Signing in ----------------------------------------------------------------------
+
+export interface SignIn {
+  /** The sign-in page, in case the browser did not open. */
+  url: string | null;
+  error: string | null;
+  done: boolean;
+}
+
+const signIns = new Map<string, SignIn>();
+const SIGN_IN_MS = 5 * 60_000;
+const signInKey = (cwd: string, name: string) => `${cwd.toLowerCase()}\n${name}`;
+
+/** Sign-ins started for this project: by server name, until the next check of the list after they end. */
+export function signInsFor(cwd: string): Record<string, SignIn> {
+  const prefix = `${cwd.toLowerCase()}\n`;
+  return Object.fromEntries([...signIns].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => [key.slice(prefix.length), value]));
+}
+
+/**
+ * Runs `claude mcp login <name>`: it opens the browser on the service's sign-in
+ * page and waits for it to call back. It needs a terminal, so it runs in a pty.
+ */
+export function signIn(cwd: string, name: string) {
+  // Goes through cmd on Windows: no quotes or shell characters in the name.
+  if (!/^[\w .:-]{1,80}$/.test(name)) throw new Error('This connector can only sign in from a terminal: claude mcp login');
+  const key = signInKey(cwd, name);
+  if (signIns.get(key)?.done === false) return;
+  const state: SignIn = { url: null, error: null, done: false };
+  signIns.set(key, state);
+
+  const command = process.env.AGENTHUB_CLAUDE_CLI ?? 'claude';
+  const [file, args] =
+    process.platform === 'win32'
+      ? [process.env.ComSpec ?? 'cmd.exe', `/d /s /c "${command} mcp login "${name}""`]
+      : [command, ['mcp', 'login', name]];
+  const proc = pty.spawn(file, args, { name: 'xterm-256color', cols: 400, rows: 30, cwd, env: cleanEnv() });
+  let out = '';
+  proc.onData((data) => {
+    out = (out + data).slice(-20_000);
+    state.url ??= out.match(/https:\/\/[^\s\x07\x1b]+/)?.[0] ?? null;
+  });
+  const timer = setTimeout(() => {
+    state.error = 'Sign-in timed out. Try again.';
+    proc.kill();
+  }, SIGN_IN_MS);
+  proc.onExit(({ exitCode }) => {
+    clearTimeout(timer);
+    const text = out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    if (exitCode !== 0 && !state.error) state.error = text.match(/Couldn't[^\r\n]*/)?.[0] ?? 'Sign-in did not finish.';
+    state.done = true;
+    // Check the list again; a sign-in that worked stays known until that check is done, a failed one until the next try.
+    projectConnectors(cwd, true).finally(() => {
+      if (signIns.get(key) === state && !state.error) signIns.delete(key);
+    });
+  });
 }

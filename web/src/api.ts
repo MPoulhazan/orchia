@@ -27,6 +27,14 @@ export interface SessionInfo {
   permission: { id: string; tool: string; verb: string; target: string } | null;
 }
 
+/** A connector that waits for the user to sign in, in a project with a running session. */
+export interface SignInNeeded {
+  sessionId: string;
+  projectId: string;
+  name: string;
+  label: string;
+}
+
 /** `claude --permission-mode` values offered in AgentHub. */
 export type PermissionMode = 'manual' | 'acceptEdits' | 'plan' | 'auto';
 
@@ -150,6 +158,7 @@ export interface ConnectorCatalogItem {
 
 export type ConnectorChange =
   | { action: 'toggle'; name: string; on: boolean }
+  | { action: 'signin'; name: string }
   | { action: 'add'; name: string; server: McpServerConfig; scope: SkillScope };
 
 export type SkillChange =
@@ -198,7 +207,13 @@ export const api = {
   changeSkills: (id: string, change: SkillChange) =>
     request<{ ok: true; reload?: boolean; sessionId?: string }>(`/api/sessions/${id}/skills`, 'POST', change),
   connectors: (id: string) =>
-    request<{ connectors: Connector[]; checkedAt: number; lastUsed: { toolPrefix: string; at: number } | null }>(`/api/sessions/${id}/connectors`),
+    request<{
+      connectors: Connector[];
+      checkedAt: number;
+      lastUsed: { toolPrefix: string; at: number } | null;
+      /** Sign-ins started from AgentHub, by server name. */
+      signIns: Record<string, { url: string | null; error: string | null; done: boolean }>;
+    }>(`/api/sessions/${id}/connectors`),
   availableConnectors: (id: string) => request<{ catalog: ConnectorCatalogItem[] }>(`/api/sessions/${id}/connectors/available`),
   changeConnectors: (id: string, change: ConnectorChange) => request<{ ok: true }>(`/api/sessions/${id}/connectors`, 'POST', change),
   /** Saves an image for the session's Claude and returns where it went. */

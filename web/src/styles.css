@@ -2281,6 +2281,33 @@ kbd {
   color: var(--text);
 }
 
+a.conn-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  text-decoration: none;
+}
+
+a.conn-state:hover {
+  text-decoration: underline;
+}
+
+.conn-signin {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+.conn-row {
+  flex-wrap: wrap;
+}
+
+.conn-error {
+  flex-basis: 100%;
+  padding-left: 34px;
+  font-size: 11.5px;
+}
+
 .conn-state.is-bad {
   color: var(--danger);
 }

@@ -15,7 +15,7 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
-import { addConnector, projectConnectors, setConnectorEnabled } from './mcp.ts';
+import { addConnector, cachedConnectors, onConnectorsChecked, projectConnectors, setConnectorEnabled, signIn, signInsFor } from './mcp.ts';
 import { catalogConnectors } from './mcpCatalog.ts';
 import { configFrom } from './mcpSource.ts';
 import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
@@ -49,8 +49,27 @@ function state() {
     sessions: [...sessions.values()].map((s) => s.info()),
     limits,
     settings: settings.get(),
+    signInNeeded: signInNeeded(),
   };
 }
+
+/** Connectors that wait for the user to sign in, in projects with a running session (the latest one, to open). */
+function signInNeeded() {
+  const latest = new Map<string, Session>();
+  for (const s of sessions.values()) {
+    if (s.status !== 'running') continue;
+    const seen = latest.get(s.projectId);
+    if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
+  }
+  return [...latest.values()].flatMap((s) =>
+    cachedConnectors(s.cwd)
+      .filter((c) => c.state === 'needs-auth')
+      .map((c) => ({ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label })),
+  );
+}
+
+// A sign-in that is needed shows in "Needs you" as soon as a check finds it.
+onConnectorsChecked(() => broadcast());
 
 /** Push the new state to every client and persist the sessions. */
 function broadcast() {
@@ -94,6 +113,7 @@ function createSession(projectId: string, cols?: number, rows?: number, choices?
   });
   addSession(session);
   broadcast();
+  projectConnectors(session.cwd).catch(() => {});
   return session;
 }
 
@@ -237,6 +257,7 @@ const routes: [string, RegExp, Handler][] = [
   ['POST', /^\/api\/sessions\/([\w-]+)\/resume$/, (_req, _url, [id]) => {
     const session = findSession(id);
     session.resume(hasTranscript(session.claudeSessionId));
+    projectConnectors(session.cwd).catch(() => {});
     return { ok: true };
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/restart$/, async (req, _url, [id]) => {
@@ -333,7 +354,7 @@ const routes: [string, RegExp, Handler][] = [
   ['GET', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (_req, url, [id]) => {
     const session = findSession(id);
     const { connectors, checkedAt } = await projectConnectors(session.cwd, url.searchParams.has('fresh'));
-    return { connectors, checkedAt, lastUsed: session.lastConnector };
+    return { connectors, checkedAt, lastUsed: session.lastConnector, signIns: signInsFor(session.cwd) };
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/connectors\/available$/, async (_req, _url, [id]) => {
     const session = findSession(id);
@@ -344,6 +365,10 @@ const routes: [string, RegExp, Handler][] = [
     const session = findSession(id);
     const body = await readJson(req);
     try {
+      if (body.action === 'signin') {
+        signIn(session.cwd, String(body.name ?? ''));
+        return { ok: true };
+      }
       if (body.action === 'toggle') {
         setConnectorEnabled(session.cwd, String(body.name ?? ''), body.on === true);
         return { ok: true };

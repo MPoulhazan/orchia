@@ -26,7 +26,7 @@ const USED_MS = 10 * 60_000;
 export type ConnectorsChange = number;
 
 export function ConnectorsSection({ session, change, onAdd }: { session: SessionInfo; change: ConnectorsChange; onAdd: () => void }) {
-  const [data, setData] = useState<{ id: string; connectors: Connector[]; lastUsed: { toolPrefix: string; at: number } | null } | null>(null);
+  const [data, setData] = useState<({ id: string } & Awaited<ReturnType<typeof api.connectors>>) | null>(null);
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(false);
 
@@ -44,8 +44,9 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
   useEffect(() => {
     if (change) setChanged(true);
   }, [change]);
-  // A connector just added or turned on is checked in the background; ask again until the check is done.
-  const checking = data?.connectors.some((c) => c.state === 'unknown');
+  // A connector just added or turned on is checked in the background, and a sign-in waits on the
+  // browser: ask again until they are done.
+  const checking = data?.connectors.some((c) => c.state === 'unknown') || Object.values(data?.signIns ?? {}).some((s) => !s.done);
   useEffect(() => {
     if (!checking) return;
     const timer = setTimeout(load, 4000);
@@ -70,6 +71,28 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
     }
     load();
   }
+
+  async function signIn(connector: Connector) {
+    setError('');
+    try {
+      await api.changeConnectors(session.id, { action: 'signin', name: connector.name });
+      signingIn.current.add(connector.name);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    load();
+  }
+
+  // A sign-in that worked: the running session still has the old state.
+  const signingIn = useRef(new Set<string>());
+  useEffect(() => {
+    for (const name of signingIn.current) {
+      const state = data?.signIns[name];
+      if (state && !state.done) continue;
+      signingIn.current.delete(name);
+      if (!state?.error) setChanged(true);
+    }
+  }, [data]);
 
   async function restart() {
     try {
@@ -125,8 +148,13 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
                 />
                 <span className="skill-name">{c.label}</span>
                 <span className="skill-meta">
-                  {usedNow(c) ? <span className="skill-used">used just now</span> : <ConnectorState connector={c} />}
+                  {usedNow(c) ? (
+                    <span className="skill-used">used just now</span>
+                  ) : (
+                    <ConnectorState connector={c} signIn={current.signIns[c.name]} onSignIn={() => signIn(c)} />
+                  )}
                 </span>
+                {current.signIns[c.name]?.error && <p className="skill-error conn-error">{current.signIns[c.name].error}</p>}
               </div>
             );
           })}
@@ -139,10 +167,31 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
   );
 }
 
-function ConnectorState({ connector: c }: { connector: Connector }) {
+function ConnectorState({
+  connector: c,
+  signIn,
+  onSignIn,
+}: {
+  connector: Connector;
+  signIn?: { url: string | null; done: boolean };
+  onSignIn: () => void;
+}) {
+  if (signIn && !signIn.done) {
+    return signIn.url ? (
+      <a className="conn-state is-wait" href={signIn.url} target="_blank" rel="noreferrer" title="If the browser didn't open, open the sign-in page from here">
+        Finish in browser <ExternalLink size={11} />
+      </a>
+    ) : (
+      <span className="conn-state is-wait">Opening browser…</span>
+    );
+  }
   switch (c.state) {
     case 'needs-auth':
-      return <span className="conn-state is-wait">Needs sign-in</span>;
+      return (
+        <button className="btn btn-secondary conn-signin" onClick={onSignIn} title={`Sign in to ${c.label} in your browser`}>
+          Sign in
+        </button>
+      );
     case 'failed':
       return <span className="conn-state is-bad">Can't connect</span>;
     case 'pending':

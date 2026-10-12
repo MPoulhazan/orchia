@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { api, type Project, type RateLimits, type SessionInfo, type Settings } from './api';
+import { api, type Project, type RateLimits, type SessionInfo, type Settings, type SignInNeeded } from './api';
 
 export interface HubState {
   projects: Project[];
   sessions: SessionInfo[];
   limits: RateLimits | null;
   settings: Settings;
+  signInNeeded: SignInNeeded[];
 }
 
 const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null };
@@ -25,7 +26,7 @@ export function useHub() {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS });
+        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, signInNeeded: msg.signInNeeded ?? [] });
       };
       ws.onclose = () => {
         if (closed) return;

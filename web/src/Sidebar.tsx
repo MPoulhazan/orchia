@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
-import type { Project, SessionInfo } from './api';
+import { api, type Project, type SessionInfo, type SignInNeeded } from './api';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -28,6 +28,7 @@ interface Props {
   onAddProject: () => void;
   onOpenSettings: () => void;
   limits: RateLimits | null;
+  signInNeeded: SignInNeeded[];
 }
 
 const COLLAPSED_KEY = 'agenthub.collapsedProjects';
@@ -70,7 +71,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -162,20 +163,21 @@ export function Sidebar(props: Props) {
 function Attention(props: {
   projects: Project[];
   sessions: SessionInfo[];
+  signIns: SignInNeeded[];
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
   const waiting = props.sessions.filter((s) => statusOf(s) === 'waiting');
   const done = props.sessions.filter((s) => statusOf(s) === 'done');
   const list = [...waiting, ...done].filter(needsAttention);
-  if (!list.length) return null;
+  if (!list.length && !props.signIns.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length}</span>
+        <span className="section-count">{list.length + props.signIns.length}</span>
       </div>
       <div className="attention">
         {list.map((s) => (
@@ -205,8 +207,50 @@ function Attention(props: {
             <PermissionButtons session={s} small />
           </div>
         ))}
+        {props.signIns.map((c) => (
+          <SignInRow
+            key={`${c.projectId}:${c.name}`}
+            signIn={c}
+            projectName={projectName(c.projectId)}
+            selected={c.sessionId === props.selectedId}
+            onOpen={() => {
+              const session = props.sessions.find((s) => s.id === c.sessionId);
+              if (session) props.onSelect(session);
+            }}
+          />
+        ))}
       </div>
     </>
+  );
+}
+
+/** A connector Claude can't use until the user signs in: opens the browser on the service's sign-in page. */
+function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNeeded; projectName: string; selected: boolean; onOpen: () => void }) {
+  const [started, setStarted] = useState(false);
+  return (
+    <div className="attention-row" data-selected={selected}>
+      <button className="attention-open" onClick={onOpen}>
+        <span className="attention-title">
+          <span className="mark">Sign in</span>
+          <b>{signIn.label}</b>
+          <span className="attention-project">· {projectName}</span>
+        </span>
+        <span className="attention-detail">Claude can't use {signIn.label} until you sign in.</span>
+      </button>
+      <span className="perm-acts" data-small>
+        <button
+          className="btn btn-primary"
+          disabled={started}
+          title={`Sign in to ${signIn.label} in your browser`}
+          onClick={() => {
+            setStarted(true);
+            api.changeConnectors(signIn.sessionId, { action: 'signin', name: signIn.name }).catch(() => setStarted(false));
+          }}
+        >
+          {started ? 'Finish in browser' : 'Sign in'}
+        </button>
+      </span>
+    </div>
   );
 }
 

@@ -293,6 +293,7 @@ export function App() {
           onAddProject={() => setPalette('root')}
           onOpenSettings={() => setSettingsOpen(true)}
           limits={limits}
+          signInNeeded={state?.signInNeeded ?? []}
         />
       ) : (
         <Rail
