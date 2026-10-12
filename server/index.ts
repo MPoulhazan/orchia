@@ -13,6 +13,7 @@ import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
+import { copySkill, installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AGENTHUB_PORT ?? 4317);
@@ -217,6 +218,55 @@ const routes: [string, RegExp, Handler][] = [
     const type = String(req.headers['content-type'] ?? '');
     if (!isPasteType(type)) throw new HttpError(415, 'Only PNG, JPEG, GIF and WebP images can be pasted');
     return { path: savePaste(await readBody(req, MAX_PASTE_BYTES), type) };
+  }],
+  // Skills: per project, since Claude Code has no per-session skills (see skills.ts).
+  ['GET', /^\/api\/sessions\/([\w-]+)\/skills$/, async (_req, _url, [id]) => {
+    const session = findSession(id);
+    return { skills: await projectSkills(session.cwd), lastUsed: session.lastSkill };
+  }],
+  ['GET', /^\/api\/sessions\/([\w-]+)\/skills\/available$/, async (_req, _url, [id]) => {
+    const session = findSession(id);
+    const have = await projectSkills(session.cwd);
+    const installed = new Set(have.filter((s) => s.kind === 'plugin').map((s) => s.id.slice('plugin:'.length)));
+    const plugins = await pluginCatalog(session.cwd).catch(() => []);
+    return {
+      elsewhere: skillsElsewhere(session.cwd, projects.list(), have),
+      plugins: plugins.filter((p) => !installed.has(p.id)),
+    };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/skills$/, async (req, _url, [id]) => {
+    const session = findSession(id);
+    const body = await readJson(req);
+    const scope = body.scope === 'all' ? 'all' : 'project';
+    try {
+      switch (body.action) {
+        case 'toggle':
+          await setEnabled(session.cwd, String(body.id), body.on === true);
+          return { ok: true, reload: String(body.id).startsWith('plugin:') };
+        case 'copy':
+          copySkill(session.cwd, String(body.path), scope);
+          return { ok: true, reload: false };
+        case 'install':
+          await installPlugin(session.cwd, String(body.id), scope);
+          return { ok: true, reload: true };
+        case 'reload':
+          // Typed into the prompt, so only between turns.
+          if (session.status !== 'running' || (session.activity !== 'idle' && session.activity !== 'starting')) throw new Error('Wait until Claude is idle');
+          session.typeLine('/reload-plugins');
+          return { ok: true };
+        case 'create': {
+          const description = String(body.description ?? '').trim();
+          if (!description) throw new Error('Describe what the skill should do');
+          const writer = createSession(session.projectId);
+          writer.rename('New skill');
+          writer.sendWhenReady(newSkillPrompt(session.cwd, description, scope));
+          return { ok: true, sessionId: writer.id };
+        }
+      }
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    throw new HttpError(400, 'Unknown action');
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/inspect$/, async (_req, _url, [id]) => {
     const session = findSession(id);

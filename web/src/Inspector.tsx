@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Check, GitBranch, X } from 'lucide-react';
 import { api, type Inspection, type SessionInfo } from './api';
+import { SkillsSection, type SkillsChange } from './Skills';
 
 const POLL_MS = 3000;
 
-/** Right-hand panel of the focus view: context, cost, plan, uncommitted changes and branch. */
-export function Inspector({ session, onClose }: { session: SessionInfo; onClose: () => void }) {
+/** Right-hand panel of the focus view: context, cost, skills, plan, uncommitted changes and branch. */
+export function Inspector({
+  session,
+  onClose,
+  skillsChange,
+  onAddSkill,
+}: {
+  session: SessionInfo;
+  onClose: () => void;
+  skillsChange: SkillsChange;
+  onAddSkill: () => void;
+}) {
   const data = useInspection(session);
   const usage = data?.usage ?? null;
   const git = data?.git;
@@ -39,6 +50,8 @@ export function Inspector({ session, onClose }: { session: SessionInfo; onClose:
         <dt>Turns</dt>
         <dd>{data ? data.turns : '—'}</dd>
       </dl>
+
+      <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
       {data && data.plan.length > 0 && (
         <section className="insp-block">

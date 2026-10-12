@@ -72,6 +72,34 @@ export interface FolderListing {
   dirs: { name: string; path: string }[];
 }
 
+/** "project": this project only; "all": every project. */
+export type SkillScope = 'project' | 'all';
+
+/** A skill or a plugin the session's project has. */
+export interface Skill {
+  id: string;
+  kind: 'skill' | 'plugin';
+  name: string;
+  description: string;
+  scope: SkillScope;
+  enabled: boolean;
+  skillCount?: number;
+}
+
+export interface AvailableSkills {
+  /** Skills in other projects, which can be copied over. */
+  elsewhere: { name: string; description: string; project: string; path: string }[];
+  /** Plugins from Claude Code's marketplaces, most installed first. */
+  plugins: { id: string; name: string; description: string; installs: number }[];
+}
+
+export type SkillChange =
+  | { action: 'toggle'; id: string; on: boolean }
+  | { action: 'copy'; path: string; scope: SkillScope }
+  | { action: 'install'; id: string; scope: SkillScope }
+  | { action: 'create'; description: string; scope: SkillScope }
+  | { action: 'reload' };
+
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -101,6 +129,10 @@ export const api = {
   answerPermission: (id: string, permissionId: string, allow: boolean) =>
     request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow }),
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
+  skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null }>(`/api/sessions/${id}/skills`),
+  availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
+  changeSkills: (id: string, change: SkillChange) =>
+    request<{ ok: true; reload?: boolean; sessionId?: string }>(`/api/sessions/${id}/skills`, 'POST', change),
   /** Saves an image for the session's Claude and returns where it went. */
   pasteImage: async (id: string, image: Blob) => {
     const res = await fetch(`/api/sessions/${id}/paste`, {

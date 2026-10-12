@@ -8,6 +8,7 @@ import {
   History,
   LayoutGrid,
   Monitor,
+  Package,
   Moon,
   PanelLeft,
   PanelRight,
@@ -46,6 +47,8 @@ interface Props {
   onToggleSidebar: () => void;
   /** Only in the focus view, with a session shown. */
   onToggleInspector?: () => void;
+  /** With a session shown. */
+  onAddSkill?: () => void;
 }
 
 const ICON = 15;
@@ -147,6 +150,9 @@ export function CommandPalette(props: Props) {
       ...(props.onToggleInspector
         ? [{ id: 'inspector', group: 'Actions', label: 'Show or hide the inspector', icon: <PanelRight size={ICON} />, run: () => props.onToggleInspector!() }]
         : []),
+      ...(props.onAddSkill
+        ? [{ id: 'add-skill', group: 'Actions', label: `Add skill to ${currentProject?.name ?? 'this project'}…`, icon: <Package size={ICON} />, run: () => (props.onAddSkill!(), true) }]
+        : []),
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
       { id: 'theme-light', group: 'Actions', label: 'Theme: Light', icon: <Sun size={ICON} />, run: () => props.onSetTheme('light') },
       { id: 'theme-dark', group: 'Actions', label: 'Theme: Dark', icon: <Moon size={ICON} />, run: () => props.onSetTheme('dark') },
@@ -156,7 +162,7 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'add-path', group: 'Add', label: `Add ${q}`, icon: <FolderPlus size={ICON} />, run: () => add(q) });
     }
     return out;
-  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector]);
+  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill]);
 
   useEffect(() => setActive(0), [query]);
 

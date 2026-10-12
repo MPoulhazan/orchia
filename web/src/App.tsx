@@ -9,6 +9,7 @@ import { CommandPalette, type PaletteMode } from './CommandPalette';
 import { SessionPane } from './SessionPane';
 import { SessionTabs } from './SessionTabs';
 import { Inspector } from './Inspector';
+import { SkillPicker, type SkillsChange } from './Skills';
 import { needsAttention, statusOf, timeAgo } from './status';
 import { setFavicon } from './favicon';
 import { pageActive, useNotifications } from './notifications';
@@ -45,6 +46,8 @@ export function App() {
   const [inspectorOpen, setInspectorOpen] = useState(() => storage.get(INSPECTOR_KEY) !== 'closed');
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [focusKey, setFocusKey] = useState(0);
+  const [skillPicker, setSkillPicker] = useState(false);
+  const [skillsChange, setSkillsChange] = useState<SkillsChange>({ n: 0, reload: false });
   const pendingId = useRef<string | null>(null);
   const lastProjectId = useRef<string | null>(null);
 
@@ -382,7 +385,9 @@ export function App() {
                   onToggleInspector={toggleInspector}
                 />
               </div>
-              {inspectorOpen && <Inspector session={selected} onClose={toggleInspector} />}
+              {inspectorOpen && (
+                <Inspector session={selected} onClose={toggleInspector} skillsChange={skillsChange} onAddSkill={() => setSkillPicker(true)} />
+              )}
             </>
           ) : (
             projects.length ? (
@@ -410,6 +415,34 @@ export function App() {
           onSetView={setView}
           onToggleSidebar={toggleSidebar}
           onToggleInspector={view === 'focus' && selected ? toggleInspector : undefined}
+          onAddSkill={
+            selected
+              ? () => {
+                  // Not closePalette(): its refocus would pull focus back to the terminal.
+                  setPalette(null);
+                  setSkillPicker(true);
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {skillPicker && selected && (
+        <SkillPicker
+          session={selected}
+          projectName={selectedProject?.name ?? 'this project'}
+          onClose={() => {
+            setSkillPicker(false);
+            refocus();
+          }}
+          onDone={({ reload, openSession }) => {
+            setSkillPicker(false);
+            setSkillsChange((c) => ({ n: c.n + 1, reload }));
+            if (openSession) {
+              pendingId.current = openSession;
+              open(openSession);
+            } else refocus();
+          }}
         />
       )}
     </div>

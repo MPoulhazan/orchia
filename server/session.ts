@@ -107,6 +107,8 @@ export class Session extends EventEmitter {
   usage: Usage | null;
   plan: PlanItem[];
   turns: number;
+  /** The skill Claude last used, from the hooks. */
+  lastSkill: { name: string; at: number } | null = null;
   /** Shared with the hooks so only this session's claude can report its activity. */
   readonly token = randomBytes(24).toString('hex');
 
@@ -263,12 +265,42 @@ export class Session extends EventEmitter {
   /** Cost and context, reported by the status line relay. Not broadcast: the inspector asks for them. */
   trackStatusLine(payload: unknown) {
     this.usage = usageFromStatusLine(payload);
+    // The status line first reports once the prompt is on screen.
+    this.flushPending();
+  }
+
+  private pending: string | null = null;
+
+  /** Types a prompt and submits it once Claude is ready for input. */
+  sendWhenReady(text: string) {
+    this.pending = text;
+    // In case the status line never reports (e.g. replaced by the user's own settings).
+    setTimeout(() => this.flushPending(), 15_000).unref();
+  }
+
+  private flushPending() {
+    const text = this.pending;
+    if (!text || !this.proc) return;
+    this.pending = null;
+    this.typeLine(text);
+  }
+
+  /** Types a line into Claude's prompt and submits it. */
+  typeLine(text: string) {
+    this.proc?.write(text);
+    // Sent apart, or the Enter arrives inside the pasted text and makes a new line.
+    setTimeout(() => this.proc?.write('\r'), 400);
   }
 
   /** Turns and plan, from the hooks. */
   trackHook(payload: any) {
     const event = payload?.hook_event_name;
     if (event === 'UserPromptSubmit') this.turns++;
+    if (event === 'PostToolUse' && payload.tool_name === 'Skill') {
+      const input = payload.tool_input ?? {};
+      const name = String(input.skill ?? input.command ?? input.name ?? '').replace(/^\//, '');
+      if (name) this.lastSkill = { name, at: Date.now() };
+    }
     // The user answered Claude Code's own prompt: the call ran, or the turn moved on.
     if (event === 'PostToolUse') this.releasePermissions((p) => p.key === permissionKey(payload));
     if (event === 'UserPromptSubmit' || event === 'Stop' || event === 'StopFailure') this.releasePermissions();
@@ -426,7 +458,7 @@ const INHERITED_MARKERS = [
   /^GIT_ASKPASS$/,
 ];
 
-function cleanEnv(): Record<string, string> {
+export function cleanEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined && !INHERITED_MARKERS.some((re) => re.test(key))) env[key] = value;
