@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
+import type { PermissionMode } from './settings.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 
 // These packages ship CommonJS entry points; load them through require.
@@ -35,6 +36,8 @@ export interface SessionInfo {
   /** Launch choices made in AgentHub; null means Claude Code's own default. */
   modelChoice: string | null;
   effortChoice: string | null;
+  /** Permission mode claude was launched with; null means Claude Code's own default. */
+  permissionMode: PermissionMode | null;
   /** The permission request AgentHub can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string }) | null;
 }
@@ -47,6 +50,7 @@ export interface LaunchChoices {
 /** What survives a server restart. */
 export interface SessionRecord extends Partial<LaunchChoices> {
   id: string;
+  permissionMode?: PermissionMode | null;
   projectId: string;
   name: string;
   cwd: string;
@@ -73,6 +77,7 @@ interface SessionOptions extends Partial<LaunchChoices> {
   cwd: string;
   name: string;
   hookSettings: string | null;
+  permissionMode?: PermissionMode | null;
   cols?: number;
   rows?: number;
   /** Bring back a session from a previous server run, without starting claude yet. */
@@ -103,6 +108,8 @@ export class Session extends EventEmitter {
   model: string | null;
   modelChoice: string | null;
   effortChoice: string | null;
+  /** Set at creation from the settings; Shift+Tab in the terminal changes it for the current run only. */
+  readonly permissionMode: PermissionMode | null;
   /** Inspector data for the current conversation. */
   usage: Usage | null;
   plan: PlanItem[];
@@ -132,6 +139,7 @@ export class Session extends EventEmitter {
     this.model = restore?.model ?? null;
     this.modelChoice = restore?.modelChoice ?? opts.modelChoice ?? null;
     this.effortChoice = restore?.effortChoice ?? opts.effortChoice ?? null;
+    this.permissionMode = restore ? (restore.permissionMode ?? null) : (opts.permissionMode ?? null);
     this.usage = restore?.usage ?? null;
     this.plan = restore?.plan ?? [];
     this.turns = restore?.turns ?? 0;
@@ -168,6 +176,7 @@ export class Session extends EventEmitter {
       // Flags apply to this session only; /model would rewrite the user's default.
       ...(this.modelChoice ? ['--model', this.modelChoice] : []),
       ...(this.effortChoice ? ['--effort', this.effortChoice] : []),
+      ...(this.permissionMode ? ['--permission-mode', this.permissionMode] : []),
     ]);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
@@ -418,6 +427,7 @@ export class Session extends EventEmitter {
       model: this.model,
       modelChoice: this.modelChoice,
       effortChoice: this.effortChoice,
+      permissionMode: this.permissionMode,
       permission: this.held[0] ? { id: this.held[0].id, tool: this.held[0].tool, verb: this.held[0].verb, target: this.held[0].target } : null,
     };
   }
@@ -434,6 +444,7 @@ export class Session extends EventEmitter {
       model: this.model,
       modelChoice: this.modelChoice,
       effortChoice: this.effortChoice,
+      permissionMode: this.permissionMode,
       usage: this.usage,
       plan: this.plan,
       turns: this.turns,

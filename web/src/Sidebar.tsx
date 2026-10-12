@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Bell, BellOff, ChevronRight, LayoutGrid, Monitor, Moon, MoreHorizontal, PanelLeft, Plus, Search, Square, Sun, X } from 'lucide-react';
+import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
 import type { Project, SessionInfo } from './api';
-import type { ThemePref } from './theme';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
 import { StatusDot, initials, needsAttention, statusLabel, statusOf } from './status';
-import type { NotifyState } from './notifications';
 import type { RateLimits } from './api';
 import { UsageMeters } from './Limits';
 
@@ -21,7 +19,6 @@ interface Props {
   sessions: SessionInfo[];
   selectedId: string | null;
   connected: boolean;
-  themePref: ThemePref;
   onSelect: (session: SessionInfo) => void;
   onNewSession: (project: Project) => void;
   onCloseSession: (session: SessionInfo) => void;
@@ -29,10 +26,8 @@ interface Props {
   onRemoveProject: (project: Project) => void;
   onOpenPalette: () => void;
   onAddProject: () => void;
-  onSetTheme: (pref: ThemePref) => void;
+  onOpenSettings: () => void;
   limits: RateLimits | null;
-  notify: NotifyState;
-  onToggleNotify: () => void;
 }
 
 const COLLAPSED_KEY = 'agenthub.collapsedProjects';
@@ -155,39 +150,9 @@ export function Sidebar(props: Props) {
       <div className="sidebar-foot">
         {props.connected ? <span /> : <span className="offline">Server offline · reconnecting</span>}
         <span className="pane-spacer" />
-        <button
-          className="icon-btn"
-          data-on={props.notify === 'on'}
-          title={
-            props.notify === 'blocked'
-              ? 'Notifications are blocked in the browser settings'
-              : props.notify === 'on'
-                ? 'Desktop notifications on'
-                : 'Turn on desktop notifications'
-          }
-          onClick={props.onToggleNotify}
-        >
-          {props.notify === 'on' ? <Bell size={14} /> : <BellOff size={14} />}
+        <button className="icon-btn" title="Settings" onClick={props.onOpenSettings}>
+          <Settings size={14} />
         </button>
-        <div className="segmented" role="radiogroup" aria-label="Theme">
-          {(
-            [
-              ['system', Monitor, 'System theme'],
-              ['light', Sun, 'Light theme'],
-              ['dark', Moon, 'Dark theme'],
-            ] as const
-          ).map(([value, Icon, label]) => (
-            <button
-              key={value}
-              role="radio"
-              aria-checked={props.themePref === value}
-              title={label}
-              onClick={() => props.onSetTheme(value)}
-            >
-              <Icon size={13} />
-            </button>
-          ))}
-        </div>
       </div>
     </aside>
   );
@@ -265,18 +230,15 @@ export function Rail(props: {
   sessions: SessionInfo[];
   selectedId: string | null;
   gridIds: string[];
-  themePref: ThemePref;
   onSetView: (v: View) => void;
   onExpand: () => void;
   onOpenPalette: () => void;
   onSelect: (s: SessionInfo) => void;
-  onSetTheme: (pref: ThemePref) => void;
+  onOpenSettings: () => void;
   limits: RateLimits | null;
 }) {
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
   const waiting = props.sessions.filter(needsAttention).sort((a, b) => Number(statusOf(b) === 'waiting') - Number(statusOf(a) === 'waiting'));
-  const nextTheme: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
-  const ThemeIcon = { system: Monitor, light: Sun, dark: Moon }[props.themePref];
 
   return (
     <aside className="rail">
@@ -319,12 +281,8 @@ export function Rail(props: {
       </div>
       <span className="pane-spacer" />
       <UsageMeters limits={props.limits} compact />
-      <button
-        className="icon-btn"
-        title={`Theme: ${props.themePref} (click for ${nextTheme[props.themePref]})`}
-        onClick={() => props.onSetTheme(nextTheme[props.themePref])}
-      >
-        <ThemeIcon size={14} />
+      <button className="icon-btn" title="Settings" onClick={props.onOpenSettings}>
+        <Settings size={14} />
       </button>
     </aside>
   );

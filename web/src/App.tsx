@@ -10,6 +10,7 @@ import { SessionPane } from './SessionPane';
 import { SessionTabs } from './SessionTabs';
 import { Inspector } from './Inspector';
 import { SkillPicker, type SkillsChange } from './Skills';
+import { SettingsDialog } from './Settings';
 import { needsAttention, statusOf, timeAgo } from './status';
 import { setFavicon } from './favicon';
 import { pageActive, useNotifications } from './notifications';
@@ -47,6 +48,7 @@ export function App() {
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [focusKey, setFocusKey] = useState(0);
   const [skillPicker, setSkillPicker] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsChange, setSkillsChange] = useState<SkillsChange>({ n: 0, reload: false });
   const pendingId = useRef<string | null>(null);
   const lastProjectId = useRef<string | null>(null);
@@ -279,7 +281,6 @@ export function App() {
           sessions={sessions}
           selectedId={selected?.id ?? null}
           connected={connected}
-          themePref={theme.pref}
           onSelect={(s) => open(s.id)}
           onNewSession={newSession}
           onCloseSession={(s) => api.closeSession(s.id)}
@@ -287,10 +288,8 @@ export function App() {
           onRemoveProject={(p) => api.removeProject(p.id)}
           onOpenPalette={() => setPalette('root')}
           onAddProject={() => setPalette('root')}
-          onSetTheme={theme.setPref}
+          onOpenSettings={() => setSettingsOpen(true)}
           limits={limits}
-          notify={notify.state}
-          onToggleNotify={notify.toggle}
         />
       ) : (
         <Rail
@@ -299,12 +298,11 @@ export function App() {
           sessions={sessions}
           selectedId={selected?.id ?? null}
           gridIds={view === 'grid' ? gridIds : []}
-          themePref={theme.pref}
           onSetView={setView}
           onExpand={toggleSidebar}
           onOpenPalette={() => setPalette('root')}
           onSelect={(s) => open(s.id)}
-          onSetTheme={theme.setPref}
+          onOpenSettings={() => setSettingsOpen(true)}
           limits={limits}
         />
       )}
@@ -412,6 +410,10 @@ export function App() {
           onAddPath={addPath}
           onNewSession={newSession}
           onSetTheme={theme.setPref}
+          onOpenSettings={() => {
+            setPalette(null);
+            setSettingsOpen(true);
+          }}
           onSetView={setView}
           onToggleSidebar={toggleSidebar}
           onToggleInspector={view === 'focus' && selected ? toggleInspector : undefined}
@@ -424,6 +426,20 @@ export function App() {
                 }
               : undefined
           }
+        />
+      )}
+
+      {settingsOpen && state && (
+        <SettingsDialog
+          settings={state.settings}
+          themePref={theme.pref}
+          onSetTheme={theme.setPref}
+          notify={notify.state}
+          onToggleNotify={notify.toggle}
+          onClose={() => {
+            setSettingsOpen(false);
+            refocus();
+          }}
         />
       )}
 

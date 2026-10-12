@@ -13,6 +13,7 @@ import {
   PanelLeft,
   PanelRight,
   Plus,
+  Settings,
   Square,
   Sun,
 } from 'lucide-react';
@@ -43,6 +44,8 @@ interface Props {
   onAddPath: (path: string) => Promise<void>;
   onNewSession: (project: Project) => void;
   onSetTheme: (pref: ThemePref) => void;
+  /** Opens the dialog itself, so the palette must not refocus the terminal. */
+  onOpenSettings: () => void;
   onSetView: (view: View) => void;
   onToggleSidebar: () => void;
   /** Only in the focus view, with a session shown. */
@@ -153,6 +156,7 @@ export function CommandPalette(props: Props) {
       ...(props.onAddSkill
         ? [{ id: 'add-skill', group: 'Actions', label: `Add skill to ${currentProject?.name ?? 'this project'}…`, icon: <Package size={ICON} />, run: () => (props.onAddSkill!(), true) }]
         : []),
+      { id: 'settings', group: 'Actions', label: 'Settings…', icon: <Settings size={ICON} />, run: () => (props.onOpenSettings(), true) },
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
       { id: 'theme-light', group: 'Actions', label: 'Theme: Light', icon: <Sun size={ICON} />, run: () => props.onSetTheme('light') },
       { id: 'theme-dark', group: 'Actions', label: 'Theme: Dark', icon: <Moon size={ICON} />, run: () => props.onSetTheme('dark') },

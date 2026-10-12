@@ -8,6 +8,7 @@ import { Session } from './session.ts';
 import { CONFIG_DIR, ProjectStore } from './projects.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
+import { SettingsStore } from './settings.ts';
 import { isEffortLevel, isModelAlias, watchModel } from './models.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
@@ -24,6 +25,7 @@ const projects = new ProjectStore();
 const hookSettings = writeHookSettings(CONFIG_DIR, PORT);
 const sessions = new Map<string, Session>();
 const sessionStore = new SessionStore(CONFIG_DIR);
+const settings = new SettingsStore(CONFIG_DIR);
 startPasteCleanup();
 
 // ---- Live state -------------------------------------------------------------
@@ -41,6 +43,7 @@ function state() {
     projects: projects.list(),
     sessions: [...sessions.values()].map((s) => s.info()),
     limits,
+    settings: settings.get(),
   };
 }
 
@@ -65,13 +68,25 @@ function parseChoices(body: any): LaunchChoices {
   return { modelChoice: model, effortChoice: effort };
 }
 
-function createSession(projectId: string, cols?: number, rows?: number, choices?: LaunchChoices): Session {
+/** New sessions start from the settings; the request can override model and effort. */
+function createSession(projectId: string, cols?: number, rows?: number, choices?: Partial<LaunchChoices>): Session {
   const project = projects.get(projectId);
   if (!project) throw new HttpError(404, 'Project not found');
   const taken = new Set([...sessions.values()].filter((s) => s.projectId === projectId).map((s) => s.name));
   let n = 1;
   while (taken.has(`Session ${n}`)) n++;
-  const session = new Session({ projectId: project.id, cwd: project.path, name: `Session ${n}`, hookSettings, cols, rows, ...choices });
+  const defaults = settings.get();
+  const session = new Session({
+    projectId: project.id,
+    cwd: project.path,
+    name: `Session ${n}`,
+    hookSettings,
+    cols,
+    rows,
+    modelChoice: choices?.modelChoice ?? defaults.model,
+    effortChoice: choices?.effortChoice ?? defaults.effort,
+    permissionMode: defaults.permissionMode,
+  });
   addSession(session);
   broadcast();
   return session;
@@ -179,6 +194,19 @@ const routes: [string, RegExp, Handler][] = [
   ['POST', /^\/api\/sessions$/, async (req) => {
     const body = await readJson(req);
     return createSession(String(body.projectId ?? ''), body.cols, body.rows, parseChoices(body)).info();
+  }],
+
+  ['PATCH', /^\/api\/settings$/, async (req) => {
+    const body = await readJson(req);
+    const patch: Record<string, unknown> = {};
+    for (const key of ['model', 'effort', 'permissionMode']) if (key in body) patch[key] = body[key] ?? null;
+    try {
+      settings.update(patch);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    broadcast();
+    return settings.get();
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/config$/, async (req, _url, [id]) => {
     const session = findSession(id);

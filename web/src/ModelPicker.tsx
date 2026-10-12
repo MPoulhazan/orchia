@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { api, type SessionInfo } from './api';
 
-const MODELS = [
+export const MODELS = [
   { value: null, label: 'Default' },
   { value: 'fable', label: 'Fable' },
   { value: 'opus', label: 'Opus' },
@@ -10,7 +10,7 @@ const MODELS = [
   { value: 'haiku', label: 'Haiku' },
 ];
 
-const EFFORTS = [
+export const EFFORTS = [
   { value: null, label: 'Default' },
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },

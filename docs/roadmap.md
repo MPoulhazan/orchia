@@ -15,3 +15,19 @@ Mockups: https://claude.ai/artifact/33SN8zsCpe6svQYQJ3iMKd (proposal 2).
 - Create, rename and delete skills from here. "+ Describe a new skill" opens a session
   that writes the SKILL.md in the right folder.
 - Worth it once there are enough skills to need an overview of what is used where.
+
+## Settings, next lots
+
+The Settings dialog has defaults for new sessions (model, effort, permission mode),
+notifications and theme. Next, in this order:
+
+- **Git workflow**, per project: *Main only*, *Branch per task* (merged into main when
+  done) or *Worktree per session* (each session in its own copy of the repo, so parallel
+  sessions never touch each other's files). Sent as an instruction at launch that
+  overrides git rules in CLAUDE.md; a PreToolUse hook can block commits on main in
+  branch mode. Goes with **Auto-commit** (commit after each finished task).
+- **Compact between tasks**: when a turn ends (Stop hook) and the context is over ~60%
+  (status line), type `/compact` while the session is idle, instead of Claude Code's
+  own auto-compact firing mid-task. Never while the user is typing in that terminal.
+- **Suggest a fresh start** (only if the need shows up): when a prompt looks unrelated
+  to the session, offer to send it to a new session. Never clears on its own.

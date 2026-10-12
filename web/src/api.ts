@@ -20,8 +20,19 @@ export interface SessionInfo {
   model: string | null;
   modelChoice: string | null;
   effortChoice: string | null;
+  permissionMode: PermissionMode | null;
   /** A permission request that can be answered from AgentHub: "Run" + `npm test`. */
   permission: { id: string; tool: string; verb: string; target: string } | null;
+}
+
+/** `claude --permission-mode` values offered in AgentHub. */
+export type PermissionMode = 'manual' | 'acceptEdits' | 'plan' | 'auto';
+
+/** What new sessions start with; null keeps Claude Code's own default. */
+export interface Settings {
+  model: string | null;
+  effort: string | null;
+  permissionMode: PermissionMode | null;
 }
 
 /** One plan usage window, in whole percents; resetsAt is ms since epoch. */
@@ -144,6 +155,8 @@ export const api = {
     if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
     return data as { path: string };
   },
+
+  updateSettings: (patch: Partial<Settings>) => request<Settings>('/api/settings', 'PATCH', patch),
 
   suggestions: () => request<Suggestion[]>('/api/suggestions'),
   /** No path: home folder. Empty path: drive list. */
