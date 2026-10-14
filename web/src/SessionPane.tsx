@@ -6,6 +6,7 @@ import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
 import { PermissionButtons, PermissionText } from './Permission';
+import { QueueBadge, UpNext, showUpNext } from './UpNext';
 
 interface Props {
   session: SessionInfo;
@@ -53,6 +54,7 @@ export function SessionPane(props: Props) {
         )}
         <ModelPicker session={session} />
         <StatusText session={session} compact={compact} />
+        {compact && <QueueBadge session={session} />}
         <span className="pane-spacer" />
 
         <button className="icon-btn" title="Restart (keeps the conversation)" onClick={() => api.restartSession(session.id)}>
@@ -128,7 +130,9 @@ export function SessionPane(props: Props) {
         </div>
       )}
 
-      {compact && session.summary && (statusOf(session) === 'done' || statusOf(session) === 'idle') && (
+      {!compact && showUpNext(session) && <UpNext session={session} />}
+
+      {compact && session.summary &&(statusOf(session) === 'done' || statusOf(session) === 'idle') && (
         <div className="done-bar" data-status={statusOf(session)} title={session.summary.text}>
           <span className="done-text">
             <b>Done.</b> {session.summary.text}

@@ -14,8 +14,10 @@ Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). 
    meaningful sentences (server/summary.ts, no model call), plus the files edited in the turn.
    Shown in the inbox Done card, under grid cells, and in the desktop notification. Left for
    later: the palette (it lists no sessions yet) and "tests passed" (no reliable signal).
-3. **Up next**: a queue of prompts under the terminal, sent one at a time on Stop, never while
-   the user types or while Claude waits for an answer. Shown as "+2" on the tab.
+3. ~~**Up next**~~ built: a queue under the terminal (shown while Claude works or while prompts
+   wait), sent one at a time ~1 s after a Stop. Holds while the user typed in the last 3 s or
+   left a draft in Claude's prompt, and after an interrupted or failed turn; "Send now" lifts
+   the hold. "+2" on the tab and grid cell. Not done: an Alt Q shortcut.
 4. **Own copy, then review and merge**: when another session is already changing files in the
    folder, "+ New session" offers its own copy (a git worktree on an `agenthub/…` branch).
    A **Changes** tab next to the terminal shows the diff, then Merge into main / Keep working /

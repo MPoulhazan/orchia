@@ -456,6 +456,28 @@ const routes: [string, RegExp, Handler][] = [
       allowRules: projectAllowRules(session.cwd),
     };
   }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/queue$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    // One line: Claude Code would submit at the first line break.
+    const text = typeof body.text === 'string' ? body.text.replace(/\s*\n\s*/g, ' ').trim() : '';
+    if (!text) throw new HttpError(400, 'Expected { text }');
+    findSession(id).enqueue(text);
+    return { ok: true };
+  }],
+  ['PUT', /^\/api\/sessions\/([\w-]+)\/queue$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    if (!Array.isArray(body.ids)) throw new HttpError(400, 'Expected { ids }');
+    findSession(id).reorderQueue(body.ids.map(String));
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/queue\/send$/, (_req, _url, [id]) => {
+    if (!findSession(id).sendNextNow()) throw new HttpError(409, 'Claude is busy');
+    return { ok: true };
+  }],
+  ['DELETE', /^\/api\/sessions\/([\w-]+)\/queue\/([\w-]+)$/, (_req, _url, [id, queuedId]) => {
+    findSession(id).dequeue(queuedId);
+    return { ok: true };
+  }],
   ['DELETE', /^\/api\/sessions\/([\w-]+)\/allow-rules$/, async (req, _url, [id]) => {
     const body = await readJson(req);
     if (typeof body.rule !== 'string') throw new HttpError(400, 'Expected { rule }');

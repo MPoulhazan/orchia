@@ -30,6 +30,10 @@ export interface SessionInfo {
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;
+  /** Prompts sent one at a time when Claude finishes a turn. */
+  queue: { id: string; text: string }[];
+  /** Why the queue waits although Claude is idle: text in Claude's prompt, or a stopped turn. */
+  queueHeld: 'typing' | 'stopped' | null;
 }
 
 /** A project allow rule: "Run" + `npm test *`. `rule` is how settings spell it: `Bash(npm test:*)`. */
@@ -241,6 +245,10 @@ export const api = {
     request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow, always }),
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
   removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
+  enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
+  dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
+  reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),
+  sendQueuedNow: (id: string) => request(`/api/sessions/${id}/queue/send`, 'POST'),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */

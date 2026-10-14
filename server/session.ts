@@ -44,6 +44,18 @@ export interface SessionInfo {
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
   summary: TurnSummary | null;
+  /** Prompts sent one at a time when Claude finishes a turn. */
+  queue: QueuedPrompt[];
+  /**
+   * Why the queue waits although Claude is idle: `typing`, there is text in Claude's
+   * prompt; `stopped`, the last turn was interrupted or failed. Null otherwise.
+   */
+  queueHeld: 'typing' | 'stopped' | null;
+}
+
+export interface QueuedPrompt {
+  id: string;
+  text: string;
 }
 
 export interface LaunchChoices {
@@ -63,6 +75,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   exited: boolean;
   model?: string | null;
   summary?: TurnSummary | null;
+  queue?: QueuedPrompt[];
   usage?: Usage | null;
   plan?: PlanItem[];
   turns?: number;
@@ -125,6 +138,13 @@ export class Session extends EventEmitter {
   summary: TurnSummary | null;
   /** Files edited or written since the turn started. */
   private turnFiles = new Set<string>();
+  queue: QueuedPrompt[];
+  /** The last turn ended normally (Stop), so the next queued prompt may go. */
+  private cleanStop = false;
+  /** Last keystroke from the user, and roughly how much they typed into Claude's prompt since Enter. */
+  private lastInputAt = 0;
+  private draftLength = 0;
+  private sendTimer: NodeJS.Timeout | null = null;
   /** The skill Claude last used, from the hooks. */
   lastSkill: { name: string; at: number } | null = null;
   /** The MCP server whose tool Claude last called, as in the tool name: `mcp__<server>__<tool>`. */
@@ -157,6 +177,7 @@ export class Session extends EventEmitter {
     this.plan = restore?.plan ?? [];
     this.turns = restore?.turns ?? 0;
     this.summary = restore?.summary ?? null;
+    this.queue = restore?.queue ?? [];
     this.hookSettings = opts.hookSettings;
     this.cols = opts.cols ?? 120;
     this.rows = opts.rows ?? 32;
@@ -323,6 +344,13 @@ export class Session extends EventEmitter {
       this.turns++;
       this.summary = null;
       this.turnFiles.clear();
+      this.cleanStop = false;
+      this.draftLength = 0;
+    }
+    if (event === 'StopFailure') this.cleanStop = false;
+    if (event === 'Stop') {
+      this.cleanStop = true;
+      this.scheduleSend();
     }
     if (event === 'PostToolUse' && EDIT_TOOLS.has(payload.tool_name)) {
       const file = payload.tool_input?.file_path ?? payload.tool_input?.notebook_path;
@@ -408,6 +436,7 @@ export class Session extends EventEmitter {
   write(data: string) {
     if (!this.proc) return;
     this.proc.write(data);
+    this.trackTyping(data);
     // Enter answers the prompt on screen (the oldest request); Esc or Ctrl+C rejects them all.
     if (data.includes('\r')) this.releasePermissions((p) => p === this.held[0]);
     if (data === '\x1b' || data === '\x03') this.releasePermissions();
@@ -417,8 +446,85 @@ export class Session extends EventEmitter {
     if (this.activity === 'working' && (data === '\x1b' || data === '\x03')) {
       this.activity = 'idle';
       this.detail = null;
+      // Stopped on purpose: the queue waits for the user.
+      this.cleanStop = false;
       this.emit('change');
     }
+  }
+
+  // ---- Up next ------------------------------------------------------------------
+
+  /** Notes keystrokes, so the queue never types over a draft. Focus and mouse reports don't count. */
+  private trackTyping(data: string) {
+    if (/^\x1b\[(I|O|<[\d;]+[mM]|M...)$/.test(data)) return;
+    this.lastInputAt = Date.now();
+    // Enter sends the draft; Ctrl+C and Ctrl+U clear it. (A single Esc may not, so it doesn't count.)
+    if (data.includes('\r') || data === '\x03' || data === '\x15') this.draftLength = 0;
+    else if (data === '\x7f' || data === '\b') this.draftLength = Math.max(0, this.draftLength - 1);
+    else if (!data.startsWith('\x1b')) this.draftLength += [...data].filter((c) => c >= ' ').length;
+    // A draft held the queue back and is gone now: go once the user pauses.
+    if (this.draftLength === 0 && this.cleanStop && this.queue.length) this.scheduleSend(TYPING_PAUSE_MS);
+  }
+
+  enqueue(text: string) {
+    this.queue.push({ id: randomUUID(), text });
+    this.emit('change');
+    this.scheduleSend();
+  }
+
+  dequeue(id: string) {
+    this.queue = this.queue.filter((q) => q.id !== id);
+    this.emit('change');
+  }
+
+  /** New order, by id; ids not given keep their place at the end. */
+  reorderQueue(ids: string[]) {
+    const byId = new Map(this.queue.map((q) => [q.id, q]));
+    const first = ids.map((id) => byId.get(id)).filter((q): q is QueuedPrompt => !!q);
+    this.queue = [...first, ...this.queue.filter((q) => !first.includes(q))];
+    this.emit('change');
+  }
+
+  /** "Send now": the user lifts the hold (stopped turn, or a draft they don't care about). */
+  sendNextNow(): boolean {
+    if (!this.canSend()) return false;
+    this.sendNext();
+    return true;
+  }
+
+  private queueHeld(): SessionInfo['queueHeld'] {
+    if (!this.queue.length || !this.canSend()) return null;
+    if (!this.cleanStop) return 'stopped';
+    return this.draftLength > 0 ? 'typing' : null;
+  }
+
+  private canSend() {
+    return this.status === 'running' && !!this.proc && this.activity === 'idle' && !this.held.length && this.queue.length > 0;
+  }
+
+  /** Sends the next prompt shortly after a clean Stop, once the user has not typed for a moment. */
+  private scheduleSend(delay = 800) {
+    if (this.sendTimer) clearTimeout(this.sendTimer);
+    this.sendTimer = setTimeout(() => {
+      this.sendTimer = null;
+      if (!this.canSend() || !this.cleanStop) return;
+      if (this.draftLength > 0) return this.emit('change'); // Shows "waiting for your draft".
+      const quiet = Date.now() - this.lastInputAt;
+      if (quiet < TYPING_PAUSE_MS) return this.scheduleSend(TYPING_PAUSE_MS - quiet);
+      this.sendNext();
+    }, delay);
+    this.sendTimer.unref();
+  }
+
+  private sendNext() {
+    const next = this.queue.shift();
+    if (!next) return;
+    this.cleanStop = false;
+    this.draftLength = 0;
+    this.typeLine(next.text);
+    // UserPromptSubmit confirms it; meanwhile nothing else may go.
+    this.applyActivity({ activity: 'working' });
+    this.emit('change');
   }
 
   resize(cols: number, rows: number) {
@@ -435,6 +541,7 @@ export class Session extends EventEmitter {
   }
 
   dispose() {
+    if (this.sendTimer) clearTimeout(this.sendTimer);
     this.releasePermissions();
     const proc = this.proc;
     this.proc = null;
@@ -470,6 +577,8 @@ export class Session extends EventEmitter {
           }
         : null,
       summary: this.summary,
+      queue: this.queue,
+      queueHeld: this.queueHeld(),
     };
   }
 
@@ -490,11 +599,15 @@ export class Session extends EventEmitter {
       plan: this.plan,
       turns: this.turns,
       summary: this.summary,
+      queue: this.queue,
     };
   }
 }
 
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+
+/** The queue waits this long after the user's last keystroke. */
+const TYPING_PAUSE_MS = 3000;
 
 function permissionKey(payload: any): string {
   return JSON.stringify([payload?.tool_name, payload?.tool_input]);

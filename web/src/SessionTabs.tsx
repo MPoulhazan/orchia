@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react';
 import type { SessionInfo } from './api';
 import { ConfirmButton, RenameInput } from './ui';
 import { StatusDot, statusLabel, statusOf } from './status';
+import { QueueBadge } from './UpNext';
 
 interface Props {
   /** Sessions of the current project, oldest first. */
@@ -48,6 +49,7 @@ export function SessionTabs({ sessions, selectedId, onSelect, onClose, onRename,
             ) : (
               <span className="tab-label">{s.name}</span>
             )}
+            {!editing && <QueueBadge session={s} />}
             {!editing && !on && status === 'waiting' && <span className="tab-mark">Needs you</span>}
             {!editing && on && (s.status === 'exited' ? (
               <button className="icon-btn tab-close" title="Close" onClick={(e) => (e.stopPropagation(), onClose(s))}>

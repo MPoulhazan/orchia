@@ -1373,6 +1373,136 @@ kbd {
   font-size: 12.5px;
 }
 
+/* ---- Up next: prompts queued under the terminal ----------------------------- */
+
+.upnext {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.upnext-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.upnext-head b {
+  color: var(--text);
+}
+
+.upnext-hint,
+.upnext-held {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upnext-hint {
+  color: var(--text-faint);
+}
+
+.upnext-held {
+  color: var(--text);
+}
+
+.btn.upnext-send {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.upnext-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 13px;
+}
+
+.upnext-item[draggable='true'] {
+  cursor: grab;
+}
+
+.upnext-item[data-dragging='true'] {
+  opacity: 0.5;
+}
+
+.upnext-n {
+  width: 12px;
+  color: var(--text-faint);
+  font: 600 11.5px var(--font-mono);
+}
+
+.upnext-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upnext-grip {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.upnext-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text-faint);
+  cursor: text;
+}
+
+.upnext-input:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+  color: var(--text-muted);
+}
+
+.upnext-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.upnext-input input::placeholder {
+  color: var(--text-faint);
+}
+
+.queue-badge {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font: 700 11px/15px var(--font-mono);
+}
+
 /* Grid cell: what the last turn did. Blue while unseen, quiet once looked at. */
 .done-bar {
   display: flex;
