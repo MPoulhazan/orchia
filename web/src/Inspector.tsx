@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, GitBranch, X } from 'lucide-react';
-import { api, type Inspection, type SessionInfo } from './api';
+import { api, type AllowRule, type Inspection, type SessionInfo } from './api';
 import { ConnectorsSection, type ConnectorsChange } from './Connectors';
 import { SkillsSection, type SkillsChange } from './Skills';
 import { InspectorSection } from './ui';
 
 const POLL_MS = 3000;
 
-/** Right-hand panel of the focus view: context, cost, skills, connectors, plan, uncommitted changes and branch. */
+/** Right-hand panel of the focus view: context, cost, skills, connectors, allow rules, plan, uncommitted changes and branch. */
 export function Inspector({
   session,
   onClose,
@@ -23,7 +23,7 @@ export function Inspector({
   connectorsChange: ConnectorsChange;
   onAddConnector: () => void;
 }) {
-  const data = useInspection(session);
+  const [data, reload] = useInspection(session);
   const usage = data?.usage ?? null;
   const git = data?.git;
 
@@ -55,6 +55,8 @@ export function Inspector({
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
       <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} />
+
+      {data && <AllowRulesSection session={session} rules={data.allowRules} onChange={reload} />}
 
       {data && data.plan.length > 0 && (
         <InspectorSection id="plan" title="Plan" summary={`${data.plan.filter((p) => p.status === 'completed').length} / ${data.plan.length}`}>
@@ -123,8 +125,9 @@ export function Inspector({
 }
 
 /** Fetches the inspection now, on every status change, and every few seconds while shown. */
-function useInspection(session: SessionInfo): Inspection | null {
+function useInspection(session: SessionInfo): [Inspection | null, () => void] {
   const [data, setData] = useState<{ id: string; value: Inspection } | null>(null);
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     let live = true;
     const load = () =>
@@ -138,8 +141,70 @@ function useInspection(session: SessionInfo): Inspection | null {
       live = false;
       clearInterval(timer);
     };
-  }, [session.id, session.activity, session.status]);
-  return data?.id === session.id ? data.value : null;
+  }, [session.id, session.activity, session.status, nonce]);
+  return [data?.id === session.id ? data.value : null, () => setNonce((n) => n + 1)];
+}
+
+const NEW_RULE_MS = 4000;
+
+/**
+ * What Claude Code runs in this project without asking, from .claude/settings.local.json.
+ * Hidden until there is one. A rule that shows up while the panel is open is
+ * highlighted for a moment, so "Always allow" shows where it went.
+ */
+function AllowRulesSection({ session, rules, onChange }: { session: SessionInfo; rules: AllowRule[]; onChange: () => void }) {
+  // Rules already seen for this session, and when they appeared (0: there from the start).
+  const seen = useRef<{ id: string; at: Map<string, number> } | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (seen.current?.id !== session.id) seen.current = { id: session.id, at: new Map(rules.map((r) => [r.rule, 0])) };
+  const at = seen.current.at;
+  for (const r of rules) if (!at.has(r.rule)) at.set(r.rule, Date.now());
+  const isNew = (rule: string) => Date.now() - (at.get(rule) ?? 0) < NEW_RULE_MS;
+
+  if (!rules.length) return null;
+
+  const remove = (rule: string) => {
+    setRemoving(rule);
+    setError(null);
+    api
+      .removeAllowRule(session.id, rule)
+      .then(() => {
+        at.delete(rule);
+        onChange();
+      })
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setRemoving(null));
+  };
+
+  return (
+    <InspectorSection
+      id="allow-rules"
+      title="Allowed without asking"
+      hint="Claude Code does these in this project without asking. Saved in .claude/settings.local.json"
+      summary={rules.length}
+      footer={error && <p className="skill-error">{error}</p>}
+    >
+      <div className="allow-list">
+        {rules.map((r) => (
+          <div key={r.rule} className="allow-row" data-new={isNew(r.rule)} title={r.rule}>
+            <span className="allow-verb">{r.verb}</span>
+            <code className="allow-target">{r.target}</code>
+            <button
+              className="icon-btn allow-remove"
+              disabled={removing === r.rule}
+              title="Remove: Claude asks again"
+              aria-label={`Remove ${r.rule}: Claude asks again`}
+              onClick={() => remove(r.rule)}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </InspectorSection>
+  );
 }
 
 function ContextMeter({ used, size }: { used: number | null; size: number | null }) {

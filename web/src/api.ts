@@ -23,8 +23,18 @@ export interface SessionInfo {
   modelChoice: string | null;
   effortChoice: string | null;
   permissionMode: PermissionMode | null;
-  /** A permission request that can be answered from AgentHub: "Run" + `npm test`. */
-  permission: { id: string; tool: string; verb: string; target: string } | null;
+  /**
+   * A permission request that can be answered from AgentHub: "Run" + `npm test`.
+   * `always`: the rules "Always allow" saves, as Claude Code suggests them; may be empty.
+   */
+  permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
+}
+
+/** A project allow rule: "Run" + `npm test *`. `rule` is how settings spell it: `Bash(npm test:*)`. */
+export interface AllowRule {
+  rule: string;
+  verb: string;
+  target: string;
 }
 
 /** A connector that waits for the user to sign in, in a project with a running session. */
@@ -85,6 +95,8 @@ export interface Inspection {
     added: number;
     removed: number;
   } | null;
+  /** The project's own allow rules, from .claude/settings.local.json. */
+  allowRules: AllowRule[];
 }
 
 export interface Suggestion {
@@ -223,9 +235,10 @@ export const api = {
   /** Keeps the conversation unless `fresh`. */
   restartSession: (id: string, fresh = false) => request(`/api/sessions/${id}/restart`, 'POST', { fresh }),
   closeSession: (id: string) => request(`/api/sessions/${id}`, 'DELETE'),
-  answerPermission: (id: string, permissionId: string, allow: boolean) =>
-    request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow }),
+  answerPermission: (id: string, permissionId: string, allow: boolean, always = false) =>
+    request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow, always }),
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
+  removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */

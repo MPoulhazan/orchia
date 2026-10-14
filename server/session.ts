@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
+import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 
 // These packages ship CommonJS entry points; load them through require.
@@ -39,7 +40,7 @@ export interface SessionInfo {
   /** Permission mode claude was launched with; null means Claude Code's own default. */
   permissionMode: PermissionMode | null;
   /** The permission request AgentHub can answer right now, oldest first. */
-  permission: (PermissionAsk & { id: string }) | null;
+  permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
 }
 
 export interface LaunchChoices {
@@ -68,8 +69,10 @@ interface HeldPermission extends PermissionAsk {
   id: string;
   /** Tool name and input, to recognize the call once it runs. */
   key: string;
+  /** What "Always allow" saves: the rules Claude Code suggests for this request. */
+  always: PermissionRule[];
   /** Answers the hook; null lets Claude Code's own prompt decide. */
-  reply: (allow: boolean | null) => void;
+  reply: (allow: boolean | null, always?: boolean) => void;
 }
 
 interface SessionOptions extends Partial<LaunchChoices> {
@@ -322,19 +325,22 @@ export class Session extends EventEmitter {
   }
 
   /** Keeps a PermissionRequest hook open until the user answers it here or in the terminal. */
-  holdPermission(ask: PermissionAsk, payload: any, reply: (allow: boolean | null) => void): string {
+  holdPermission(ask: PermissionAsk, always: PermissionRule[], payload: any, reply: HeldPermission['reply']): string {
     const id = randomUUID();
-    this.held.push({ ...ask, id, key: permissionKey(payload), reply });
+    this.held.push({ ...ask, id, key: permissionKey(payload), always, reply });
     this.emit('change');
     return id;
   }
 
-  /** Allow or deny from AgentHub. False when the request was already answered elsewhere. */
-  answerPermission(id: string, allow: boolean): boolean {
+  /**
+   * Allow or deny from AgentHub; `always` also saves the suggested allow rules.
+   * False when the request was already answered elsewhere.
+   */
+  answerPermission(id: string, allow: boolean, always = false): boolean {
     const held = this.held.find((p) => p.id === id);
     if (!held) return false;
     this.held = this.held.filter((p) => p !== held);
-    held.reply(allow);
+    held.reply(allow, allow && always);
     if (!this.held.length) {
       // Denying stops the turn, and Claude Code fires no Stop hook for that.
       this.activity = allow ? 'working' : 'idle';
@@ -432,7 +438,15 @@ export class Session extends EventEmitter {
       modelChoice: this.modelChoice,
       effortChoice: this.effortChoice,
       permissionMode: this.permissionMode,
-      permission: this.held[0] ? { id: this.held[0].id, tool: this.held[0].tool, verb: this.held[0].verb, target: this.held[0].target } : null,
+      permission: this.held[0]
+        ? {
+            id: this.held[0].id,
+            tool: this.held[0].tool,
+            verb: this.held[0].verb,
+            target: this.held[0].target,
+            always: this.held[0].always.map(describeRule),
+          }
+        : null,
     };
   }
 

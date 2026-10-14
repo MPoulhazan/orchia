@@ -7,6 +7,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { Session } from './session.ts';
 import { CONFIG_DIR, ProjectStore } from './projects.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
+import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
 import { isEffortLevel, isModelAlias, watchModel } from './models.ts';
@@ -447,7 +448,23 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/inspect$/, async (_req, _url, [id]) => {
     const session = findSession(id);
-    return { usage: session.usage, plan: session.plan, turns: session.turns, git: await gitSummary(session.cwd) };
+    return {
+      usage: session.usage,
+      plan: session.plan,
+      turns: session.turns,
+      git: await gitSummary(session.cwd),
+      allowRules: projectAllowRules(session.cwd),
+    };
+  }],
+  ['DELETE', /^\/api\/sessions\/([\w-]+)\/allow-rules$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    if (typeof body.rule !== 'string') throw new HttpError(400, 'Expected { rule }');
+    try {
+      removeAllowRule(findSession(id).cwd, body.rule);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    return { ok: true };
   }],
   ['DELETE', /^\/api\/sessions\/([\w-]+)$/, (_req, _url, [id]) => {
     closeSession(findSession(id));
@@ -457,8 +474,8 @@ const routes: [string, RegExp, Handler][] = [
 
   ['POST', /^\/api\/sessions\/([\w-]+)\/permission$/, async (req, _url, [id]) => {
     const body = await readJson(req);
-    if (typeof body.id !== 'string' || typeof body.allow !== 'boolean') throw new HttpError(400, 'Expected { id, allow }');
-    if (!findSession(id).answerPermission(body.id, body.allow)) throw new HttpError(409, 'Already answered');
+    if (typeof body.id !== 'string' || typeof body.allow !== 'boolean') throw new HttpError(400, 'Expected { id, allow, always? }');
+    if (!findSession(id).answerPermission(body.id, body.allow, body.always === true)) throw new HttpError(409, 'Already answered');
     return { ok: true };
   }],
 
@@ -498,11 +515,12 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   const ask = payload?.hook_event_name === 'PermissionRequest' ? permissionAsk(payload, session.cwd) : null;
   if (!ask || session.status !== 'running') return res.writeHead(204).end();
   let timer: NodeJS.Timeout;
-  const id = session.holdPermission(ask, payload, (allow) => {
+  const always = suggestedRules(payload);
+  const id = session.holdPermission(ask, always, payload, (allow, saveRules) => {
     clearTimeout(timer);
     if (res.writableEnded || res.destroyed) return;
     if (allow === null) res.writeHead(204).end();
-    else sendJson(res, 200, permissionDecision(allow));
+    else sendJson(res, 200, permissionDecision(allow, saveRules ? always : []));
   });
   // Give up shortly before Claude Code does, so it gets a clean answer.
   timer = setTimeout(() => session.releasePermissions((p) => p.id === id), (PERMISSION_WAIT_S - 5) * 1000);

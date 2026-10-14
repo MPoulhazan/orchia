@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { PermissionRule } from './permissionRules.ts';
 
 /**
  * Claude Code reports what it is doing through HTTP hooks injected with
@@ -150,13 +151,17 @@ function relativeTo(dir: string, file: string): string {
   return same(target.slice(0, base.length + 1), base + '/') ? target.slice(base.length + 1) : target;
 }
 
-/** The body that answers a held PermissionRequest hook. */
-export function permissionDecision(allow: boolean) {
+/**
+ * The body that answers a held PermissionRequest hook. `rules` are saved as the
+ * project's allow rules, like answering "Yes, and don't ask again" in the terminal.
+ */
+export function permissionDecision(allow: boolean, rules: PermissionRule[] = []) {
+  const save = rules.length ? { updatedPermissions: [{ type: 'addRules', rules, behavior: 'allow', destination: 'localSettings' }] } : {};
   return {
     hookSpecificOutput: {
       hookEventName: 'PermissionRequest',
       decision: allow
-        ? { behavior: 'allow' }
+        ? { behavior: 'allow', ...save }
         : // Stops the turn, like answering No in the terminal: Claude waits for instructions.
           { behavior: 'deny', message: 'The user denied this from AgentHub.', interrupt: true },
     },

@@ -6,9 +6,10 @@ Ideas agreed on but not built yet.
 
 Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). In this order:
 
-1. **Always allow**: a menu on Allow (inbox and grid) adds the rule Claude Code itself suggests
-   (its "don't ask again" option) to `.claude/settings.local.json`. The inspector lists the
-   project's rules, each removable.
+1. ~~**Always allow**~~ built: a menu on Allow (inbox and grid) saves the rules Claude Code
+   suggests in the PermissionRequest hook (`permission_suggestions`, answered with
+   `updatedPermissions`, destination `localSettings`). The inspector lists the project's
+   rules, each removable. Shown only when Claude Code suggests an allow rule.
 2. **Done summary**: one line from Claude's last reply under a finished session, reused by the
    inbox card, the desktop notification and the palette.
 3. **Up next**: a queue of prompts under the terminal, sent one at a time on Stop, never while
