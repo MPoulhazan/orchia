@@ -226,7 +226,9 @@ function Attention(props: {
 
 /** A connector Claude can't use until the user signs in: opens the browser on the service's sign-in page. */
 function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNeeded; projectName: string; selected: boolean; onOpen: () => void }) {
-  const [started, setStarted] = useState(false);
+  // Until the server reports the sign-in it just started.
+  const [starting, setStarting] = useState(false);
+  const busy = signIn.signingIn || starting;
   return (
     <div className="attention-row" data-selected={selected}>
       <button className="attention-open" onClick={onOpen}>
@@ -235,19 +237,24 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
           <b>{signIn.label}</b>
           <span className="attention-project">· {projectName}</span>
         </span>
-        <span className="attention-detail">Claude can't use {signIn.label} until you sign in.</span>
+        <span className="attention-detail">
+          {signIn.error && !busy ? signIn.error : `Claude can't use ${signIn.label} until you sign in.`}
+        </span>
       </button>
       <span className="perm-acts" data-small>
         <button
           className="btn btn-primary"
-          disabled={started}
+          disabled={busy}
           title={`Sign in to ${signIn.label} in your browser`}
           onClick={() => {
-            setStarted(true);
-            api.changeConnectors(signIn.sessionId, { action: 'signin', name: signIn.name }).catch(() => setStarted(false));
+            setStarting(true);
+            api
+              .changeConnectors(signIn.sessionId, { action: 'signin', name: signIn.name })
+              .catch(() => {})
+              .finally(() => setStarting(false));
           }}
         >
-          {started ? 'Finish in browser' : 'Sign in'}
+          {busy ? 'Finish in browser' : signIn.error ? 'Try again' : 'Sign in'}
         </button>
       </span>
     </div>

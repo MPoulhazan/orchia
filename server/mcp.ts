@@ -288,7 +288,12 @@ export function signIn(cwd: string, name: string) {
   proc.onExit(({ exitCode }) => {
     clearTimeout(timer);
     const text = out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
-    if (exitCode !== 0 && !state.error) state.error = text.match(/Couldn't[^\r\n]*/)?.[0] ?? 'Sign-in did not finish.';
+    if (exitCode !== 0 && !state.error) {
+      state.error = /dynamic client registration/i.test(text)
+        ? // GitHub's server, for one: Claude Code can't sign in by itself, the server needs a token header.
+          "This service doesn't let Claude Code sign in by itself. Add it again with an access token."
+        : (text.match(/Couldn't[^\r\n]*/)?.[0] ?? 'Sign-in did not finish.');
+    }
     state.done = true;
     // Check the list again; a sign-in that worked stays known until that check is done, a failed one until the next try.
     projectConnectors(cwd, true).finally(() => {

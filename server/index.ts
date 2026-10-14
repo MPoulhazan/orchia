@@ -61,11 +61,19 @@ function signInNeeded() {
     const seen = latest.get(s.projectId);
     if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
   }
-  return [...latest.values()].flatMap((s) =>
-    cachedConnectors(s.cwd)
+  return [...latest.values()].flatMap((s) => {
+    const started = signInsFor(s.cwd);
+    return cachedConnectors(s.cwd)
       .filter((c) => c.state === 'needs-auth')
-      .map((c) => ({ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label })),
-  );
+      .map((c) => ({
+        sessionId: s.id,
+        projectId: s.projectId,
+        name: c.name,
+        label: c.label,
+        signingIn: started[c.name]?.done === false,
+        error: started[c.name]?.error ?? null,
+      }));
+  });
 }
 
 // A sign-in that is needed shows in "Needs you" as soon as a check finds it.
@@ -367,6 +375,7 @@ const routes: [string, RegExp, Handler][] = [
     try {
       if (body.action === 'signin') {
         signIn(session.cwd, String(body.name ?? ''));
+        broadcast();
         return { ok: true };
       }
       if (body.action === 'toggle') {

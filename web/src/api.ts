@@ -33,6 +33,10 @@ export interface SignInNeeded {
   projectId: string;
   name: string;
   label: string;
+  /** A sign-in runs: it waits for the browser. */
+  signingIn: boolean;
+  /** Why the last sign-in failed. */
+  error: string | null;
 }
 
 /** `claude --permission-mode` values offered in AgentHub. */
