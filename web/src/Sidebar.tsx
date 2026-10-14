@@ -181,7 +181,8 @@ function Attention(props: {
       </div>
       <div className="attention">
         {list.map((s) => (
-          <div key={s.id} className="attention-row" data-selected={s.id === props.selectedId}>
+          // A plain "Done" has nothing more to say than its title: one line.
+          <div key={s.id} className="attention-row" data-selected={s.id === props.selectedId} data-compact={statusOf(s) === 'done' && !s.detail}>
             <button className="attention-open" onClick={() => props.onSelect(s)}>
               <span className="attention-title">
                 {s.permission ? (
@@ -200,7 +201,7 @@ function Attention(props: {
                 ) : statusOf(s) === 'waiting' ? (
                   (s.detail ?? 'Needs your input')
                 ) : (
-                  (s.detail ?? 'Finished')
+                  s.detail
                 )}
               </span>
             </button>
@@ -229,8 +230,10 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
   // Until the server reports the sign-in it just started.
   const [starting, setStarting] = useState(false);
   const busy = signIn.signingIn || starting;
+  // One line with the button beside the title, unless it is selected or has more to say.
+  const compact = !selected && !busy && !signIn.error;
   return (
-    <div className="attention-row" data-selected={selected}>
+    <div className="attention-row" data-selected={selected} data-compact={compact}>
       <button className="attention-open" onClick={onOpen}>
         <span className="attention-title">
           <span className="mark">Sign in</span>

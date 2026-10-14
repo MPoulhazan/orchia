@@ -399,21 +399,43 @@ kbd {
   font-weight: 800;
 }
 
+/* Scrolls on its own past 45% of the sidebar so Projects keeps its room. */
 .attention {
   display: flex;
+  flex: 0 1 auto;
   flex-direction: column;
   gap: 6px;
-  padding: 0 12px 10px;
+  min-height: 0;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 2px 12px 10px;
 }
 
 .attention-row {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 7px;
   padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--panel);
+}
+
+.attention-row[data-compact='true'] {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+}
+
+.attention-row[data-compact='true'] .attention-open {
+  flex: 1;
+  min-width: 0;
+}
+
+.attention-row[data-compact='true'] .attention-detail {
+  display: none;
 }
 
 .attention-open {
@@ -492,6 +514,7 @@ kbd {
 
 .tree {
   flex: 1;
+  min-height: 120px;
   overflow-y: auto;
   padding: 0 12px 8px;
 }
