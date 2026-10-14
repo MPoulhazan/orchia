@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Project, SessionInfo } from './api';
-import { statusOf, type Status } from './status';
+import { filesChanged, statusOf, type Status } from './status';
+
+/** "Pins cluster above 40 markers. (3 files changed)" */
+function doneText(s: SessionInfo): string {
+  if (!s.summary) return 'Finished';
+  const files = filesChanged(s.summary.files);
+  return files ? `${s.summary.text} (${files})` : s.summary.text;
+}
 import { storage } from './storage';
 
 export type NotifyState = 'on' | 'off' | 'blocked';
@@ -53,7 +60,7 @@ export function useNotifications(sessions: SessionInfo[], projects: Project[], o
 
       const project = projects.find((p) => p.id === s.projectId)?.name ?? '';
       const notification = new Notification(`${project} / ${s.name}`, {
-        body: status === 'waiting' ? (s.detail ?? 'Needs your input') : (s.detail ?? 'Finished'),
+        body: status === 'waiting' ? (s.detail ?? 'Needs your input') : (s.detail ?? doneText(s)),
         tag: s.id,
       });
       notification.onclick = () => {

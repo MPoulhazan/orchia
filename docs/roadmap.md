@@ -10,8 +10,10 @@ Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). 
    suggests in the PermissionRequest hook (`permission_suggestions`, answered with
    `updatedPermissions`, destination `localSettings`). The inspector lists the project's
    rules, each removable. Shown only when Claude Code suggests an allow rule.
-2. **Done summary**: one line from Claude's last reply under a finished session, reused by the
-   inbox card, the desktop notification and the palette.
+2. ~~**Done summary**~~ built: the Stop hook's `last_assistant_message`, cut to its first
+   meaningful sentences (server/summary.ts, no model call), plus the files edited in the turn.
+   Shown in the inbox Done card, under grid cells, and in the desktop notification. Left for
+   later: the palette (it lists no sessions yet) and "tests passed" (no reliable signal).
 3. **Up next**: a queue of prompts under the terminal, sent one at a time on Stop, never while
    the user types or while Claude waits for an answer. Shown as "+2" on the tab.
 4. **Own copy, then review and merge**: when another session is already changing files in the

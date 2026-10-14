@@ -1373,6 +1373,45 @@ kbd {
   font-size: 12.5px;
 }
 
+/* Grid cell: what the last turn did. Blue while unseen, quiet once looked at. */
+.done-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--hover);
+  font-size: 12.5px;
+}
+
+.done-bar[data-status='done'] {
+  border-top-color: color-mix(in srgb, var(--done) 40%, var(--border));
+  background: color-mix(in srgb, var(--done) 7%, var(--panel));
+}
+
+.done-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.done-bar[data-status='done'] .done-text b {
+  color: var(--done);
+}
+
+.done-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.attention-detail .done-meta {
+  font-size: inherit;
+}
+
 .ask-text {
   flex: 1;
   min-width: 0;

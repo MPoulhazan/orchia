@@ -4,7 +4,7 @@ import { api, type Project, type SessionInfo, type SignInNeeded } from './api';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
-import { StatusDot, initials, needsAttention, statusLabel, statusOf } from './status';
+import { DoneSummary, StatusDot, initials, needsAttention, statusLabel, statusOf } from './status';
 import type { RateLimits } from './api';
 import { UsageMeters } from './Limits';
 import { TokenPanel } from './Connectors';
@@ -183,7 +183,7 @@ function Attention(props: {
       <div className="attention">
         {list.map((s) => (
           // A plain "Done" has nothing more to say than its title: one line.
-          <div key={s.id} className="attention-row" data-selected={s.id === props.selectedId} data-compact={statusOf(s) === 'done' && !s.detail}>
+          <div key={s.id} className="attention-row" data-selected={s.id === props.selectedId} data-compact={statusOf(s) === 'done' && !s.detail && !s.summary}>
             <button className="attention-open" onClick={() => props.onSelect(s)}>
               <span className="attention-title">
                 {s.permission ? (
@@ -202,7 +202,7 @@ function Attention(props: {
                 ) : statusOf(s) === 'waiting' ? (
                   (s.detail ?? 'Needs your input')
                 ) : (
-                  s.detail
+                  (s.detail ?? <DoneSummary session={s} />)
                 )}
               </span>
             </button>

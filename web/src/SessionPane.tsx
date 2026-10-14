@@ -3,7 +3,7 @@ import { LayoutGrid, Maximize2, PanelRight, RotateCcw, X } from 'lucide-react';
 import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
 import { ConfirmButton } from './ui';
-import { StatusDot, statusLabel, statusOf, timeAgo } from './status';
+import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
 import { PermissionButtons, PermissionText } from './Permission';
 
@@ -125,6 +125,17 @@ export function SessionPane(props: Props) {
               Answer in the terminal
             </button>
           )}
+        </div>
+      )}
+
+      {compact && session.summary && (statusOf(session) === 'done' || statusOf(session) === 'idle') && (
+        <div className="done-bar" data-status={statusOf(session)} title={session.summary.text}>
+          <span className="done-text">
+            <b>Done.</b> {session.summary.text}
+          </span>
+          <span className="done-meta">
+            {[filesChanged(session.summary.files), timeAgo(session.summary.at)].filter(Boolean).join(' · ')}
+          </span>
         </div>
       )}
 

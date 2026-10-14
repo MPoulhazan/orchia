@@ -32,6 +32,24 @@ export function StatusDot({ session }: { session: SessionInfo }) {
   return <span className="status-dot" data-status={status} title={session.detail ?? statusLabel[status]} />;
 }
 
+/** "3 files changed", or null when the turn changed none. */
+export function filesChanged(n: number): string | null {
+  return n ? `${n} file${n > 1 ? 's' : ''} changed` : null;
+}
+
+/** "Pins cluster above 40 markers. · 3 files changed": what the last turn did. */
+export function DoneSummary({ session }: { session: SessionInfo }) {
+  const summary = session.summary;
+  if (!summary) return null;
+  const files = filesChanged(summary.files);
+  return (
+    <>
+      {summary.text}
+      {files && <span className="done-meta"> · {files}</span>}
+    </>
+  );
+}
+
 /** Two letters for the rail: "Scraper fix" → SF, "Session 1" → S1, "orchia" → OR. */
 export function initials(name: string): string {
   const words = name.trim().split(/[\s_-]+/).filter(Boolean);

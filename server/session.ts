@@ -5,6 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
+import { summarize, type TurnSummary } from './summary.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 
 // These packages ship CommonJS entry points; load them through require.
@@ -41,6 +42,8 @@ export interface SessionInfo {
   permissionMode: PermissionMode | null;
   /** The permission request AgentHub can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
+  /** What the last finished turn did; cleared when a new one starts. */
+  summary: TurnSummary | null;
 }
 
 export interface LaunchChoices {
@@ -59,6 +62,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   claudeSessionId: string;
   exited: boolean;
   model?: string | null;
+  summary?: TurnSummary | null;
   usage?: Usage | null;
   plan?: PlanItem[];
   turns?: number;
@@ -117,6 +121,10 @@ export class Session extends EventEmitter {
   usage: Usage | null;
   plan: PlanItem[];
   turns: number;
+  /** What the last finished turn did, from the Stop hook. */
+  summary: TurnSummary | null;
+  /** Files edited or written since the turn started. */
+  private turnFiles = new Set<string>();
   /** The skill Claude last used, from the hooks. */
   lastSkill: { name: string; at: number } | null = null;
   /** The MCP server whose tool Claude last called, as in the tool name: `mcp__<server>__<tool>`. */
@@ -148,6 +156,7 @@ export class Session extends EventEmitter {
     this.usage = restore?.usage ?? null;
     this.plan = restore?.plan ?? [];
     this.turns = restore?.turns ?? 0;
+    this.summary = restore?.summary ?? null;
     this.hookSettings = opts.hookSettings;
     this.cols = opts.cols ?? 120;
     this.rows = opts.rows ?? 32;
@@ -274,6 +283,7 @@ export class Session extends EventEmitter {
     this.usage = null;
     this.plan = [];
     this.turns = 0;
+    this.summary = null;
   }
 
   /** Cost and context, reported by the status line relay. Not broadcast: the inspector asks for them. */
@@ -309,7 +319,19 @@ export class Session extends EventEmitter {
   /** Turns and plan, from the hooks. */
   trackHook(payload: any) {
     const event = payload?.hook_event_name;
-    if (event === 'UserPromptSubmit') this.turns++;
+    if (event === 'UserPromptSubmit') {
+      this.turns++;
+      this.summary = null;
+      this.turnFiles.clear();
+    }
+    if (event === 'PostToolUse' && EDIT_TOOLS.has(payload.tool_name)) {
+      const file = payload.tool_input?.file_path ?? payload.tool_input?.notebook_path;
+      if (typeof file === 'string') this.turnFiles.add(file);
+    }
+    if (event === 'Stop') {
+      const text = summarize(payload.last_assistant_message);
+      this.summary = text ? { text, files: this.turnFiles.size, at: Date.now() } : null;
+    }
     if (event === 'PostToolUse' && payload.tool_name === 'Skill') {
       const input = payload.tool_input ?? {};
       const name = String(input.skill ?? input.command ?? input.name ?? '').replace(/^\//, '');
@@ -447,6 +469,7 @@ export class Session extends EventEmitter {
             always: this.held[0].always.map(describeRule),
           }
         : null,
+      summary: this.summary,
     };
   }
 
@@ -466,9 +489,12 @@ export class Session extends EventEmitter {
       usage: this.usage,
       plan: this.plan,
       turns: this.turns,
+      summary: this.summary,
     };
   }
 }
+
+const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 
 function permissionKey(payload: any): string {
   return JSON.stringify([payload?.tool_name, payload?.tool_input]);

@@ -28,6 +28,8 @@ export interface SessionInfo {
    * `always`: the rules "Always allow" saves, as Claude Code suggests them; may be empty.
    */
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
+  /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
+  summary: { text: string; files: number; at: number } | null;
 }
 
 /** A project allow rule: "Run" + `npm test *`. `rule` is how settings spell it: `Bash(npm test:*)`. */
