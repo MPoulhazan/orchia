@@ -15,9 +15,21 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
-import { addConnector, cachedConnectors, onConnectorsChecked, projectConnectors, setConnectorEnabled, signIn, signInsFor } from './mcp.ts';
+import {
+  addConnector,
+  cachedConnectors,
+  onConnectorsChecked,
+  projectConnectors,
+  removeConnector,
+  serverConfig,
+  setConnectorEnabled,
+  setConnectorToken,
+  signIn,
+  signInsFor,
+} from './mcp.ts';
 import { catalogConnectors } from './mcpCatalog.ts';
-import { configFrom } from './mcpSource.ts';
+import { checkToken, cliToken, probeConnector, tokenHelp } from './mcpProbe.ts';
+import { configFrom, type McpServerConfig } from './mcpSource.ts';
 import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
 import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
@@ -53,6 +65,16 @@ function state() {
   };
 }
 
+/** The token to send to a connector: the one its service's CLI holds, or one pasted. Checked with the server first. */
+async function tokenFrom(server: { type: 'http' | 'sse'; url: string }, body: any): Promise<string | null> {
+  const token = body.useCli === true ? await cliToken(server.url) : typeof body.token === 'string' ? body.token.trim().replace(/^Bearer\s+/i, '') : '';
+  if (body.useCli === true && !token) throw new Error('The CLI is not signed in any more. Paste a token instead.');
+  if (!token) return null;
+  if (!/^[\x21-\x7e]{8,4096}$/.test(token)) throw new Error("That doesn't look like a token");
+  await checkToken(server.url, server.type, token);
+  return token;
+}
+
 /** Connectors that wait for the user to sign in, in projects with a running session (the latest one, to open). */
 function signInNeeded() {
   const latest = new Map<string, Session>();
@@ -64,12 +86,13 @@ function signInNeeded() {
   return [...latest.values()].flatMap((s) => {
     const started = signInsFor(s.cwd);
     return cachedConnectors(s.cwd)
-      .filter((c) => c.state === 'needs-auth')
+      .filter((c) => c.state === 'needs-auth' || c.state === 'needs-token')
       .map((c) => ({
         sessionId: s.id,
         projectId: s.projectId,
         name: c.name,
         label: c.label,
+        needs: c.state === 'needs-token' ? 'token' : 'signin',
         signingIn: started[c.name]?.done === false,
         error: started[c.name]?.error ?? null,
       }));
@@ -369,6 +392,19 @@ const routes: [string, RegExp, Handler][] = [
     const { connectors } = await projectConnectors(session.cwd);
     return { catalog: catalogConnectors(session.cwd, connectors) };
   }],
+  // How a server gets its access, before adding it: see mcpProbe.ts.
+  ['POST', /^\/api\/sessions\/([\w-]+)\/connectors\/probe$/, async (req, _url, [id]) => {
+    findSession(id);
+    const server = configFrom((await readJson(req)).server);
+    if (!server) throw new HttpError(400, 'Give a server URL or the command that starts it');
+    return { auth: await probeConnector(server) };
+  }],
+  // Where to get a token for a connector that needs one.
+  ['GET', /^\/api\/sessions\/([\w-]+)\/connectors\/token$/, async (_req, url, [id]) => {
+    const server = serverConfig(findSession(id).cwd, url.searchParams.get('name') ?? '');
+    if (!server || server.type === 'stdio') throw new HttpError(400, "This connector can't take a token from here");
+    return { help: await tokenHelp(server.url) };
+  }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (req, _url, [id]) => {
     const session = findSession(id);
     const body = await readJson(req);
@@ -385,7 +421,23 @@ const routes: [string, RegExp, Handler][] = [
       if (body.action === 'add') {
         const server = configFrom(body.server);
         if (!server) throw new Error('Give a server URL or the command that starts it');
-        addConnector(session.cwd, String(body.name ?? '').trim(), server, body.scope === 'all' ? 'all' : 'project');
+        const token = server.type === 'stdio' ? null : await tokenFrom(server, body);
+        const added: McpServerConfig = token && server.type !== 'stdio' ? { ...server, headers: { ...server.headers, Authorization: `Bearer ${token}` } } : server;
+        addConnector(session.cwd, String(body.name ?? '').trim(), added, body.scope === 'all' ? 'all' : 'project');
+        return { ok: true };
+      }
+      if (body.action === 'token') {
+        const name = String(body.name ?? '');
+        const server = serverConfig(session.cwd, name);
+        if (!server || server.type === 'stdio') throw new Error(`${name} can't take a token from here`);
+        const token = await tokenFrom(server, body);
+        if (!token) throw new Error('Paste a token');
+        setConnectorToken(session.cwd, name, token);
+        projectConnectors(session.cwd, true).catch(() => {});
+        return { ok: true };
+      }
+      if (body.action === 'remove') {
+        removeConnector(session.cwd, String(body.name ?? ''));
         return { ok: true };
       }
     } catch (err) {

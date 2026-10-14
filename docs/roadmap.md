@@ -5,10 +5,16 @@ Ideas agreed on but not built yet.
 ## MCP connectors, next
 
 The Connectors section in the inspector is built (see, turn off per project, add, sign in,
-"Needs you" card). Mockups: https://claude.ai/artifact/SFWthcC34G5Uigy3ZzDr1i. Only if needed:
+"Needs you" card, remove). Adding one checks first how it connects (server/mcpProbe.ts): browser
+sign-in, none, or an access token (GitHub: taken from the gh CLI or pasted). Mockups:
+https://claude.ai/artifact/SFWthcC34G5Uigy3ZzDr1i. Next (lot 2 of the 2026-10-14 plan):
 
-- **Remove** a connector added from AgentHub (from every entry of the project in
-  `~/.claude.json`: it is sometimes there once per drive-letter case).
+- **Account first**: when the claude.ai account already has the service (Supabase, Vercel…),
+  say so in the catalog instead of offering a second one.
+- **Restart by itself** once the session is idle after a connector change (conversation kept).
+
+Only if needed:
+
 - **Share with the repo** (`.mcp.json`), left out on purpose for now.
 - A **Connectors tab in Settings** for an overview of accounts and projects (proposal 3),
   or one **Tools** section for skills and connectors together (proposal 2).

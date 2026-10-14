@@ -33,6 +33,8 @@ export interface SignInNeeded {
   projectId: string;
   name: string;
   label: string;
+  /** `token`: Claude Code can't sign in to it, it takes an access token. */
+  needs: 'signin' | 'token';
   /** A sign-in runs: it waits for the browser. */
   signingIn: boolean;
   /** Why the last sign-in failed. */
@@ -146,7 +148,7 @@ export interface Connector {
   label: string;
   source: ConnectorSource;
   target: string;
-  state: 'connected' | 'needs-auth' | 'failed' | 'disabled' | 'pending' | 'unknown';
+  state: 'connected' | 'needs-auth' | 'needs-token' | 'failed' | 'disabled' | 'pending' | 'unknown';
   detail: string;
   toolPrefix: string;
 }
@@ -160,10 +162,31 @@ export interface ConnectorCatalogItem {
   reason?: string;
 }
 
+/** Where a connector gets a token: the service's CLI on this computer, or one pasted. */
+export type TokenChoice = { useCli: true } | { token: string };
+
 export type ConnectorChange =
   | { action: 'toggle'; name: string; on: boolean }
   | { action: 'signin'; name: string }
-  | { action: 'add'; name: string; server: McpServerConfig; scope: SkillScope };
+  | ({ action: 'add'; name: string; server: McpServerConfig; scope: SkillScope } & Partial<{ useCli: true; token: string }>)
+  | ({ action: 'token'; name: string } & TokenChoice)
+  | { action: 'remove'; name: string };
+
+/** Where to get a token for a service that wants one. */
+export interface TokenHelp {
+  service: string | null;
+  createUrl: string | null;
+  /** A CLI on this computer, signed in to the service, that can lend its token. */
+  cli: string | null;
+}
+
+/** How a server gets its access, found before adding it (server/mcpProbe.ts). */
+export type ConnectorAuth =
+  | { kind: 'local' }
+  | { kind: 'open' }
+  | { kind: 'browser' }
+  | { kind: 'token'; help: TokenHelp }
+  | { kind: 'unreachable'; error: string };
 
 export type SkillChange =
   | { action: 'toggle'; id: string; on: boolean }
@@ -220,6 +243,10 @@ export const api = {
     }>(`/api/sessions/${id}/connectors`),
   availableConnectors: (id: string) => request<{ catalog: ConnectorCatalogItem[] }>(`/api/sessions/${id}/connectors/available`),
   changeConnectors: (id: string, change: ConnectorChange) => request<{ ok: true }>(`/api/sessions/${id}/connectors`, 'POST', change),
+  probeConnector: (id: string, server: McpServerConfig) =>
+    request<{ auth: ConnectorAuth }>(`/api/sessions/${id}/connectors/probe`, 'POST', { server }),
+  connectorTokenHelp: (id: string, name: string) =>
+    request<{ help: TokenHelp }>(`/api/sessions/${id}/connectors/token?name=${encodeURIComponent(name)}`),
   /** Saves an image for the session's Claude and returns where it went. */
   pasteImage: async (id: string, image: Blob) => {
     const res = await fetch(`/api/sessions/${id}/paste`, {

@@ -2335,6 +2335,67 @@ a.conn-state:hover {
   color: var(--danger);
 }
 
+.conn-row[data-state='needs-token'] {
+  margin-inline: -6px;
+  padding-inline: 6px;
+  border-radius: var(--radius);
+  background: var(--hl-soft);
+}
+
+/* Removing is rare: shown on hover, and always where something is wrong. */
+.icon-btn.conn-remove {
+  width: 22px;
+  height: 22px;
+  visibility: hidden;
+}
+
+.conn-remove.is-armed {
+  width: auto;
+  height: 22px;
+}
+
+.conn-row:hover .conn-remove,
+.conn-row:focus-within .conn-remove,
+.conn-row[data-state='failed'] .conn-remove,
+.conn-remove.is-armed {
+  visibility: visible;
+}
+
+.conn-token {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+.conn-token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.conn-token-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.conn-token-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.conn-token-link:hover {
+  color: var(--text);
+}
+
+.attention-row .conn-token .btn {
+  height: 28px;
+}
+
 .palette-item.skill-item {
   height: auto;
   min-height: 34px;

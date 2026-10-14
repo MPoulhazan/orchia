@@ -7,6 +7,7 @@ import { PermissionButtons, PermissionText } from './Permission';
 import { StatusDot, initials, needsAttention, statusLabel, statusOf } from './status';
 import type { RateLimits } from './api';
 import { UsageMeters } from './Limits';
+import { TokenPanel } from './Connectors';
 
 export type View = 'focus' | 'grid';
 
@@ -230,8 +231,11 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
   // Until the server reports the sign-in it just started.
   const [starting, setStarting] = useState(false);
   const busy = signIn.signingIn || starting;
+  // A service Claude Code can't sign in to: the token form opens in the row.
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const token = signIn.needs === 'token';
   // One line with the button beside the title, unless it is selected or has more to say.
-  const compact = !selected && !busy && !signIn.error;
+  const compact = !selected && !busy && !signIn.error && !tokenOpen;
   return (
     <div className="attention-row" data-selected={selected} data-compact={compact}>
       <button className="attention-open" onClick={onOpen}>
@@ -241,25 +245,41 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
           <span className="attention-project">· {projectName}</span>
         </span>
         <span className="attention-detail">
-          {signIn.error && !busy ? signIn.error : `Claude can't use ${signIn.label} until you sign in.`}
+          {token
+            ? `${signIn.label} takes an access token: Claude Code can't sign in to it.`
+            : signIn.error && !busy
+              ? signIn.error
+              : `Claude can't use ${signIn.label} until you sign in.`}
         </span>
       </button>
-      <span className="perm-acts" data-small>
-        <button
-          className="btn btn-primary"
-          disabled={busy}
-          title={`Sign in to ${signIn.label} in your browser`}
-          onClick={() => {
-            setStarting(true);
-            api
-              .changeConnectors(signIn.sessionId, { action: 'signin', name: signIn.name })
-              .catch(() => {})
-              .finally(() => setStarting(false));
-          }}
-        >
-          {busy ? 'Finish in browser' : signIn.error ? 'Try again' : 'Sign in'}
-        </button>
-      </span>
+      {token ? (
+        tokenOpen ? (
+          <TokenPanel sessionId={signIn.sessionId} name={signIn.name} onDone={() => setTokenOpen(false)} />
+        ) : (
+          <span className="perm-acts" data-small>
+            <button className="btn btn-primary" onClick={() => setTokenOpen(true)}>
+              Add token
+            </button>
+          </span>
+        )
+      ) : (
+        <span className="perm-acts" data-small>
+          <button
+            className="btn btn-primary"
+            disabled={busy}
+            title={`Sign in to ${signIn.label} in your browser`}
+            onClick={() => {
+              setStarting(true);
+              api
+                .changeConnectors(signIn.sessionId, { action: 'signin', name: signIn.name })
+                .catch(() => {})
+                .finally(() => setStarting(false));
+            }}
+          >
+            {busy ? 'Finish in browser' : signIn.error ? 'Try again' : 'Sign in'}
+          </button>
+        </span>
+      )}
     </div>
   );
 }

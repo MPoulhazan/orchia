@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Link2, Plug, Plus, Power, Sparkles } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Link2, Plug, Plus, Power, Sparkles, Trash2 } from 'lucide-react';
 import { describeServer, parseMcpSource, type McpServerConfig } from '../../server/mcpSource';
-import { api, type Connector, type ConnectorCatalogItem, type ConnectorSource, type SessionInfo, type SkillScope } from './api';
+import {
+  api,
+  type Connector,
+  type ConnectorAuth,
+  type ConnectorCatalogItem,
+  type ConnectorSource,
+  type SessionInfo,
+  type SkillScope,
+  type TokenChoice,
+  type TokenHelp,
+} from './api';
 import { fuzzyScore } from './fuzzy';
-import { InspectorSection } from './ui';
+import { ConfirmButton, InspectorSection } from './ui';
 
 /**
  * Connectors (MCP servers) in the inspector, and the dialog that adds them. Like
@@ -21,6 +31,9 @@ const SOURCE_LABEL: Record<ConnectorSource, string> = {
 };
 
 const USED_MS = 10 * 60_000;
+
+/** A connector of the session (in `detail`) changed outside the inspector. */
+const CONNECTOR_CHANGED = 'agenthub:connector-changed';
 
 /** Bumped by the add dialog, so the list refreshes and offers a restart. */
 export type ConnectorsChange = number;
@@ -41,6 +54,15 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
     load();
   }, [session.id, session.activity, change]);
   useEffect(() => setChanged(false), [session.id]);
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== session.id) return;
+      setChanged(true);
+      load();
+    };
+    window.addEventListener(CONNECTOR_CHANGED, onChanged);
+    return () => window.removeEventListener(CONNECTOR_CHANGED, onChanged);
+  }, [session.id]);
   useEffect(() => {
     if (change) setChanged(true);
   }, [change]);
@@ -93,6 +115,21 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
       if (!state?.error) setChanged(true);
     }
   }, [data]);
+
+  // The connector whose token form is open.
+  const [tokenFor, setTokenFor] = useState<string | null>(null);
+  useEffect(() => setTokenFor(null), [session.id]);
+
+  async function remove(connector: Connector) {
+    setError('');
+    try {
+      await api.changeConnectors(session.id, { action: 'remove', name: connector.name });
+      setChanged(true);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    load();
+  }
 
   async function restart() {
     try {
@@ -151,10 +188,40 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
                   {usedNow(c) ? (
                     <span className="skill-used">used just now</span>
                   ) : (
-                    <ConnectorState connector={c} signIn={current.signIns[c.name]} onSignIn={() => signIn(c)} />
+                    <ConnectorState
+                      connector={c}
+                      signIn={current.signIns[c.name]}
+                      onSignIn={() => signIn(c)}
+                      onToken={() => setTokenFor(tokenFor === c.name ? null : c.name)}
+                    />
                   )}
                 </span>
-                {current.signIns[c.name]?.error && <p className="skill-error conn-error">{current.signIns[c.name].error}</p>}
+                {(c.source === 'user' || c.source === 'local') && (
+                  <ConfirmButton
+                    className="icon-btn conn-remove"
+                    confirmLabel="Remove"
+                    title={`Remove ${c.label}${c.source === 'user' ? ' from all projects' : ''}`}
+                    onConfirm={() => remove(c)}
+                  >
+                    <Trash2 size={13} />
+                  </ConfirmButton>
+                )}
+                {current.signIns[c.name]?.error && c.state !== 'needs-token' && (
+                  <p className="skill-error conn-error">{current.signIns[c.name].error}</p>
+                )}
+                {tokenFor === c.name && c.state === 'needs-token' && (
+                  <div className="conn-error">
+                    <TokenPanel
+                      sessionId={session.id}
+                      name={c.name}
+                      onDone={() => {
+                        setTokenFor(null);
+                        setChanged(true);
+                        load();
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -171,10 +238,12 @@ function ConnectorState({
   connector: c,
   signIn,
   onSignIn,
+  onToken,
 }: {
   connector: Connector;
   signIn?: { url: string | null; done: boolean };
   onSignIn: () => void;
+  onToken: () => void;
 }) {
   if (signIn && !signIn.done) {
     return signIn.url ? (
@@ -190,6 +259,12 @@ function ConnectorState({
       return (
         <button className="btn btn-secondary conn-signin" onClick={onSignIn} title={`Sign in to ${c.label} in your browser`}>
           Sign in
+        </button>
+      );
+    case 'needs-token':
+      return (
+        <button className="btn btn-secondary conn-signin" onClick={onToken} title={`${c.label} takes an access token: Claude Code can't sign in to it`}>
+          Add token
         </button>
       );
     case 'failed':
@@ -370,6 +445,8 @@ export function ConnectorPicker({
   );
 }
 
+const TRUST = 'Claude can use its tools for you, so add only servers you trust.';
+
 function Confirm({
   session,
   choice,
@@ -385,24 +462,42 @@ function Confirm({
   const [scope, setScope] = useState<SkillScope>('project');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // How it connects, asked before adding: so that adding ends with a connector that works.
+  const [auth, setAuth] = useState<ConnectorAuth | null>(null);
   const validName = /^[\w.-]{1,64}$/.test(name.trim());
 
-  async function add() {
+  useEffect(() => {
+    api
+      .probeConnector(session.id, choice.server)
+      .then((r) => setAuth(r.auth))
+      // Can't tell: add it the way it was, the connector says what it needs once added.
+      .catch(() => setAuth({ kind: 'open' }));
+  }, [session.id, choice.server]);
+
+  /** Adds it, then opens the browser on the sign-in page when the service has one. Throws for the token form. */
+  async function add(token?: TokenChoice) {
+    const trimmed = name.trim();
+    await api.changeConnectors(session.id, { action: 'add', name: trimmed, server: choice.server, scope, ...token });
+    if (auth?.kind === 'browser') await api.changeConnectors(session.id, { action: 'signin', name: trimmed }).catch(() => {});
+    onDone();
+  }
+
+  async function addClicked() {
     setBusy(true);
     setError('');
     try {
-      await api.changeConnectors(session.id, { action: 'add', name: name.trim(), server: choice.server, scope });
-      onDone();
+      await add();
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
     }
   }
 
+  const ready = !!auth && auth.kind !== 'token';
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key !== 'Enter' || busy || !validName || (e.target as HTMLElement).tagName === 'BUTTON') return;
+    if (e.key !== 'Enter' || busy || !ready || !validName || (e.target as HTMLElement).tagName !== 'INPUT') return;
     e.preventDefault();
-    add();
+    addClicked();
   }
 
   return (
@@ -419,11 +514,6 @@ function Confirm({
           <input id="conn-name" className="conn-name" spellCheck={false} value={name} onChange={(e) => setName(e.target.value)} />
         </>
       )}
-      <p className="skill-hint">
-        {choice.server.type === 'stdio'
-          ? 'It runs on this computer. Claude can use its tools for you, so add only servers you trust.'
-          : 'Claude can use its tools for you, so add only servers you trust. If the service asks you to sign in, the connector says so once it is added.'}
-      </p>
       <div className="skill-scope">
         <span>Use it in</span>
         <div className="segmented segmented-text" role="radiogroup" aria-label="Where to add it">
@@ -434,12 +524,152 @@ function Confirm({
           ))}
         </div>
       </div>
+      {!auth ? (
+        <p className="skill-hint">Checking how it connects…</p>
+      ) : auth.kind === 'local' ? (
+        <p className="skill-hint">It runs on this computer. {TRUST}</p>
+      ) : auth.kind === 'open' ? (
+        <p className="skill-hint">No sign-in needed. {TRUST}</p>
+      ) : auth.kind === 'browser' ? (
+        <p className="skill-hint">Your browser opens to sign in to {choice.title} once it's added. {TRUST}</p>
+      ) : auth.kind === 'unreachable' ? (
+        <p className="skill-error">{auth.error} Add it anyway only if you know it works.</p>
+      ) : (
+        <>
+          <p className="skill-hint">
+            {auth.help.service ?? 'This service'} takes an access token: Claude Code can't sign in to it by itself. {TRUST}
+          </p>
+          <TokenForm help={auth.help} verb={`Add ${name.trim() || 'connector'}`} disabled={!validName} onSubmit={add} />
+        </>
+      )}
       {error && <p className="skill-error">{error}</p>}
-      <div className="skill-actions">
-        <button className="btn btn-primary" autoFocus onClick={add} disabled={busy || !validName}>
-          {busy ? 'Adding…' : `Add ${name.trim() || 'connector'}`}
-        </button>
-      </div>
+      {auth?.kind !== 'token' && (
+        <div className="skill-actions">
+          <button className="btn btn-primary" autoFocus onClick={addClicked} disabled={busy || !ready || !validName}>
+            {busy
+              ? 'Adding…'
+              : auth?.kind === 'browser'
+                ? 'Add and sign in'
+                : auth?.kind === 'unreachable'
+                  ? 'Add anyway'
+                  : `Add ${name.trim() || 'connector'}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Tokens -------------------------------------------------------------------------
+
+/** A token for a connector already added: asks where to get one, then saves it. */
+export function TokenPanel({ sessionId, name, onDone }: { sessionId: string; name: string; onDone: () => void }) {
+  const [help, setHelp] = useState<TokenHelp | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api
+      .connectorTokenHelp(sessionId, name)
+      .then((r) => setHelp(r.help))
+      .catch((err) => setError(err.message));
+  }, [sessionId, name]);
+  if (error) return <p className="skill-error">{error}</p>;
+  if (!help) return <p className="skill-hint">Looking for a token…</p>;
+  return (
+    <TokenForm
+      help={help}
+      verb="Connect"
+      onSubmit={async (choice) => {
+        await api.changeConnectors(sessionId, { action: 'token', name, ...choice });
+        // The inspector too, when it is done from "Needs you": it offers the restart.
+        window.dispatchEvent(new CustomEvent(CONNECTOR_CHANGED, { detail: sessionId }));
+        onDone();
+      }}
+    />
+  );
+}
+
+/**
+ * Where a connector gets its access token: in one click from the service's CLI
+ * when it is signed in on this computer, else pasted, with a link to create one.
+ * The server checks it with the service before saving it.
+ */
+function TokenForm({
+  help,
+  verb,
+  disabled,
+  onSubmit,
+}: {
+  help: TokenHelp;
+  verb: string;
+  disabled?: boolean;
+  onSubmit: (choice: TokenChoice) => Promise<void>;
+}) {
+  const [paste, setPaste] = useState(!help.cli);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(choice: TokenChoice) {
+    setBusy(true);
+    setError('');
+    try {
+      await onSubmit(choice);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="conn-token">
+      {!paste ? (
+        <div className="conn-token-row">
+          <button className="btn btn-primary" autoFocus disabled={busy || disabled} onClick={() => submit({ useCli: true })}>
+            {busy ? 'Checking…' : `${verb} with ${help.cli}`}
+          </button>
+          <button className="btn btn-ghost" onClick={() => setPaste(true)}>
+            Paste a token instead
+          </button>
+        </div>
+      ) : (
+        <>
+          <form
+            className="conn-token-row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (token.trim()) submit({ token: token.trim() });
+            }}
+          >
+            <input
+              className="conn-name conn-token-input"
+              type="password"
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={`${help.service ?? 'Access'} token`}
+              aria-label="Access token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+            />
+            <button className="btn btn-primary" disabled={busy || disabled || !token.trim()}>
+              {busy ? 'Checking…' : verb}
+            </button>
+          </form>
+          <div className="conn-token-row">
+            {help.createUrl && (
+              <a className="conn-token-link" href={help.createUrl} target="_blank" rel="noreferrer">
+                Create a token on {help.service ?? 'the service'} <ExternalLink size={11} />
+              </a>
+            )}
+            {help.cli && (
+              <button className="btn btn-ghost" onClick={() => setPaste(false)}>
+                Use my {help.cli} sign-in
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      {error && <p className="skill-error">{error}</p>}
     </div>
   );
 }

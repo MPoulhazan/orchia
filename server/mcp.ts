@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { describeServer, NAME, type McpServerConfig } from './mcpSource.ts';
+import { configFrom, describeServer, NAME, type McpServerConfig } from './mcpSource.ts';
 import { samePath } from './projects.ts';
 import { cleanEnv } from './session.ts';
 import { readJsonFile, writeJsonFile } from './skills.ts';
@@ -25,7 +25,8 @@ const pty: typeof import('@lydell/node-pty') = createRequire(import.meta.url)('@
  */
 
 export type ConnectorSource = 'account' | 'user' | 'local' | 'project' | 'plugin';
-export type ConnectorState = 'connected' | 'needs-auth' | 'failed' | 'disabled' | 'pending' | 'unknown';
+/** `needs-token`: the server wants an access token, Claude Code can't sign in to it (no OAuth client registration). */
+export type ConnectorState = 'connected' | 'needs-auth' | 'needs-token' | 'failed' | 'disabled' | 'pending' | 'unknown';
 
 export interface Connector {
   /** The server's name in Claude Code, e.g. `github` or `claude.ai Gmail`. */
@@ -90,6 +91,7 @@ function stateOf(status: string): ConnectorState {
   const s = status.toLowerCase();
   if (s.includes('disabled')) return 'disabled';
   if (s.includes('pending')) return 'pending';
+  if (s.includes('dynamic client registration')) return 'needs-token';
   if (s.includes('auth')) return 'needs-auth';
   if (s.includes('connected') && !s.includes('fail')) return 'connected';
   if (s.includes('fail') || s.includes('error')) return 'failed';
@@ -227,6 +229,51 @@ export function addConnector(cwd: string, name: string, server: McpServerConfig,
   }
 }
 
+/** The entries of a server AgentHub can change: every project's (user scope) and this project's (local scope). */
+function ownServerEntries(config: any, cwd: string, name: string): any[] {
+  return [config?.mcpServers?.[name], ...projectEntries(config, cwd).map(([, entry]) => entry?.mcpServers?.[name])].filter(Boolean);
+}
+
+/** A server's config, as Claude Code keeps it, when it is one AgentHub can change. */
+export function serverConfig(cwd: string, name: string): McpServerConfig | null {
+  const entry = ownServerEntries(readJsonFile(CLAUDE_JSON), cwd, name)[0];
+  return entry ? configFrom(entry) : null;
+}
+
+/** Sends this token with every request to the server: for services Claude Code can't sign in to. */
+export function setConnectorToken(cwd: string, name: string, token: string) {
+  const config = readJsonFile(CLAUDE_JSON);
+  if (!config) throw new Error(`Can't read ${CLAUDE_JSON}`);
+  const entries = ownServerEntries(config, cwd, name).filter((e) => e.type === 'http' || e.type === 'sse');
+  if (!entries.length) throw new Error(`${name} can't take a token from here`);
+  for (const entry of entries) entry.headers = { ...entry.headers, Authorization: `Bearer ${token}` };
+  writeJsonFile(CLAUDE_JSON, config);
+  // Shown at once; the next check says whether it connects.
+  const hit = cache.get(cwd.toLowerCase());
+  if (hit) {
+    hit.connectors = hit.connectors.map((c) => (c.name === name ? { ...c, state: 'unknown', detail: 'Checking…' } : c));
+    hit.at = 0;
+  }
+}
+
+/** Removes a server added for every project or for this one. Others belong to the repo, a plugin or the account. */
+export function removeConnector(cwd: string, name: string) {
+  const config = readJsonFile(CLAUDE_JSON);
+  if (!config) throw new Error(`Can't read ${CLAUDE_JSON}`);
+  if (!ownServerEntries(config, cwd, name).length) throw new Error(`${name} can't be removed from here`);
+  if (config.mcpServers?.[name]) delete config.mcpServers[name];
+  // From every entry of the project: it is sometimes there once per drive-letter case.
+  for (const [, entry] of projectEntries(config, cwd)) {
+    if (entry?.mcpServers?.[name]) delete entry.mcpServers[name];
+    if (Array.isArray(entry?.disabledMcpServers)) entry.disabledMcpServers = entry.disabledMcpServers.filter((n: string) => n !== name);
+  }
+  writeJsonFile(CLAUDE_JSON, config);
+  const hit = cache.get(cwd.toLowerCase());
+  if (hit) hit.connectors = hit.connectors.filter((c) => c.name !== name);
+  signIns.delete(signInKey(cwd, name));
+  for (const listener of listeners) listener();
+}
+
 /** The entry Claude Code keeps. On Windows, npx and the like are batch files that only start through cmd. */
 function toClaudeConfig(server: McpServerConfig): Record<string, unknown> {
   if (server.type !== 'stdio') return { type: server.type, url: server.url, ...(server.headers ? { headers: server.headers } : {}) };
@@ -291,7 +338,7 @@ export function signIn(cwd: string, name: string) {
     if (exitCode !== 0 && !state.error) {
       state.error = /dynamic client registration/i.test(text)
         ? // GitHub's server, for one: Claude Code can't sign in by itself, the server needs a token header.
-          "This service doesn't let Claude Code sign in by itself. Add it again with an access token."
+          "This service needs an access token: Claude Code can't sign in to it."
         : (text.match(/Couldn't[^\r\n]*/)?.[0] ?? 'Sign-in did not finish.');
     }
     state.done = true;
