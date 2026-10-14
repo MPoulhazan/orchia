@@ -2,6 +2,31 @@
 
 Ideas agreed on but not built yet.
 
+## Delegate longer, in parallel
+
+Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). In this order:
+
+1. **Always allow**: a menu on Allow (inbox and grid) adds the rule Claude Code itself suggests
+   (its "don't ask again" option) to `.claude/settings.local.json`. The inspector lists the
+   project's rules, each removable.
+2. **Done summary**: one line from Claude's last reply under a finished session, reused by the
+   inbox card, the desktop notification and the palette.
+3. **Up next**: a queue of prompts under the terminal, sent one at a time on Stop, never while
+   the user types or while Claude waits for an answer. Shown as "+2" on the tab.
+4. **Own copy, then review and merge**: when another session is already changing files in the
+   folder, "+ New session" offers its own copy (a git worktree on an `agenthub/…` branch).
+   A **Changes** tab next to the terminal shows the diff, then Merge into main / Keep working /
+   Discard; on conflict, "Ask Claude to resolve". The copy sets itself up: copies `.env*`,
+   installs dependencies, warns when a dev server port is taken.
+
+Settings rule: a switch only for what AgentHub does **on its own**. Features 1–3 and the review
+start from a click, so they are always on, with no setting. The only new setting is per project,
+for the own copy: *Ask when another session is busy* (default), *Always in its own copy*,
+*Always in the same folder*, also reachable as "Remember for this project" in the New session
+dialog. It replaces the Git workflow lot below (Branch per task and Main only are no longer
+needed). Things that act alone get a switch: Compact between tasks (on), Restart by itself after
+a connector change (on), Auto-commit (off).
+
 ## MCP connectors, next
 
 The Connectors section in the inspector is built (see, turn off per project, add, sign in,
@@ -40,11 +65,8 @@ Mockups: https://claude.ai/artifact/33SN8zsCpe6svQYQJ3iMKd (proposal 2).
 The Settings dialog has defaults for new sessions (model, effort, permission mode),
 notifications and theme. Next, in this order:
 
-- **Git workflow**, per project: *Main only*, *Branch per task* (merged into main when
-  done) or *Worktree per session* (each session in its own copy of the repo, so parallel
-  sessions never touch each other's files). Sent as an instruction at launch that
-  overrides git rules in CLAUDE.md; a PreToolUse hook can block commits on main in
-  branch mode. Goes with **Auto-commit** (commit after each finished task).
+- **Git workflow**: replaced by the own copy setting (see "Delegate longer, in parallel").
+  **Auto-commit** (commit after each finished task) stays, off by default.
 - **Compact between tasks**: when a turn ends (Stop hook) and the context is over ~60%
   (status line), type `/compact` while the session is idle, instead of Claude Code's
   own auto-compact firing mid-task. Never while the user is typing in that terminal.
