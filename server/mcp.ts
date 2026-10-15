@@ -41,6 +41,8 @@ export interface Connector {
   detail: string;
   /** Tool names of this server start with it: `mcp__<prefix>__<tool>`. */
   toolPrefix: string;
+  /** Another connector, connected, that reaches the same server: this one needs nothing from the user. */
+  duplicateOf?: string;
 }
 
 const CLAUDE_JSON = process.env.CLAUDE_CONFIG_DIR ? join(process.env.CLAUDE_CONFIG_DIR, '.claude.json') : join(homedir(), '.claude.json');
@@ -129,9 +131,28 @@ async function load(cwd: string): Promise<Connector[]> {
     detail: status.replace(/^[^\p{L}]+/u, ''),
     toolPrefix: toolPrefix(name),
   }));
+  markDuplicates(connectors);
   cache.set(cwd.toLowerCase(), { at: Date.now(), connectors });
   for (const listener of listeners) listener();
   return connectors;
+}
+
+/** The server a target reaches: `https://x/mcp (HTTP)` and `https://x/mcp/` are the same one. */
+const endpoint = (target: string) => target.replace(/\s+\((HTTP|SSE)\)$/i, '').replace(/\/+$/, '').toLowerCase();
+
+/**
+ * A connector added by hand for a server another one already reaches, e.g.
+ * `Facebook-ads` next to `claude.ai Meta-ads`: asking to sign in to it again
+ * is noise, and the service may not even accept Claude Code's own sign-in.
+ */
+function markDuplicates(connectors: Connector[]) {
+  const connected = new Map<string, string>();
+  for (const c of connectors) if (c.state === 'connected' && /^https?:/i.test(c.target)) connected.set(endpoint(c.target), c.label);
+  for (const c of connectors) {
+    if (c.state === 'connected' || c.state === 'disabled') continue;
+    const other = connected.get(endpoint(c.target));
+    if (other) c.duplicateOf = other;
+  }
 }
 
 const listeners = new Set<() => void>();
@@ -343,8 +364,18 @@ export function signIn(cwd: string, name: string) {
     }
     state.done = true;
     // Check the list again; a sign-in that worked stays known until that check is done, a failed one until the next try.
-    projectConnectors(cwd, true).finally(() => {
-      if (signIns.get(key) === state && !state.error) signIns.delete(key);
-    });
+    projectConnectors(cwd, true)
+      .then(({ connectors }) => {
+        // The browser said yes but Claude Code got no token: say so, rather than just showing "Sign in" again.
+        const after = connectors.find((c) => c.name === name);
+        if (!state.error && after?.state === 'needs-auth') {
+          state.error = after.duplicateOf
+            ? `The sign-in didn't reach Claude Code. ${after.duplicateOf} already connects to this service: you can remove this one.`
+            : "The sign-in didn't reach Claude Code. Try again, or sign in with /mcp in a Claude Code terminal.";
+        }
+      })
+      .finally(() => {
+        if (signIns.get(key) === state && !state.error) signIns.delete(key);
+      });
   });
 }

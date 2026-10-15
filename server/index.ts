@@ -90,7 +90,7 @@ function signInNeeded() {
   return [...latest.values()].flatMap((s) => {
     const started = signInsFor(s.cwd);
     return cachedConnectors(s.cwd)
-      .filter((c) => c.state === 'needs-auth' || c.state === 'needs-token')
+      .filter((c) => (c.state === 'needs-auth' || c.state === 'needs-token') && !c.duplicateOf)
       .filter((c) => {
         if (c.source === 'local' || c.source === 'project') return true;
         if (sharedSeen.has(c.name)) return false;

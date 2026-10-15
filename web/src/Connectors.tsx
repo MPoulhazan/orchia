@@ -254,6 +254,13 @@ function ConnectorState({
       <span className="conn-state is-wait">Opening browser…</span>
     );
   }
+  if (c.duplicateOf) {
+    return (
+      <span className="conn-state" title={`${c.duplicateOf} already connects to ${c.target}: you can remove this one`}>
+        Same as {c.duplicateOf}
+      </span>
+    );
+  }
   switch (c.state) {
     case 'needs-auth':
       return (

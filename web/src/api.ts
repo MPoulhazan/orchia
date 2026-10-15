@@ -195,6 +195,8 @@ export interface Connector {
   state: 'connected' | 'needs-auth' | 'needs-token' | 'failed' | 'disabled' | 'pending' | 'unknown';
   detail: string;
   toolPrefix: string;
+  /** A connected connector that reaches the same server: this one needs no sign-in. */
+  duplicateOf?: string;
 }
 
 /** A well-known server from the app's catalog; `reason` when it fits this project. */
