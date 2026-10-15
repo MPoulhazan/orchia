@@ -175,7 +175,7 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
           {connectors.map((c) => {
             const on = c.state !== 'disabled';
             return (
-              <div key={c.name} className="skill-row conn-row" data-enabled={on} data-state={c.state} title={`${c.target}\n${c.detail}`}>
+              <div key={c.name} className="skill-row conn-row" data-enabled={on} data-state={c.state} title={`${c.label}\n${c.target}\n${c.detail}`}>
                 <button
                   className="switch"
                   role="switch"

@@ -103,7 +103,7 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
               <p className="insp-empty">None yet</p>
             ))}
           {skills.map((s) => (
-            <div key={s.id} className="skill-row" data-enabled={s.enabled} title={s.description || undefined}>
+            <div key={s.id} className="skill-row" data-enabled={s.enabled} title={s.description ? `${s.name}\n${s.description}` : s.name}>
               <button
                 className="switch"
                 role="switch"

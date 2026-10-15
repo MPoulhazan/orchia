@@ -2399,7 +2399,9 @@ kbd {
   cursor: default;
 }
 
+/* Takes what is left and ends in "…": with a basis, a long name would wrap to its own line in a wrapping row. */
 .skill-name {
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
