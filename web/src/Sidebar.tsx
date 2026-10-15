@@ -33,6 +33,10 @@ interface Props {
 }
 
 const COLLAPSED_KEY = 'agenthub.collapsedProjects';
+const DISMISSED_KEY = 'agenthub.dismissedSignIns';
+
+/** A sign-in shared by every project is dismissed everywhere; a project's own, in that project only. */
+const signInKey = (c: SignInNeeded) => (c.shared ? c.name : `${c.projectId}:${c.name}`);
 
 export function Sidebar(props: Props) {
   const { projects, sessions, selectedId } = props;
@@ -171,14 +175,21 @@ function Attention(props: {
   const waiting = props.sessions.filter((s) => statusOf(s) === 'waiting');
   const done = props.sessions.filter((s) => statusOf(s) === 'done');
   const list = [...waiting, ...done].filter(needsAttention);
-  if (!list.length && !props.signIns.length) return null;
+  const [dismissed, setDismissed] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_KEY) ?? '[]'));
+  const signIns = props.signIns.filter((c) => !dismissed.includes(signInKey(c)));
+  const dismiss = (c: SignInNeeded) => {
+    const next = [...dismissed, signInKey(c)];
+    setDismissed(next);
+    storage.set(DISMISSED_KEY, JSON.stringify(next));
+  };
+  if (!list.length && !signIns.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + props.signIns.length}</span>
+        <span className="section-count">{list.length + signIns.length}</span>
       </div>
       <div className="attention">
         {list.map((s) => (
@@ -209,11 +220,12 @@ function Attention(props: {
             <PermissionButtons session={s} small />
           </div>
         ))}
-        {props.signIns.map((c) => (
+        {signIns.map((c) => (
           <SignInRow
-            key={`${c.projectId}:${c.name}`}
+            key={signInKey(c)}
             signIn={c}
-            projectName={projectName(c.projectId)}
+            projectName={c.shared ? 'All projects' : projectName(c.projectId)}
+            onDismiss={() => dismiss(c)}
             selected={c.sessionId === props.selectedId}
             onOpen={() => {
               const session = props.sessions.find((s) => s.id === c.sessionId);
@@ -227,7 +239,24 @@ function Attention(props: {
 }
 
 /** A connector Claude can't use until the user signs in: opens the browser on the service's sign-in page. */
-function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNeeded; projectName: string; selected: boolean; onOpen: () => void }) {
+function SignInRow({
+  signIn,
+  projectName,
+  selected,
+  onOpen,
+  onDismiss,
+}: {
+  signIn: SignInNeeded;
+  projectName: string;
+  selected: boolean;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const dismissBtn = (
+    <button className="icon-btn" title="Dismiss: sign in later from Connectors" onClick={onDismiss}>
+      <X size={13} />
+    </button>
+  );
   // Until the server reports the sign-in it just started.
   const [starting, setStarting] = useState(false);
   const busy = signIn.signingIn || starting;
@@ -260,6 +289,7 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
             <button className="btn btn-primary" onClick={() => setTokenOpen(true)}>
               Add token
             </button>
+            {dismissBtn}
           </span>
         )
       ) : (
@@ -278,6 +308,7 @@ function SignInRow({ signIn, projectName, selected, onOpen }: { signIn: SignInNe
           >
             {busy ? 'Finish in browser' : signIn.error ? 'Try again' : 'Sign in'}
           </button>
+          {dismissBtn}
         </span>
       )}
     </div>

@@ -85,15 +85,24 @@ function signInNeeded() {
     const seen = latest.get(s.projectId);
     if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
   }
+  // A connector of the account, the user or a plugin signs in once for every project: one row, not one per project.
+  const sharedSeen = new Set<string>();
   return [...latest.values()].flatMap((s) => {
     const started = signInsFor(s.cwd);
     return cachedConnectors(s.cwd)
       .filter((c) => c.state === 'needs-auth' || c.state === 'needs-token')
+      .filter((c) => {
+        if (c.source === 'local' || c.source === 'project') return true;
+        if (sharedSeen.has(c.name)) return false;
+        sharedSeen.add(c.name);
+        return true;
+      })
       .map((c) => ({
         sessionId: s.id,
         projectId: s.projectId,
         name: c.name,
         label: c.label,
+        shared: c.source !== 'local' && c.source !== 'project',
         needs: c.state === 'needs-token' ? 'token' : 'signin',
         signingIn: started[c.name]?.done === false,
         error: started[c.name]?.error ?? null,

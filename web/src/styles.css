@@ -345,6 +345,7 @@ kbd {
 
 .sidebar-head {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   height: 52px;
@@ -357,6 +358,7 @@ kbd {
 
 .search-btn {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
   margin: 0 12px 12px;
@@ -381,6 +383,7 @@ kbd {
 
 .sidebar-section {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px 6px 18px;
@@ -494,6 +497,7 @@ kbd {
 .perm-acts {
   display: flex;
   flex: none;
+  align-items: center;
   gap: 6px;
 }
 

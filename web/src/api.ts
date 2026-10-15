@@ -73,6 +73,8 @@ export interface SignInNeeded {
   projectId: string;
   name: string;
   label: string;
+  /** Signs in once for every project (account, user or plugin connector): listed once. */
+  shared: boolean;
   /** `token`: Claude Code can't sign in to it, it takes an access token. */
   needs: 'signin' | 'token';
   /** A sign-in runs: it waits for the browser. */
