@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun, X } from 'lucide-react';
-import { api, type PermissionMode, type Settings } from './api';
+import { api, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
 import type { NotifyState } from './notifications';
@@ -12,6 +12,12 @@ const PERMISSION_MODES: { value: PermissionMode | null; label: string; descripti
   { value: 'acceptEdits', label: 'Accept edits', description: 'Edits files without asking. Still asks before running commands.' },
   { value: 'plan', label: 'Plan first', description: 'Reads and plans only. Changes nothing until you approve the plan.' },
   { value: 'auto', label: 'Auto', description: 'Claude runs what it judges safe and asks only for risky actions.' },
+];
+
+const COPY_MODES: { value: CopyMode; label: string; description: string }[] = [
+  { value: 'ask', label: 'Ask', description: 'When another session is already working in this folder, a new session asks whether to work in its own copy.' },
+  { value: 'copy', label: 'Own copy', description: 'Every new session works in its own copy of the repository. You review and merge its changes from its Changes tab.' },
+  { value: 'same', label: 'Same folder', description: 'New sessions always work in the project folder, even when another session is busy there.' },
 ];
 
 const THEMES: [ThemePref, typeof Monitor, string][] = [
@@ -29,6 +35,8 @@ const SMOOTH_SCROLL: { value: SmoothScrollPref; label: string }[] = [
 /** App-wide settings: defaults for new sessions (kept by the server), notifications, theme and scrolling (kept in this browser). */
 export function SettingsDialog(props: {
   settings: Settings;
+  /** The project shown when Settings opened, for its own settings. */
+  project: Project | null;
   themePref: ThemePref;
   onSetTheme: (pref: ThemePref) => void;
   notify: NotifyState;
@@ -83,6 +91,19 @@ export function SettingsDialog(props: {
             </Field>
             {error && <p className="model-error">{error}</p>}
           </section>
+
+          {props.project && (
+            <section className="settings-section">
+              <h3>{props.project.name}</h3>
+              <Field label="New sessions" description={(COPY_MODES.find((m) => m.value === (props.project!.copyMode ?? 'ask')) ?? COPY_MODES[0]).description}>
+                <Options
+                  items={COPY_MODES}
+                  value={props.project.copyMode ?? 'ask'}
+                  onChange={(copyMode) => api.setCopyMode(props.project!.id, copyMode).catch((err) => setError((err as Error).message))}
+                />
+              </Field>
+            </section>
+          )}
 
           <section className="settings-section">
             <h3>This browser</h3>

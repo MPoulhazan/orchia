@@ -6,6 +6,7 @@ import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
 import { summarize, type TurnSummary } from './summary.ts';
+import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 
 // These packages ship CommonJS entry points; load them through require.
@@ -51,6 +52,8 @@ export interface SessionInfo {
    * prompt; `stopped`, the last turn was interrupted or failed. Null otherwise.
    */
   queueHeld: 'typing' | 'stopped' | null;
+  /** Set when the session works in its own copy of the repository; `cwd` is then the copy. */
+  copy: SessionCopy | null;
 }
 
 export interface QueuedPrompt {
@@ -76,6 +79,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   model?: string | null;
   summary?: TurnSummary | null;
   queue?: QueuedPrompt[];
+  copy?: SessionCopy | null;
   usage?: Usage | null;
   plan?: PlanItem[];
   turns?: number;
@@ -100,6 +104,8 @@ interface SessionOptions extends Partial<LaunchChoices> {
   permissionMode?: PermissionMode | null;
   cols?: number;
   rows?: number;
+  /** Works in this copy instead of the project folder. */
+  copy?: SessionCopy | null;
   /** Bring back a session from a previous server run, without starting claude yet. */
   restore?: SessionRecord;
 }
@@ -115,6 +121,7 @@ export class Session extends EventEmitter {
   readonly id: string;
   readonly projectId: string;
   readonly cwd: string;
+  readonly copy: SessionCopy | null;
   readonly createdAt: number;
   name: string;
   /** Claude Code's own conversation id, used to resume it with `--resume`. */
@@ -165,7 +172,8 @@ export class Session extends EventEmitter {
     const restore = opts.restore;
     this.id = restore?.id ?? randomUUID();
     this.projectId = opts.projectId;
-    this.cwd = opts.cwd;
+    this.copy = restore?.copy ?? opts.copy ?? null;
+    this.cwd = this.copy?.path ?? opts.cwd;
     this.name = restore?.name ?? opts.name;
     this.createdAt = restore?.createdAt ?? Date.now();
     this.claudeSessionId = restore?.claudeSessionId ?? randomUUID();
@@ -212,6 +220,7 @@ export class Session extends EventEmitter {
       ...(this.modelChoice ? ['--model', this.modelChoice] : []),
       ...(this.effortChoice ? ['--effort', this.effortChoice] : []),
       ...(this.permissionMode ? ['--permission-mode', this.permissionMode] : []),
+      ...(this.copy ? ['--append-system-prompt', copyInstructions(this.copy)] : []),
     ]);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
@@ -579,6 +588,7 @@ export class Session extends EventEmitter {
       summary: this.summary,
       queue: this.queue,
       queueHeld: this.queueHeld(),
+      copy: this.copy,
     };
   }
 
@@ -600,6 +610,7 @@ export class Session extends EventEmitter {
       turns: this.turns,
       summary: this.summary,
       queue: this.queue,
+      copy: this.copy,
     };
   }
 }

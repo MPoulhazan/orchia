@@ -18,11 +18,18 @@ Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). 
    wait), sent one at a time ~1 s after a Stop. Holds while the user typed in the last 3 s or
    left a draft in Claude's prompt, and after an interrupted or failed turn; "Send now" lifts
    the hold. "+2" on the tab and grid cell. Not done: an Alt Q shortcut.
-4. **Own copy, then review and merge**: when another session is already changing files in the
-   folder, "+ New session" offers its own copy (a git worktree on an `agenthub/…` branch).
-   A **Changes** tab next to the terminal shows the diff, then Merge into main / Keep working /
-   Discard; on conflict, "Ask Claude to resolve". The copy sets itself up: copies `.env*`,
-   installs dependencies, warns when a dev server port is taken.
+4. ~~**Own copy, then review and merge**~~ built (server/copies.ts): when another session is
+   running in the folder, "+ New session" asks (per-project setting in Settings: Ask / Own copy /
+   Same folder, or "Remember for this project"). AgentHub runs `git worktree add` itself in
+   `.claude/worktrees/<name>` on `worktree-<name>`, from the local HEAD, hides the folder in
+   `.git/info/exclude`, copies root `.env*` files, and tells Claude at launch
+   (`--append-system-prompt`) to stay in its copy, install dependencies and leave merging to the
+   user. A **Changes** tab shows the diff since the copy was made (uncommitted and new files
+   included); Merge commits leftovers, merges into the base branch and removes the copy; a
+   conflict is aborted and "Ask Claude to resolve" types the merge request into the copy.
+   Ending an untouched copy removes it; one with work keeps its branch.
+   Not built: warning when a dev server port is taken; Claude Code's own `--worktree`
+   isolation checks (we launch claude inside the worktree instead, see copies.ts).
 
 Settings rule: a switch only for what AgentHub does **on its own**. Features 1–3 and the review
 start from a click, so they are always on, with no setting. The only new setting is per project,

@@ -12,6 +12,7 @@ import { Inspector } from './Inspector';
 import { ConnectorPicker, type ConnectorsChange } from './Connectors';
 import { SkillPicker, type SkillsChange } from './Skills';
 import { SettingsDialog } from './Settings';
+import { NewSessionDialog, type Where } from './NewSession';
 import { needsAttention, statusOf, timeAgo } from './status';
 import { setFavicon } from './favicon';
 import { pageActive, useNotifications } from './notifications';
@@ -52,6 +53,7 @@ export function App() {
   const [connectorPicker, setConnectorPicker] = useState(false);
   const [connectorsChange, setConnectorsChange] = useState<ConnectorsChange>(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [askWhere, setAskWhere] = useState<{ project: Project; busy: string[] } | null>(null);
   const [skillsChange, setSkillsChange] = useState<SkillsChange>({ n: 0, reload: false });
   const pendingId = useRef<string | null>(null);
   const lastProjectId = useRef<string | null>(null);
@@ -218,10 +220,15 @@ export function App() {
     refocus();
   };
 
-  async function newSession(project: Project) {
-    const session = await api.createSession(project.id);
-    pendingId.current = session.id;
-    open(session.id);
+  /** Asks where the session works first when another one is busy in the folder (see NewSessionDialog). */
+  async function newSession(project: Project, where?: Where, remember = false) {
+    const result = await api.createSession(project.id, where, remember);
+    if ('choose' in result) {
+      setAskWhere({ project, busy: result.choose.busy });
+      return;
+    }
+    pendingId.current = result.id;
+    open(result.id);
   }
 
   function openProject(project: Project) {
@@ -448,9 +455,25 @@ export function App() {
         />
       )}
 
+      {askWhere && (
+        <NewSessionDialog
+          project={askWhere.project}
+          busy={askWhere.busy}
+          onStart={async (where, remember) => {
+            await newSession(askWhere.project, where, remember);
+            setAskWhere(null);
+          }}
+          onClose={() => {
+            setAskWhere(null);
+            refocus();
+          }}
+        />
+      )}
+
       {settingsOpen && state && (
         <SettingsDialog
           settings={state.settings}
+          project={selectedProject ?? projects.find((p) => p.id === lastProjectId.current) ?? null}
           themePref={theme.pref}
           onSetTheme={theme.setPref}
           notify={notify.state}

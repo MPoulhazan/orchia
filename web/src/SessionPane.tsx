@@ -1,12 +1,14 @@
 import type { ITheme } from '@xterm/xterm';
-import { LayoutGrid, Maximize2, PanelRight, RotateCcw, X } from 'lucide-react';
+import { GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, SquareTerminal, X } from 'lucide-react';
 import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
+import { useState } from 'react';
 import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
 import { PermissionButtons, PermissionText } from './Permission';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
+import { ChangesView, useCopyChanges } from './Changes';
 
 interface Props {
   session: SessionInfo;
@@ -31,6 +33,10 @@ export function SessionPane(props: Props) {
   const { session, project, theme, compact, tabbed, active, focusKey, inGrid, onActivate, onMaximize, onToggleGrid } = props;
   const exited = session.status === 'exited';
   const paused = session.status === 'suspended';
+  // A session in its own copy has a Changes tab next to its terminal (focus view only).
+  const [changesFor, setChangesFor] = useState<string | null>(null);
+  const showChanges = !compact && !!session.copy && changesFor === session.id;
+  const changes = useCopyChanges(session, !compact);
 
   return (
     <section className="pane" data-compact={compact} data-tabbed={tabbed} data-active={active} data-status={statusOf(session)} onFocusCapture={onActivate} onMouseDown={onActivate}>
@@ -47,11 +53,18 @@ export function SessionPane(props: Props) {
             <span className="crumb-session">{session.name}</span>
           </div>
         )}
-        {!compact && (
-          <span className="pane-path" title={session.cwd}>
-            {session.cwd}
-          </span>
-        )}
+        {!compact &&
+          (session.copy ? (
+            <span className="pane-path pane-copy" title={`Works in its own copy: ${session.cwd}`}>
+              <GitBranch size={13} />
+              {session.copy.branch}
+            </span>
+          ) : (
+            <span className="pane-path" title={session.cwd}>
+              {session.cwd}
+            </span>
+          ))}
+        {!compact && session.copy && <ViewToggle count={changes.data?.files.length ?? 0} showChanges={showChanges} onChange={(on) => setChangesFor(on ? session.id : null)} />}
         <ModelPicker session={session} />
         <StatusText session={session} compact={compact} />
         {compact && <QueueBadge session={session} />}
@@ -107,13 +120,16 @@ export function SessionPane(props: Props) {
         )}
       </header>
 
-      <TerminalView
-        sessionId={session.id}
-        theme={theme}
-        focusKey={focusKey}
-        fontSize={compact ? 12 : 13}
-        autoFocus={!compact || active}
-      />
+      <div className="pane-stage">
+        <TerminalView
+          sessionId={session.id}
+          theme={theme}
+          focusKey={focusKey}
+          fontSize={compact ? 12 : 13}
+          autoFocus={!compact || active}
+        />
+        {showChanges && <ChangesView session={session} changes={changes} onBack={() => setChangesFor(null)} />}
+      </div>
 
       {compact && statusOf(session) === 'waiting' && (
         <div className="ask-bar">
@@ -181,5 +197,21 @@ function StatusText({ session, compact }: { session: SessionInfo; compact?: bool
     <span className="pane-status" data-status={status} title={session.detail ?? undefined}>
       {text}
     </span>
+  );
+}
+
+/** Terminal | Changes, for a session in its own copy. The count comes from the copy's diff. */
+function ViewToggle({ count, showChanges, onChange }: { count: number; showChanges: boolean; onChange: (changes: boolean) => void }) {
+  return (
+    <div className="view-toggle" role="tablist" aria-label="Terminal or changes">
+      <button role="tab" aria-selected={!showChanges} onClick={() => onChange(false)}>
+        <SquareTerminal size={13} />
+        Terminal
+      </button>
+      <button role="tab" aria-selected={showChanges} title="What this copy changed, and merging it" onClick={() => onChange(true)}>
+        Changes
+        {count > 0 && <span className="view-count">{count}</span>}
+      </button>
+    </div>
   );
 }

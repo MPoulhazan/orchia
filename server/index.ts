@@ -5,7 +5,8 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Session } from './session.ts';
-import { CONFIG_DIR, ProjectStore } from './projects.ts';
+import { CONFIG_DIR, ProjectStore, isCopyMode } from './projects.ts';
+import { MergeConflictError, canCopy, copyChanges, copyIsEmpty, createCopy, mergeCopy, removeCopy, resolvePrompt, type SessionCopy } from './copies.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
@@ -125,17 +126,15 @@ function parseChoices(body: any): LaunchChoices {
 }
 
 /** New sessions start from the settings; the request can override model and effort. */
-function createSession(projectId: string, cols?: number, rows?: number, choices?: Partial<LaunchChoices>): Session {
+function createSession(projectId: string, cols?: number, rows?: number, choices?: Partial<LaunchChoices>, copy?: { name: string; copy: SessionCopy }): Session {
   const project = projects.get(projectId);
   if (!project) throw new HttpError(404, 'Project not found');
-  const taken = new Set([...sessions.values()].filter((s) => s.projectId === projectId).map((s) => s.name));
-  let n = 1;
-  while (taken.has(`Session ${n}`)) n++;
   const defaults = settings.get();
   const session = new Session({
     projectId: project.id,
     cwd: project.path,
-    name: `Session ${n}`,
+    name: copy?.name ?? nextSessionName(projectId),
+    copy: copy?.copy,
     hookSettings,
     cols,
     rows,
@@ -149,6 +148,39 @@ function createSession(projectId: string, cols?: number, rows?: number, choices?
   return session;
 }
 
+function nextSessionName(projectId: string): string {
+  const taken = new Set([...sessions.values()].filter((s) => s.projectId === projectId).map((s) => s.name));
+  let n = 1;
+  while (taken.has(`Session ${n}`)) n++;
+  return `Session ${n}`;
+}
+
+/**
+ * "+ New session": in the project folder, or in its own copy when another
+ * session is already at work there. With the project's mode at "ask" (the
+ * default), the answer is a question for the UI: `{ choose: { busy } }`.
+ */
+async function newSession(body: any) {
+  const project = projects.get(String(body.projectId ?? ''));
+  if (!project) throw new HttpError(404, 'Project not found');
+  const where = body.where === 'copy' || body.where === 'same' ? body.where : null;
+  if (where && body.remember === true) projects.setCopyMode(project.id, where);
+  const busy = [...sessions.values()].filter((s) => s.projectId === project.id && !s.copy && s.status === 'running').map((s) => s.name);
+  const mode = project.copyMode ?? 'ask';
+  const copyable = where !== 'same' && mode !== 'same' && (where === 'copy' || mode === 'copy' || busy.length > 0) && (await canCopy(project.path));
+  if (!where && copyable && mode === 'ask') return { choose: { busy } };
+  const choices = parseChoices(body);
+  if (!copyable) return createSession(project.id, body.cols, body.rows, choices).info();
+  const name = nextSessionName(project.id);
+  let copy: SessionCopy;
+  try {
+    copy = await createCopy(project.path, name);
+  } catch (err) {
+    throw new HttpError(500, `Could not make a copy of the project: ${(err as Error).message}`);
+  }
+  return createSession(project.id, body.cols, body.rows, choices, { name, copy }).info();
+}
+
 // Sessions from the previous run come back suspended; the UI resumes them when shown.
 for (const record of sessionStore.load()) {
   const project = projects.get(record.projectId);
@@ -159,7 +191,25 @@ for (const record of sessionStore.load()) {
 function closeSession(session: Session) {
   session.dispose();
   sessions.delete(session.id);
+  // An untouched copy goes with its session; one with work stays, branch and folder, for git.
+  const copy = session.copy;
+  const project = projects.get(session.projectId);
+  if (copy && project) {
+    copyIsEmpty(copy)
+      .then((empty) => (empty ? removeCopy(project.path, copy) : undefined))
+      .catch(() => {});
+  }
 }
+
+/** The session and project of a copy, for the review routes. */
+function copyOf(id: string) {
+  const session = findSession(id);
+  const project = projects.get(session.projectId);
+  if (!session.copy || !project) throw new HttpError(400, 'This session does not work in its own copy');
+  return { session, project, copy: session.copy };
+}
+
+const isBusy = (s: Session) => s.status === 'running' && (s.activity === 'working' || s.activity === 'waiting');
 
 // ---- HTTP -------------------------------------------------------------------
 
@@ -241,6 +291,17 @@ const routes: [string, RegExp, Handler][] = [
       throw new HttpError(400, (err as Error).message);
     }
   }],
+  ['PATCH', /^\/api\/projects\/([\w-]+)$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    if (!isCopyMode(body.copyMode)) throw new HttpError(400, 'Expected { copyMode: "ask" | "copy" | "same" }');
+    try {
+      projects.setCopyMode(id, body.copyMode);
+    } catch (err) {
+      throw new HttpError(404, (err as Error).message);
+    }
+    broadcast();
+    return { ok: true };
+  }],
   ['DELETE', /^\/api\/projects\/([\w-]+)$/, (_req, _url, [id]) => {
     for (const s of sessions.values()) if (s.projectId === id) closeSession(s);
     projects.remove(id);
@@ -250,7 +311,7 @@ const routes: [string, RegExp, Handler][] = [
 
   ['POST', /^\/api\/sessions$/, async (req) => {
     const body = await readJson(req);
-    return createSession(String(body.projectId ?? ''), body.cols, body.rows, parseChoices(body)).info();
+    return newSession(body);
   }],
 
   ['PATCH', /^\/api\/settings$/, async (req) => {
@@ -455,6 +516,39 @@ const routes: [string, RegExp, Handler][] = [
       git: await gitSummary(session.cwd),
       allowRules: projectAllowRules(session.cwd),
     };
+  }],
+  ['GET', /^\/api\/sessions\/([\w-]+)\/changes$/, async (_req, _url, [id]) => {
+    const { project, copy } = copyOf(id);
+    return copyChanges(project.path, copy);
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/merge$/, async (_req, _url, [id]) => {
+    const { session, project, copy } = copyOf(id);
+    if (isBusy(session)) throw new HttpError(409, 'Claude is still working in this copy. Merge once it is done.');
+    try {
+      await mergeCopy(project.path, copy, session.name);
+    } catch (err) {
+      if (err instanceof MergeConflictError) return { ok: false, conflict: err.message };
+      throw new HttpError(400, (err as Error).message);
+    }
+    session.dispose();
+    sessions.delete(session.id);
+    await removeCopy(project.path, copy).catch(() => {});
+    broadcast();
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/discard$/, async (_req, _url, [id]) => {
+    const { session, project, copy } = copyOf(id);
+    session.dispose();
+    sessions.delete(session.id);
+    await removeCopy(project.path, copy);
+    broadcast();
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/resolve$/, (_req, _url, [id]) => {
+    const { session, copy } = copyOf(id);
+    if (session.status !== 'running' || isBusy(session)) throw new HttpError(409, 'Wait until Claude is idle in this copy');
+    session.typeLine(resolvePrompt(copy));
+    return { ok: true };
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/queue$/, async (req, _url, [id]) => {
     const body = await readJson(req);

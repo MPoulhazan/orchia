@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { GitBranch, Plus, X } from 'lucide-react';
 import type { SessionInfo } from './api';
 import { ConfirmButton, RenameInput } from './ui';
 import { StatusDot, statusLabel, statusOf } from './status';
@@ -48,6 +48,11 @@ export function SessionTabs({ sessions, selectedId, onSelect, onClose, onRename,
               />
             ) : (
               <span className="tab-label">{s.name}</span>
+            )}
+            {!editing && s.copy && (
+              <span className="tab-copy" title={`Works in its own copy, on ${s.copy.branch}`}>
+                <GitBranch size={12} />
+              </span>
             )}
             {!editing && <QueueBadge session={s} />}
             {!editing && !on && status === 'waiting' && <span className="tab-mark">Needs you</span>}

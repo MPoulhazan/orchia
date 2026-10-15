@@ -10,7 +10,12 @@ export interface Project {
   addedAt: number;
   /** Suggested skills turned down with ✕. */
   dismissedSkills?: string[];
+  /** Where a new session works while another one is busy in the folder; `ask` when missing. */
+  copyMode?: CopyMode;
 }
+
+export type CopyMode = 'ask' | 'copy' | 'same';
+export const isCopyMode = (v: unknown): v is CopyMode => v === 'ask' || v === 'copy' || v === 'same';
 
 interface Config {
   projects: Project[];
@@ -74,6 +79,14 @@ export class ProjectStore {
     const project = this.get(id);
     if (!project) throw new Error('Project not found');
     project.dismissedSkills = [...new Set([...(project.dismissedSkills ?? []), name])];
+    this.save();
+  }
+
+  setCopyMode(id: string, mode: CopyMode) {
+    const project = this.get(id);
+    if (!project) throw new Error('Project not found');
+    if (mode === 'ask') delete project.copyMode;
+    else project.copyMode = mode;
     this.save();
   }
 

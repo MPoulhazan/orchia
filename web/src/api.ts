@@ -5,6 +5,28 @@ export interface Project {
   name: string;
   path: string;
   addedAt: number;
+  /** Where a new session works while another one is busy in the folder; missing means ask. */
+  copyMode?: CopyMode;
+}
+
+export type CopyMode = 'ask' | 'copy' | 'same';
+
+/** A session working in its own git worktree. */
+export interface SessionCopy {
+  path: string;
+  branch: string;
+  /** The project branch it merges back into. */
+  base: string;
+}
+
+/** What a copy changed, for the Changes tab. */
+export interface CopyChanges {
+  diff: string;
+  files: { path: string; added: number | null; removed: number | null; isNew: boolean }[];
+  commits: number;
+  behind: number;
+  conflicts: boolean;
+  blocked: string | null;
 }
 
 export interface SessionInfo {
@@ -34,6 +56,8 @@ export interface SessionInfo {
   queue: { id: string; text: string }[];
   /** Why the queue waits although Claude is idle: text in Claude's prompt, or a stopped turn. */
   queueHeld: 'typing' | 'stopped' | null;
+  /** Set when the session works in its own copy; `cwd` is then the copy. */
+  copy: SessionCopy | null;
 }
 
 /** A project allow rule: "Run" + `npm test *`. `rule` is how settings spell it: `Bash(npm test:*)`. */
@@ -232,7 +256,14 @@ export const api = {
   addProject: (path: string) => request<Project>('/api/projects', 'POST', { path }),
   removeProject: (id: string) => request('/api/projects/' + id, 'DELETE'),
 
-  createSession: (projectId: string) => request<SessionInfo>('/api/sessions', 'POST', { projectId }),
+  /** Without `where`, the server may ask first: `{ choose }` lists the sessions already at work in the folder. */
+  createSession: (projectId: string, where?: 'copy' | 'same', remember = false) =>
+    request<SessionInfo | { choose: { busy: string[] } }>('/api/sessions', 'POST', { projectId, where, remember }),
+  setCopyMode: (projectId: string, copyMode: CopyMode) => request(`/api/projects/${projectId}`, 'PATCH', { copyMode }),
+  copyChanges: (id: string) => request<CopyChanges>(`/api/sessions/${id}/changes`),
+  mergeCopy: (id: string) => request<{ ok: boolean; conflict?: string }>(`/api/sessions/${id}/merge`, 'POST'),
+  discardCopy: (id: string) => request(`/api/sessions/${id}/discard`, 'POST'),
+  resolveCopy: (id: string) => request(`/api/sessions/${id}/resolve`, 'POST'),
   renameSession: (id: string, name: string) => request(`/api/sessions/${id}`, 'PATCH', { name }),
   markSeen: (id: string) => request(`/api/sessions/${id}/seen`, 'POST'),
   configureSession: (id: string, model: string | null, effort: string | null) =>
