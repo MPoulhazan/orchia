@@ -45,6 +45,9 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
       scrollback: 5000,
       smoothScrollDuration: smoothScrollRef.current ? SMOOTH_SCROLL_MS : 0,
       allowProposedApi: true,
+      // Claude Code paints some text in 24-bit colors picked for its own theme (white
+      // question titles on a dark one): xterm darkens or lightens what would not read.
+      minimumContrastRatio: 4.5,
       theme: themeRef.current,
     });
     termRef.current = term;
