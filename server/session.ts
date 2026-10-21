@@ -655,5 +655,7 @@ function claudeCommand(hookSettings: string | null, extraArgs: string[]): [strin
     const line = args.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ');
     return [process.env.ComSpec ?? 'cmd.exe', `/d /s /c "${command} ${line}"`];
   }
+  // ORCHIA_CLAUDE may hold arguments too (`node fake.js`): let the shell split it, as cmd does above.
+  if (process.env.ORCHIA_CLAUDE) return ['/bin/sh', ['-c', `exec ${command} "$@"`, 'claude', ...args]];
   return [command, args];
 }

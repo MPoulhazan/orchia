@@ -110,7 +110,9 @@ try {
 
   console.log('\nSmoke test passed');
 } catch (err) {
-  console.error(`\nSmoke test FAILED: ${err.message}\n\nServer output:\n${log}`);
+  const state = await api('GET', '/api/state').catch(() => null);
+  const fakeOut = existsSync(result) ? readFileSync(result, 'utf8') : '(none)';
+  console.error(`\nSmoke test FAILED: ${err.message}\n\nSessions: ${JSON.stringify(state?.sessions, null, 2)}\nFake claude result: ${fakeOut}\n\nServer output:\n${log}`);
   process.exitCode = 1;
 } finally {
   server.kill();
