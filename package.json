@@ -2,6 +2,27 @@
   "name": "agenthub",
   "version": "0.1.0",
   "private": true,
+  "description": "One local dashboard for all your Claude Code sessions, organized by project",
+  "license": "MIT",
+  "author": "Mickael POULHAZAN",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MPoulhazan/orchia-agenthub.git"
+  },
+  "homepage": "https://github.com/MPoulhazan/orchia-agenthub#readme",
+  "bugs": "https://github.com/MPoulhazan/orchia-agenthub/issues",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "anthropic",
+    "ai-agents",
+    "terminal",
+    "dashboard",
+    "developer-tools"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,magenta \"tsx watch server/index.ts\" \"vite\"",

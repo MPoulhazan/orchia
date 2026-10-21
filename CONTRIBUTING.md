@@ -1,0 +1,35 @@
+# Contributing
+
+Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome.
+
+## Set up
+
+```sh
+npm install
+npm run dev        # server with reload + UI with hot reload on http://localhost:5173
+npm run typecheck  # must pass before a pull request
+```
+
+The server is in `server/` (Node, TypeScript run by `tsx`), the UI in `web/src/` (React,
+xterm.js). There is no formatter config: match the style of the file you edit.
+
+Your real sessions stay safe while you work if you run a second server with its own data:
+
+```sh
+AGENTHUB_PORT=4399 AGENTHUB_HOME=/tmp/agenthub-dev npx tsx server/index.ts
+```
+
+`AGENTHUB_CLAUDE` lets you replace `claude` with a script, for example a fake that prints
+a Claude-like screen and posts hook payloads to `http://127.0.0.1:<port>/api/hook`
+(headers `x-agenthub-session: $AGENTHUB_SESSION_ID` and
+`authorization: Bearer $AGENTHUB_TOKEN`). Handy to test statuses and permission cards
+without spending tokens.
+
+## Pull requests
+
+- Keep them focused: one change per pull request.
+- Say what you tested, and on which OS. macOS and Linux reports are especially useful.
+- UI text is in English, short and plain. Describe what the user sees, not how it works.
+- For a bigger change, open an issue first so we can agree on the approach.
+
+Ideas already agreed on are in [docs/roadmap.md](docs/roadmap.md).

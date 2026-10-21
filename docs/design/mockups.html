@@ -544,7 +544,7 @@ function palette(){
 function addProject(){
   const row=(n,dt,tag,on)=>'<div class="pal-i'+(on?' on':'')+'">'+ic('folder')+'<span class="lb">'+n+'</span><span class="dt">'+(dt||'')+'</span>'+(tag||'')+'</div>';
   const added='<span class="tag">Added</span>';
-  return '<div class="scrim"><div class="pal"><div class="crumbs"><span class="ttl">Add a project</span><span class="seg2">C:</span>›<span class="seg2">Users</span>›<span class="seg2">mp041</span>›<span class="seg2">Documents</span>›<span class="seg2 last">projets</span></div>'+
+  return '<div class="scrim"><div class="pal"><div class="crumbs"><span class="ttl">Add a project</span><span class="seg2">C:</span>›<span class="seg2">Users</span>›<span class="seg2">you</span>›<span class="seg2">Documents</span>›<span class="seg2 last">projets</span></div>'+
   '<div class="pal-in">'+ic('search')+'<span class="ph"><span class="cur"></span> Filter folders, or paste a path</span></div><div class="pal-list">'+
   '<div class="pal-g">Used with Claude Code</div>'+
   row('Dorothy','git · main · last session 2 days ago','<span class="btn pri">Add project</span><span class="ib" title="Open folder">'+ic('chevr')+'</span>',true)+
@@ -571,10 +571,10 @@ function welcome(){
   '<p>Add a project folder, then start sessions in it. AgentHub shows which sessions are working, which ones need you, and which ones are done.</p>'+
   '<div class="wact"><span class="btn lg pri">'+ic('folderplus')+'Add a project folder</span><span class="btn lg ghost">or press <kbd class="k">Ctrl K</kbd></span></div>'+
   '<div class="wlist"><div class="wlist-h">Folders you used with Claude Code <span>found in ~/.claude/projects</span></div>'+
-  r('CheckTaJob','C:\\Users\\mp041\\Documents\\projets\\CheckTaJob','today')+
-  r('PitouFriendly','C:\\Users\\mp041\\Documents\\projets\\PitouFriendly','yesterday')+
-  r('Lilaos','C:\\Users\\mp041\\Documents\\projets\\Lilaos','3 days ago')+
-  r('Dorothy','C:\\Users\\mp041\\Documents\\projets\\Dorothy','last week')+'</div>'+
+  r('CheckTaJob','C:\\Users\\you\\Documents\\projets\\CheckTaJob','today')+
+  r('PitouFriendly','C:\\Users\\you\\Documents\\projets\\PitouFriendly','yesterday')+
+  r('Lilaos','C:\\Users\\you\\Documents\\projets\\Lilaos','3 days ago')+
+  r('Dorothy','C:\\Users\\you\\Documents\\projets\\Dorothy','last week')+'</div>'+
   '<div class="keys"><div><kbd class="k">Alt N</kbd> new session</div><div><kbd class="k">Alt G</kbd> focus or grid</div><div><kbd class="k">Alt 1…9</kbd> jump to a session</div></div>'+
   '</div></main>';
 }

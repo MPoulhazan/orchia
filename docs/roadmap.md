@@ -4,7 +4,7 @@ Ideas agreed on but not built yet.
 
 ## Delegate longer, in parallel
 
-Mockups: https://claude.ai/artifact/YZyd6hf5zo5KLTZWkWEKHy (agreed 2026-10-14). In this order:
+Agreed 2026-10-14. In this order:
 
 1. ~~**Always allow**~~ built: a menu on Allow (inbox and grid) saves the rules Claude Code
    suggests in the PermissionRequest hook (`permission_suggestions`, answered with
@@ -43,8 +43,8 @@ a connector change (on), Auto-commit (off).
 
 The Connectors section in the inspector is built (see, turn off per project, add, sign in,
 "Needs you" card, remove). Adding one checks first how it connects (server/mcpProbe.ts): browser
-sign-in, none, or an access token (GitHub: taken from the gh CLI or pasted). Mockups:
-https://claude.ai/artifact/SFWthcC34G5Uigy3ZzDr1i. Next (lot 2 of the 2026-10-14 plan):
+sign-in, none, or an access token (GitHub: taken from the gh CLI or pasted).
+Next (lot 2 of the 2026-10-14 plan):
 
 - **Account first**: when the claude.ai account already has the service (Supabase, Vercel…),
   say so in the catalog instead of offering a second one.
@@ -59,7 +59,7 @@ Only if needed:
 ## Skills library (sidebar)
 
 Comes after the Skills section in the session inspector, and reuses its skill picker.
-Mockups: https://claude.ai/artifact/33SN8zsCpe6svQYQJ3iMKd (proposal 2).
+Based on proposal 2 of its mockups.
 
 - A **Skills** entry under the projects in the sidebar opens a library page.
 - Every skill on the machine as a card: name, one-line description, the projects that use it
