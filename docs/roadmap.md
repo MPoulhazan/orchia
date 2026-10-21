@@ -2,6 +2,34 @@
 
 Ideas agreed on but not built yet.
 
+## Next features (agreed 2026-10-20)
+
+Built in this order, each kept as simple to use as the rest: no new page, shown only when it applies.
+
+1. **Tab names from the conversation.** A new session is named from its first prompt right
+   away, then from the title Claude Code writes in its transcript (`ai-title` entries, the
+   title `/resume` shows). Never overwrites a name the user typed. Terminal titles (OSC) were
+   tried first: Claude Code sends none on Windows.
+2. **Copy blocks from the last answer.** Code blocks are plain text in the terminal, so they
+   are read from the transcript's Markdown instead. "From the last answer" in the Done card
+   and the inspector lists them, each with **Copy**. Not a second rendering of the
+   conversation.
+3. **Run a command block.** Shell blocks (bash, sh, PowerShell) also get **Run**, which types
+   `! <command>` in Claude's prompt: it runs in the session's folder under Claude Code's own
+   rules, and Claude sees the output. Command always shown in full; disabled while Claude
+   works; one line at a time.
+4. **Plan to Up next.** The "Plan ready for review" card gets **Split into Up next**: the plan
+   is cut by its own structure (numbered items, `##` headings, "Lot 1…"), with no model call,
+   into an editable list of prompts ("Do lot 2 of the plan: …"). The Up next queue then sends
+   them one by one. A plan with no clear structure gives one lot. Pairs with "Compact between
+   tasks".
+5. **Security alerts from awesome-vetted-claude-code.** Match the project's connectors,
+   plugins and skills against `tools.json` (`detect`: plugins, skills, npm, pypi, mcp_urls;
+   `advisories`: affected and patched versions). A badge on the item ("Security issue, fixed
+   in 1.7.0") with a link; unfixed high or critical ones also go to Needs you. Unknown
+   installed version: "may be affected". Fetched once a day and cached: say so in the README
+   Security section. Later: OSV.dev for every npm and pypi package.
+
 ## Delegate longer, in parallel
 
 Agreed 2026-10-14. In this order:

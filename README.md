@@ -126,7 +126,9 @@ restart button keeps the conversation; "New conversation" starts a fresh one.
 | `Shift Enter` | New line in Claude's prompt            |
 | `Ctrl C`      | Copy when text is selected, else interrupt |
 
-Double-click a session in the sidebar to rename it. In grid view, clicking a
+A new session is named after your first prompt, then after the title Claude Code gives
+the conversation (the one `/resume` lists). Double-click a session in the sidebar to
+rename it: a name you type is kept. In grid view, clicking a
 session in the sidebar adds it to the grid (up to 6); double-click a cell header
 to focus it. `Alt 1…9` uses the physical number keys, so it works on AZERTY too.
 

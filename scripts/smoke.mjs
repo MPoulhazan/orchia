@@ -18,6 +18,7 @@ const home = `${dir}/home`;
 const project = `${dir}/project`;
 const fake = `${dir}/fakeclaude.cjs`;
 const result = `${dir}/fake-result.json`;
+const transcript = `${dir}/transcript.jsonl`;
 mkdirSync(project);
 
 writeFileSync(fake, `
@@ -37,7 +38,8 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   out.statusLine = 'ok';
   const answer = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm test' } });
   out.permission = answer.status === 200 ? await answer.json() : answer.status;
-  await hook({ hook_event_name: 'Stop', last_assistant_message: 'All tests pass.' });
+  writeFileSync(${JSON.stringify(transcript)}, JSON.stringify({ type: 'ai-title', aiTitle: 'Fix the "flaky" tests', sessionId: 'smoke-session' }) + '\\n');
+  await hook({ hook_event_name: 'Stop', last_assistant_message: 'All tests pass.', transcript_path: ${JSON.stringify(transcript)} });
   writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
   process.stdout.write('Fake Claude done\\r\\n');
   setInterval(() => {}, 1000);
@@ -107,6 +109,10 @@ try {
   const inspect = JSON.stringify(await api('GET', `/api/sessions/${id}/inspect`));
   if (!inspect.includes('0.4242')) throw new Error(`Status line numbers missing: ${inspect}`);
   step('done summary and status line');
+
+  if (asking.name !== 'run the tests') throw new Error(`Not named from the first prompt: ${asking.name}`);
+  await until("Claude's title as the name", async () => (await session(id))?.name === 'Fix the "flaky" tests');
+  step('names the session from the conversation');
 
   console.log('\nSmoke test passed');
 } catch (err) {

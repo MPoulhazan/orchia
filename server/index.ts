@@ -11,7 +11,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
-import { isEffortLevel, isModelAlias, watchModel } from './models.ts';
+import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -634,6 +634,7 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   session.trackClaudeSession(payload?.session_id);
   session.trackHook(payload);
   watchModel(payload, (model) => session.trackModel(model));
+  watchTitle(payload, (title) => session.trackTitle(title));
   const update = activityFromHook(payload);
   if (update) session.applyActivity(update);
 

@@ -83,6 +83,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   usage?: Usage | null;
   plan?: PlanItem[];
   turns?: number;
+  autoName?: boolean;
 }
 
 /** A PermissionRequest hook kept open until someone answers it. */
@@ -124,6 +125,8 @@ export class Session extends EventEmitter {
   readonly copy: SessionCopy | null;
   readonly createdAt: number;
   name: string;
+  /** The name follows the conversation (first prompt, then Claude's title) until the user renames the session. */
+  autoName: boolean;
   /** Claude Code's own conversation id, used to resume it with `--resume`. */
   claudeSessionId: string;
   status: SessionStatus;
@@ -175,6 +178,7 @@ export class Session extends EventEmitter {
     this.copy = restore?.copy ?? opts.copy ?? null;
     this.cwd = this.copy?.path ?? opts.cwd;
     this.name = restore?.name ?? opts.name;
+    this.autoName = restore ? (restore.autoName ?? /^Session \d+$/.test(restore.name)) : true;
     this.createdAt = restore?.createdAt ?? Date.now();
     this.claudeSessionId = restore?.claudeSessionId ?? randomUUID();
     this.model = restore?.model ?? null;
@@ -351,6 +355,8 @@ export class Session extends EventEmitter {
     const event = payload?.hook_event_name;
     if (event === 'UserPromptSubmit') {
       this.turns++;
+      const name = this.autoName && this.turns === 1 ? nameFromPrompt(payload.prompt) : null;
+      if (name) this.name = name;
       this.summary = null;
       this.turnFiles.clear();
       this.cleanStop = false;
@@ -438,6 +444,15 @@ export class Session extends EventEmitter {
   }
 
   rename(name: string) {
+    this.name = name;
+    this.autoName = false;
+    this.emit('change');
+  }
+
+  /** The title Claude Code gives the conversation, as `/resume` shows it. */
+  trackTitle(title: string) {
+    const name = title.trim().slice(0, MAX_NAME);
+    if (!this.autoName || !name || name === this.name) return;
     this.name = name;
     this.emit('change');
   }
@@ -611,6 +626,7 @@ export class Session extends EventEmitter {
       summary: this.summary,
       queue: this.queue,
       copy: this.copy,
+      autoName: this.autoName,
     };
   }
 }
@@ -636,6 +652,21 @@ const INHERITED_MARKERS = [
   /^VSCODE_/,
   /^GIT_ASKPASS$/,
 ];
+
+export const MAX_NAME = 60;
+
+/** A first name for the session until Claude titles it: the prompt's first words, cut at a word. */
+export function nameFromPrompt(prompt: unknown): string | null {
+  if (typeof prompt !== 'string') return null;
+  const text = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
+  // Slash commands and pasted images say nothing about the task.
+  if (!text || text.startsWith('/') || /^\[Image #\d+\]$/.test(text)) return null;
+  const limit = 40;
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > 20 ? cut.slice(0, space) : cut).replace(/[\s,.;:]+$/, '')}…`;
+}
 
 export function cleanEnv(): Record<string, string> {
   const env: Record<string, string> = {};

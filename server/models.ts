@@ -17,6 +17,7 @@ const SCAN_LIMIT = 4 * 1024 * 1024;
 
 // Stop fires before Claude Code has flushed the reply to the transcript.
 const TRANSCRIPT_FLUSH_DELAY = 1500;
+const TITLE_LATE_DELAY = 10_000;
 
 /**
  * Reports the model that actually answered: PostModelSwitch names it directly,
@@ -28,17 +29,37 @@ export function watchModel(payload: any, onModel: (model: string) => void) {
   } else if (payload?.hook_event_name === 'Stop' && typeof payload.transcript_path === 'string') {
     const file = payload.transcript_path;
     setTimeout(() => {
-      const model = lastModelInTranscript(file);
+      // Synthetic messages (errors, interruptions) use non-claude placeholders; skip them.
+      const model = lastInTranscript(file, /"model":"(claude-[^"]+)"/g);
       if (model) onModel(model);
     }, TRANSCRIPT_FLUSH_DELAY);
   }
 }
 
 /**
+ * Reports the title Claude Code gives the conversation (the one `/resume` lists). It writes
+ * it to the transcript as `ai-title` lines, a little after the first prompt and again later.
+ */
+export function watchTitle(payload: any, onTitle: (title: string) => void) {
+  if (payload?.hook_event_name !== 'Stop' || typeof payload.transcript_path !== 'string') return;
+  const file = payload.transcript_path;
+  const read = () => {
+    const raw = lastInTranscript(file, /"aiTitle":"((?:[^"\\]|\\.)*)"/g);
+    if (!raw) return;
+    try {
+      onTitle(JSON.parse(`"${raw}"`));
+    } catch {}
+  };
+  setTimeout(read, TRANSCRIPT_FLUSH_DELAY);
+  // The title is made in the background and can land after a short first turn.
+  setTimeout(read, TITLE_LATE_DELAY);
+}
+
+/**
  * Scans the transcript backwards in chunks: lines written after a reply (tool
  * results, attachments) can be hundreds of KB, and transcripts reach many MB.
  */
-function lastModelInTranscript(file: string): string | null {
+function lastInTranscript(file: string, pattern: RegExp): string | null {
   let fd: number | undefined;
   try {
     fd = openSync(file, 'r');
@@ -50,10 +71,9 @@ function lastModelInTranscript(file: string): string | null {
       const buf = Buffer.alloc(end - start);
       readSync(fd, buf, 0, buf.length, start);
       const text = buf.toString('utf8') + carry;
-      // Synthetic messages (errors, interruptions) use non-claude placeholders; skip them.
-      const models = [...text.matchAll(/"model":"(claude-[^"]+)"/g)];
-      if (models.length) return models.at(-1)![1];
-      carry = text.slice(0, 64);
+      const matches = [...text.matchAll(pattern)];
+      if (matches.length) return matches.at(-1)![1];
+      carry = text.slice(0, 256);
       end = start;
     }
     return null;
