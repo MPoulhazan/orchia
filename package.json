@@ -1,7 +1,6 @@
 {
   "name": "orchia",
   "version": "0.1.0",
-  "private": true,
   "description": "One local dashboard for all your Claude Code sessions, organized by project",
   "license": "MIT",
   "author": "Mickael POULHAZAN",
@@ -23,36 +22,46 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
+  "bin": {
+    "orchia": "bin/orchia.mjs"
+  },
+  "files": [
+    "bin",
+    "server",
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,magenta \"tsx watch server/index.ts\" \"vite\"",
     "build": "vite build",
     "start": "vite build && tsx server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepack": "vite build",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
-    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@lydell/node-pty": "^1.2.0-beta.15",
-    "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-serialize": "^0.14.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/headless": "^6.0.0",
-    "@xterm/xterm": "^6.0.0",
-    "lucide-react": "^1.53.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
     "concurrently": "^10.0.6",
-    "tsx": "^4.23.15",
+    "lucide-react": "^1.53.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
   }

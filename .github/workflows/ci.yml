@@ -21,3 +21,14 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      # Install the package the way users will, outside the repo, and drive it with a fake claude.
+      - name: Pack and install
+        shell: bash
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/pkg" && cd "$RUNNER_TEMP/pkg"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/orchia-*.tgz
+      - name: Smoke test
+        shell: bash
+        run: node scripts/smoke.mjs "$RUNNER_TEMP/pkg/node_modules/orchia/bin/orchia.mjs"

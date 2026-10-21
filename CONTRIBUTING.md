@@ -8,6 +8,7 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 npm install
 npm run dev        # server with reload + UI with hot reload on http://localhost:5173
 npm run typecheck  # must pass before a pull request
+npm run smoke      # starts the server with a fake claude and walks a session through a turn
 ```
 
 The server is in `server/` (Node, TypeScript run by `tsx`), the UI in `web/src/` (React,
