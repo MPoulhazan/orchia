@@ -5,7 +5,7 @@ import { storage } from './storage';
 export type ThemePref = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 
-const KEY = 'agenthub.theme';
+const KEY = 'orchia.theme';
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 
 export function useTheme() {

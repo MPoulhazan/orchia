@@ -6,7 +6,7 @@ export type SmoothScrollPref = 'system' | 'on' | 'off';
 /** How long a mouse-wheel step takes to scroll a terminal when smooth scrolling is on. */
 export const SMOOTH_SCROLL_MS = 120;
 
-const KEY = 'agenthub.smoothScroll';
+const KEY = 'orchia.smoothScroll';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const listeners = new Set<() => void>();
 

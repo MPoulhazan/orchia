@@ -32,8 +32,8 @@ interface Props {
   signInNeeded: SignInNeeded[];
 }
 
-const COLLAPSED_KEY = 'agenthub.collapsedProjects';
-const DISMISSED_KEY = 'agenthub.dismissedSignIns';
+const COLLAPSED_KEY = 'orchia.collapsedProjects';
+const DISMISSED_KEY = 'orchia.dismissedSignIns';
 
 /** A sign-in shared by every project is dismissed everywhere; a project's own, in that project only. */
 const signInKey = (c: SignInNeeded) => (c.shared ? c.name : `${c.projectId}:${c.name}`);
@@ -61,7 +61,7 @@ export function Sidebar(props: Props) {
             <i />
             <i />
           </span>
-          AgentHub
+          Orchia
         </span>
         <span className="pane-spacer" />
         <ViewSwitch view={props.view} onSetView={props.onSetView} />

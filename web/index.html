@@ -3,12 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AgentHub</title>
+    <title>Orchia</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111418'/%3E%3Crect x='5' y='5' width='9' height='9' rx='2' fill='%234fc58e'/%3E%3Crect x='18' y='5' width='9' height='9' rx='2' fill='%239aa3ae'/%3E%3Crect x='5' y='18' width='9' height='9' rx='2' fill='%239aa3ae'/%3E%3Crect x='18' y='18' width='9' height='9' rx='2' fill='%239aa3ae'/%3E%3C/svg%3E" />
     <script>
+      // Orchia was called AgentHub: keep the choices saved under the old key names.
+      try {
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var old = localStorage.key(i);
+          if (old && old.indexOf('agenthub.') === 0) {
+            var key = 'orchia.' + old.slice(9);
+            if (localStorage.getItem(key) === null) localStorage.setItem(key, localStorage.getItem(old));
+            localStorage.removeItem(old);
+          }
+        }
+      } catch (e) {}
       // Apply the theme before first paint to avoid a flash.
       try {
-        var pref = localStorage.getItem('agenthub.theme') || 'system';
+        var pref = localStorage.getItem('orchia.theme') || 'system';
         var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       } catch (e) {}

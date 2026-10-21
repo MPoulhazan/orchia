@@ -1,11 +1,11 @@
-// Claude Code's status line command for sessions started by AgentHub.
+// Claude Code's status line command for sessions started by Orchia.
 // Claude Code pipes the session's live numbers (cost, context window) on stdin;
-// this forwards them to AgentHub, then runs the user's own status line, if any,
-// with the same input so their terminal looks the same as without AgentHub.
+// this forwards them to Orchia, then runs the user's own status line, if any,
+// with the same input so their terminal looks the same as without Orchia.
 //
 // Usage: node statusline.mjs <port>
-// Env: AGENTHUB_SESSION_ID, AGENTHUB_TOKEN (set on claude by AgentHub),
-//      AGENTHUB_USER_STATUSLINE (the user's own status line command).
+// Env: ORCHIA_SESSION_ID, ORCHIA_TOKEN (set on claude by Orchia),
+//      ORCHIA_USER_STATUSLINE (the user's own status line command).
 
 import { spawn } from 'node:child_process';
 
@@ -20,14 +20,14 @@ const report = fetch(`http://127.0.0.1:${port}/api/statusline`, {
   method: 'POST',
   headers: {
     'content-type': 'application/json',
-    'x-agenthub-session': process.env.AGENTHUB_SESSION_ID ?? '',
-    authorization: `Bearer ${process.env.AGENTHUB_TOKEN ?? ''}`,
+    'x-orchia-session': process.env.ORCHIA_SESSION_ID ?? '',
+    authorization: `Bearer ${process.env.ORCHIA_TOKEN ?? ''}`,
   },
   body: input || '{}',
   signal: AbortSignal.timeout(REPORT_TIMEOUT),
 }).catch(() => {});
 
-const command = process.env.AGENTHUB_USER_STATUSLINE;
+const command = process.env.ORCHIA_USER_STATUSLINE;
 await Promise.all([report, command ? runUserStatusLine(command) : null]);
 
 /** Runs the command through the shell Claude Code itself would use for it. */

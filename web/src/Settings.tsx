@@ -112,7 +112,7 @@ export function SettingsDialog(props: {
               description={
                 props.notify === 'blocked'
                   ? 'Blocked in the browser settings. Allow notifications for this site to turn them on.'
-                  : 'Desktop notification when a session needs you or finishes while AgentHub is in the background.'
+                  : 'Desktop notification when a session needs you or finishes while Orchia is in the background.'
               }
             >
               <div className="option-row">

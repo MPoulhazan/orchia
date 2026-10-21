@@ -1,13 +1,13 @@
-# AgentHub
+# Orchia
 
 One dashboard for all your Claude Code sessions, organized by project.
 
 Run several sessions side by side, see at a glance which ones are working, which
 ones need you and which ones are done, and answer permission requests without
-hunting through terminals. Everything runs locally: AgentHub starts the real
+hunting through terminals. Everything runs locally: Orchia starts the real
 `claude` CLI in terminals it hosts, and listens to it through Claude Code hooks.
 
-[![CI](https://github.com/MPoulhazan/orchia-agenthub/actions/workflows/ci.yml/badge.svg)](https://github.com/MPoulhazan/orchia-agenthub/actions/workflows/ci.yml)
+[![CI](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml/badge.svg)](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <picture>
@@ -97,15 +97,17 @@ macOS and Linux have had little real use yet: reports are welcome.
 ## Run
 
 ```sh
-git clone https://github.com/MPoulhazan/orchia-agenthub.git
-cd orchia-agenthub
+git clone https://github.com/MPoulhazan/orchia.git
+cd orchia
 npm install
 npm start        # builds the UI, serves everything on http://127.0.0.1:4317
 npm run dev      # development: UI with hot reload on http://localhost:5173
 ```
 
 Reloading the page reattaches to running sessions. Projects are saved in
-`~/.agenthub/config.json` and sessions in `~/.agenthub/sessions.json`.
+`~/.orchia/config.json` and sessions in `~/.orchia/sessions.json`.
+Orchia was called AgentHub until October 2026: on first start it moves `~/.agenthub` to
+`~/.orchia`, so nothing is lost.
 
 When the server stops (restart, closed terminal, reboot, crash), sessions come
 back **paused** and resume their Claude conversation (`claude --resume`) as soon
@@ -130,8 +132,8 @@ to focus it. `Alt 1…9` uses the physical number keys, so it works on AZERTY to
 
 ## Session status
 
-Sessions started from AgentHub report what they are doing through Claude Code
-HTTP hooks, injected with `--settings ~/.agenthub/claude-hooks.json`. They are
+Sessions started from Orchia report what they are doing through Claude Code
+HTTP hooks, injected with `--settings ~/.orchia/claude-hooks.json`. They are
 added next to your own hooks, never replacing them, and only for these sessions.
 
 | Dot          | Meaning                                              |
@@ -161,13 +163,13 @@ the first answer applies.
 - Questions and plans to review need the conversation's context, so they only
   open the session.
 
-This uses the `PermissionRequest` hook: AgentHub keeps it open until you answer,
+This uses the `PermissionRequest` hook: Orchia keeps it open until you answer,
 for up to 10 minutes. Deny rules in your Claude settings still apply.
 
 ## Model and effort
 
 The chip next to the session name shows the model that last answered (read from
-the transcript and the `PostModelSwitch` hook) and the effort chosen in AgentHub.
+the transcript and the `PostModelSwitch` hook) and the effort chosen in Orchia.
 Changing them relaunches that session with `--resume --model … --effort …`: the
 conversation is kept and your global Claude settings are not touched (unlike
 typing `/model`, which saves a new default). An `/effort` typed inside Claude is
@@ -180,7 +182,7 @@ screen:
 
 - **Context** used and **cost so far**, as Claude Code itself estimates them. Claude
   Code only gives these to its status line, so the injected settings also set a
-  status line command, `server/statusline.mjs`, which passes them to AgentHub and
+  status line command, `server/statusline.mjs`, which passes them to Orchia and
   then runs your own status line (from your user or project settings) unchanged.
   Side effect: with any status line set, Claude Code hides some footer hints such
   as "esc to interrupt".
@@ -191,15 +193,15 @@ screen:
 
 ## Environment
 
-| Variable          | Default        | Purpose                         |
-| ----------------- | -------------- | ------------------------------- |
-| `AGENTHUB_PORT`   | `4317`         | Server port                     |
-| `AGENTHUB_HOME`   | `~/.agenthub`  | Where projects are saved        |
-| `AGENTHUB_CLAUDE` | `claude`       | Command used to start Claude    |
+| Variable        | Default      | Purpose                         |
+| --------------- | ------------ | ------------------------------- |
+| `ORCHIA_PORT`   | `4317`       | Server port                     |
+| `ORCHIA_HOME`   | `~/.orchia`  | Where projects are saved        |
+| `ORCHIA_CLAUDE` | `claude`     | Command used to start Claude    |
 
 ## Security
 
-AgentHub starts processes on your machine, so it is built to be reachable only by you:
+Orchia starts processes on your machine, so it is built to be reachable only by you:
 
 - The server listens on `127.0.0.1` only, never on your network.
 - It rejects requests whose `Host` is not `localhost` or `127.0.0.1` (blocks DNS
@@ -211,9 +213,9 @@ AgentHub starts processes on your machine, so it is built to be reachable only b
 - A connector token you paste is written to Claude Code's own config
   (`~/.claude.json`), where `claude mcp add` would put it.
 
-Anyone who can run code as your user can already drive `claude`, so AgentHub does not
+Anyone who can run code as your user can already drive `claude`, so Orchia does not
 try to protect against that. If you find a security issue, please open a
-[private security advisory](https://github.com/MPoulhazan/orchia-agenthub/security/advisories/new)
+[private security advisory](https://github.com/MPoulhazan/orchia/security/advisories/new)
 rather than a public issue.
 
 ## Contributing
@@ -222,5 +224,5 @@ Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBU
 
 ## License
 
-[MIT](LICENSE). AgentHub is an independent project, not affiliated with or endorsed by
+[MIT](LICENSE). Orchia is an independent project, not affiliated with or endorsed by
 Anthropic. Claude and Claude Code are trademarks of Anthropic.

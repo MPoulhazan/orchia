@@ -125,7 +125,7 @@ export function Kbd({ children }: { children: ReactNode }) {
   return <kbd>{children}</kbd>;
 }
 
-const FOLDED_KEY = 'agenthub.inspectorFolded';
+const FOLDED_KEY = 'orchia.inspectorFolded';
 
 function readFolded(): string[] {
   try {

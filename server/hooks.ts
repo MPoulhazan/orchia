@@ -9,7 +9,7 @@ import type { PermissionRule } from './permissionRules.ts';
  * Each session gets its id and a secret token through environment variables,
  * which Claude Code interpolates into the request headers.
  *
- * PermissionRequest is the one hook that may answer: AgentHub holds it until
+ * PermissionRequest is the one hook that may answer: Orchia holds it until
  * the user allows or denies from the inbox or grid. Claude Code keeps showing its
  * own prompt meanwhile, and whichever answer comes first applies.
  *
@@ -35,7 +35,7 @@ const WAITING_NOTIFICATIONS = new Set([
   'agent_needs_input',
 ]);
 
-/** How long a permission can wait for an answer from AgentHub, in seconds. */
+/** How long a permission can wait for an answer from Orchia, in seconds. */
 export const PERMISSION_WAIT_S = 600;
 
 // Forward slashes: on Windows, Claude Code runs the command through Git Bash.
@@ -47,10 +47,10 @@ export function writeHookSettings(dir: string, port: number): string {
     url: `http://127.0.0.1:${port}/api/hook`,
     timeout: 5,
     headers: {
-      'X-AgentHub-Session': '$AGENTHUB_SESSION_ID',
-      Authorization: 'Bearer $AGENTHUB_TOKEN',
+      'X-Orchia-Session': '$ORCHIA_SESSION_ID',
+      Authorization: 'Bearer $ORCHIA_TOKEN',
     },
-    allowedEnvVars: ['AGENTHUB_SESSION_ID', 'AGENTHUB_TOKEN'],
+    allowedEnvVars: ['ORCHIA_SESSION_ID', 'ORCHIA_TOKEN'],
   };
   const on = (matcher?: string, timeout = hook.timeout) => [{ ...(matcher ? { matcher } : {}), hooks: [{ ...hook, timeout }] }];
 
@@ -104,7 +104,7 @@ export interface PermissionAsk {
 }
 
 /**
- * Permission requests AgentHub can answer, described for the UI, or null for
+ * Permission requests Orchia can answer, described for the UI, or null for
  * those that need the conversation's context (questions, plans to review).
  */
 export function permissionAsk(payload: any, cwd: string): PermissionAsk | null {
@@ -163,7 +163,7 @@ export function permissionDecision(allow: boolean, rules: PermissionRule[] = [])
       decision: allow
         ? { behavior: 'allow', ...save }
         : // Stops the turn, like answering No in the terminal: Claude waits for instructions.
-          { behavior: 'deny', message: 'The user denied this from AgentHub.', interrupt: true },
+          { behavior: 'deny', message: 'The user denied this from Orchia.', interrupt: true },
     },
   };
 }

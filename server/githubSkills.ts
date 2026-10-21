@@ -66,7 +66,7 @@ async function fetchRepo(source: GitHubSource): Promise<Fetched> {
   const hit = fetched.get(key);
   if (hit && existsSync(hit.dir)) return hit;
 
-  const dir = mkdtempSync(join(tmpdir(), 'agenthub-skills-'));
+  const dir = mkdtempSync(join(tmpdir(), 'orchia-skills-'));
   try {
     await git(dir, ['init', '-q']);
     await git(dir, ['fetch', '-q', '--depth', '1', `https://github.com/${source.owner}/${source.repo}.git`, source.ref ?? 'HEAD']);

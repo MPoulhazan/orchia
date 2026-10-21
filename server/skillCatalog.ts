@@ -289,7 +289,7 @@ async function repoStars(repo: string): Promise<number | undefined> {
   let count: number | undefined;
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}`, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'agenthub' },
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'orchia' },
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) count = Number((await res.json()).stargazers_count) || undefined;

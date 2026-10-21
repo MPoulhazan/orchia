@@ -1,5 +1,5 @@
 {
-  "name": "agenthub",
+  "name": "orchia",
   "version": "0.1.0",
   "private": true,
   "description": "One local dashboard for all your Claude Code sessions, organized by project",
@@ -7,10 +7,10 @@
   "author": "Mickael POULHAZAN",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MPoulhazan/orchia-agenthub.git"
+    "url": "git+https://github.com/MPoulhazan/orchia.git"
   },
-  "homepage": "https://github.com/MPoulhazan/orchia-agenthub#readme",
-  "bugs": "https://github.com/MPoulhazan/orchia-agenthub/issues",
+  "homepage": "https://github.com/MPoulhazan/orchia#readme",
+  "bugs": "https://github.com/MPoulhazan/orchia/issues",
   "keywords": [
     "claude-code",
     "claude",

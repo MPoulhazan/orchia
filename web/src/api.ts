@@ -46,7 +46,7 @@ export interface SessionInfo {
   effortChoice: string | null;
   permissionMode: PermissionMode | null;
   /**
-   * A permission request that can be answered from AgentHub: "Run" + `npm test`.
+   * A permission request that can be answered from Orchia: "Run" + `npm test`.
    * `always`: the rules "Always allow" saves, as Claude Code suggests them; may be empty.
    */
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
@@ -83,7 +83,7 @@ export interface SignInNeeded {
   error: string | null;
 }
 
-/** `claude --permission-mode` values offered in AgentHub. */
+/** `claude --permission-mode` values offered in Orchia. */
 export type PermissionMode = 'manual' | 'acceptEdits' | 'plan' | 'auto';
 
 /** What new sessions start with; null keeps Claude Code's own default. */
@@ -296,7 +296,7 @@ export const api = {
       connectors: Connector[];
       checkedAt: number;
       lastUsed: { toolPrefix: string; at: number } | null;
-      /** Sign-ins started from AgentHub, by server name. */
+      /** Sign-ins started from Orchia, by server name. */
       signIns: Record<string, { url: string | null; error: string | null; done: boolean }>;
     }>(`/api/sessions/${id}/connectors`),
   availableConnectors: (id: string) => request<{ catalog: ConnectorCatalogItem[] }>(`/api/sessions/${id}/connectors/available`),

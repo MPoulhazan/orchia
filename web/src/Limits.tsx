@@ -22,7 +22,7 @@ const WINDOWS: { key: WindowKey; label: string; short: string }[] = [
 
 /** Alerts fire once per window when usage crosses these. */
 const ALERT_AT = [80, 95, 100];
-const ALERTS_KEY = 'agenthub.limitAlerts';
+const ALERTS_KEY = 'orchia.limitAlerts';
 const TOAST_MS = 12_000;
 
 export function levelOf(pct: number): LimitLevel {
@@ -79,7 +79,7 @@ export function topLevel(limits: RateLimits | null): LimitLevel {
 
 // ---- Meters --------------------------------------------------------------------
 
-const FOLD_KEY = 'agenthub.usageFolded';
+const FOLD_KEY = 'orchia.usageFolded';
 
 /** Folded by the user, and the near-limit windows it was folded during (so they don't reopen it). */
 interface Fold {

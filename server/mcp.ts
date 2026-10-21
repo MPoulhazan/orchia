@@ -70,7 +70,7 @@ export const toolPrefix = (name: string) => name.replace(/[^a-zA-Z0-9_-]/g, '_')
 
 /** Runs `claude mcp list` in the project. Takes several seconds: it connects to every server. */
 function claudeMcpList(cwd: string): Promise<string> {
-  const command = process.env.AGENTHUB_CLAUDE_CLI ?? 'claude';
+  const command = process.env.ORCHIA_CLAUDE_CLI ?? 'claude';
   return new Promise((resolve, reject) => {
     execFile(
       command,
@@ -250,12 +250,12 @@ export function addConnector(cwd: string, name: string, server: McpServerConfig,
   }
 }
 
-/** The entries of a server AgentHub can change: every project's (user scope) and this project's (local scope). */
+/** The entries of a server Orchia can change: every project's (user scope) and this project's (local scope). */
 function ownServerEntries(config: any, cwd: string, name: string): any[] {
   return [config?.mcpServers?.[name], ...projectEntries(config, cwd).map(([, entry]) => entry?.mcpServers?.[name])].filter(Boolean);
 }
 
-/** A server's config, as Claude Code keeps it, when it is one AgentHub can change. */
+/** A server's config, as Claude Code keeps it, when it is one Orchia can change. */
 export function serverConfig(cwd: string, name: string): McpServerConfig | null {
   const entry = ownServerEntries(readJsonFile(CLAUDE_JSON), cwd, name)[0];
   return entry ? configFrom(entry) : null;
@@ -338,7 +338,7 @@ export function signIn(cwd: string, name: string) {
   const state: SignIn = { url: null, error: null, done: false };
   signIns.set(key, state);
 
-  const command = process.env.AGENTHUB_CLAUDE_CLI ?? 'claude';
+  const command = process.env.ORCHIA_CLAUDE_CLI ?? 'claude';
   const [file, args] =
     process.platform === 'win32'
       ? [process.env.ComSpec ?? 'cmd.exe', `/d /s /c "${command} mcp login "${name}""`]

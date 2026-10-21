@@ -20,7 +20,7 @@ Agreed 2026-10-14. In this order:
    the hold. "+2" on the tab and grid cell. Not done: an Alt Q shortcut.
 4. ~~**Own copy, then review and merge**~~ built (server/copies.ts): when another session is
    running in the folder, "+ New session" asks (per-project setting in Settings: Ask / Own copy /
-   Same folder, or "Remember for this project"). AgentHub runs `git worktree add` itself in
+   Same folder, or "Remember for this project"). Orchia runs `git worktree add` itself in
    `.claude/worktrees/<name>` on `worktree-<name>`, from the local HEAD, hides the folder in
    `.git/info/exclude`, copies root `.env*` files, and tells Claude at launch
    (`--append-system-prompt`) to stay in its copy, install dependencies and leave merging to the
@@ -31,7 +31,7 @@ Agreed 2026-10-14. In this order:
    Not built: warning when a dev server port is taken; Claude Code's own `--worktree`
    isolation checks (we launch claude inside the worktree instead, see copies.ts).
 
-Settings rule: a switch only for what AgentHub does **on its own**. Features 1–3 and the review
+Settings rule: a switch only for what Orchia does **on its own**. Features 1–3 and the review
 start from a click, so they are always on, with no setting. The only new setting is per project,
 for the own copy: *Ask when another session is busy* (default), *Always in its own copy*,
 *Always in the same folder*, also reachable as "Remember for this project" in the New session

@@ -1365,7 +1365,7 @@ kbd {
   font-size: 12px;
 }
 
-/* A grid cell blocked on the user: what it asks, and the answer when AgentHub can give it. */
+/* A grid cell blocked on the user: what it asks, and the answer when Orchia can give it. */
 .ask-bar {
   display: flex;
   align-items: center;

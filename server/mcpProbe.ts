@@ -91,7 +91,7 @@ function knock(server: Extract<McpServerConfig, { url: string }>): Promise<Respo
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'agenthub', version: '1' } },
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'orchia', version: '1' } },
     }),
   });
 }

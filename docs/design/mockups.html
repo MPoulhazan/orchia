@@ -1,4 +1,4 @@
-<title>AgentHub Établi</title>
+<title>Orchia Établi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
@@ -261,7 +261,7 @@ kbd.k{font:500 11px 'Atkinson Hyperlegible Mono',monospace;color:var(--ink2);bor
 <div class="page">
   <div class="head">
     <div>
-      <h1>AgentHub · thème Établi</h1>
+      <h1>Orchia · thème Établi</h1>
       <p>Les écrans de l'app dans la direction C. Les fonctions futures sont signalées par <span class="mock">Mock</span> dans les notes sous chaque écran.</p>
     </div>
     <div class="seg" id="themeSeg" aria-label="App theme"><button data-v="light" aria-pressed="true">Light</button><button data-v="dark" aria-pressed="false">Dark</button></div>
@@ -304,7 +304,7 @@ const ic = (n, cls) => '<svg class="ic'+(cls?' '+cls:'')+'" viewBox="0 0 24 24" 
 const S = {
   s1:{name:'Scraper fix', proj:'CheckTaJob', st:'a', t:'41m', model:'Opus 5.5', eff:'High', ask:'perm'},
   s2:{name:'Auth refactor', proj:'CheckTaJob', st:'w', t:'17m', model:'Sonnet 5.5', eff:'Medium'},
-  s3:{name:'Theme study', proj:'orchia-agenthub', st:'w', t:'1h', model:'Opus 5.5', eff:'Max'},
+  s3:{name:'Theme study', proj:'orchia-orchia', st:'w', t:'1h', model:'Opus 5.5', eff:'Max'},
   s4:{name:'Map pins', proj:'PitouFriendly', st:'d', t:'52m', model:'Opus 5.5', eff:'High'},
   s5:{name:'Offline mode', proj:'PitouFriendly', st:'i', t:'9m', model:'Sonnet 5.5', eff:'High'},
   s6:{name:'Onboarding copy', proj:'Lilaos', st:'a', t:'2h', model:'Haiku 5.5', eff:'Low', ask:'question'},
@@ -312,7 +312,7 @@ const S = {
 };
 const PROJECTS = [
   {name:'CheckTaJob', ids:['s1','s2']},
-  {name:'orchia-agenthub', ids:['s3']},
+  {name:'orchia-orchia', ids:['s3']},
   {name:'PitouFriendly', ids:['s4','s5']},
   {name:'Lilaos', ids:['s6']},
   {name:'mtl-events', ids:['s7'], collapsed:true}
@@ -447,7 +447,7 @@ function inbox(sel){
   '</div>';
 }
 function brand(view){
-  return '<div class="brand"><span class="glyph"><i></i><i></i><i></i><i></i></span>AgentHub<span class="sp"></span><div class="vs"><span class="ib'+(view==='focus'?' on':'')+'" title="Focus view">'+ic('square')+'</span><span class="ib'+(view==='grid'?' on':'')+'" title="Grid view">'+ic('grid')+'</span></div><span class="ib" title="Collapse sidebar">'+ic('side')+'</span></div>'+
+  return '<div class="brand"><span class="glyph"><i></i><i></i><i></i><i></i></span>Orchia<span class="sp"></span><div class="vs"><span class="ib'+(view==='focus'?' on':'')+'" title="Focus view">'+ic('square')+'</span><span class="ib'+(view==='grid'?' on':'')+'" title="Grid view">'+ic('grid')+'</span></div><span class="ib" title="Collapse sidebar">'+ic('side')+'</span></div>'+
   '<div class="search">'+ic('search')+'<span>Search</span><kbd class="k">Ctrl K</kbd></div>';
 }
 function sideFoot(){
@@ -533,7 +533,7 @@ function palette(){
     it(dot('d'),'Map pins','PitouFriendly · done 8 min ago','Alt 4')+
     '<div class="pal-g">Other sessions</div>'+
     it(dot('w'),'Auth refactor','CheckTaJob · working','Alt 2')+
-    it(dot('w'),'Theme study','orchia-agenthub · working','Alt 3')+
+    it(dot('w'),'Theme study','orchia-orchia · working','Alt 3')+
     '<div class="pal-g">Actions</div>'+
     it(ic('plus'),'New session in CheckTaJob','','Alt N')+
     it(ic('grid'),'Switch to grid view','','Alt G')+
@@ -568,7 +568,7 @@ function modelPop(){
 function welcome(){
   const r=(n,p,t)=>'<div class="wrow">'+ic('folder')+'<span class="nm"><b>'+n+'</b><span>'+p+'</span></span><time>'+t+'</time><span class="btn">Add</span></div>';
   return '<main class="welcome"><div class="wbox"><h2>Run all your Claude Code sessions <span class="mark">in one place</span></h2>'+
-  '<p>Add a project folder, then start sessions in it. AgentHub shows which sessions are working, which ones need you, and which ones are done.</p>'+
+  '<p>Add a project folder, then start sessions in it. Orchia shows which sessions are working, which ones need you, and which ones are done.</p>'+
   '<div class="wact"><span class="btn lg pri">'+ic('folderplus')+'Add a project folder</span><span class="btn lg ghost">or press <kbd class="k">Ctrl K</kbd></span></div>'+
   '<div class="wlist"><div class="wlist-h">Folders you used with Claude Code <span>found in ~/.claude/projects</span></div>'+
   r('CheckTaJob','C:\\Users\\you\\Documents\\projets\\CheckTaJob','today')+

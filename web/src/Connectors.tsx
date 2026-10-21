@@ -33,7 +33,7 @@ const SOURCE_LABEL: Record<ConnectorSource, string> = {
 const USED_MS = 10 * 60_000;
 
 /** A connector of the session (in `detail`) changed outside the inspector. */
-const CONNECTOR_CHANGED = 'agenthub:connector-changed';
+const CONNECTOR_CHANGED = 'orchia:connector-changed';
 
 /** Bumped by the add dialog, so the list refreshes and offers a restart. */
 export type ConnectorsChange = number;

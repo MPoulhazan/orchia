@@ -36,12 +36,12 @@ export interface SessionInfo {
   unseen: boolean;
   /** Model id that last answered (e.g. claude-opus-5-5), once known. */
   model: string | null;
-  /** Launch choices made in AgentHub; null means Claude Code's own default. */
+  /** Launch choices made in Orchia; null means Claude Code's own default. */
   modelChoice: string | null;
   effortChoice: string | null;
   /** Permission mode claude was launched with; null means Claude Code's own default. */
   permissionMode: PermissionMode | null;
-  /** The permission request AgentHub can answer right now, oldest first. */
+  /** The permission request Orchia can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
   summary: TurnSummary | null;
@@ -231,9 +231,9 @@ export class Session extends EventEmitter {
         ...cleanEnv(),
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
-        AGENTHUB_SESSION_ID: this.id,
-        AGENTHUB_TOKEN: this.token,
-        AGENTHUB_USER_STATUSLINE: userStatusLine(this.cwd) ?? '',
+        ORCHIA_SESSION_ID: this.id,
+        ORCHIA_TOKEN: this.token,
+        ORCHIA_USER_STATUSLINE: userStatusLine(this.cwd) ?? '',
       },
     });
     this.proc = proc;
@@ -392,7 +392,7 @@ export class Session extends EventEmitter {
   }
 
   /**
-   * Allow or deny from AgentHub; `always` also saves the suggested allow rules.
+   * Allow or deny from Orchia; `always` also saves the suggested allow rules.
    * False when the request was already answered elsewhere.
    */
   answerPermission(id: string, allow: boolean, always = false): boolean {
@@ -646,7 +646,7 @@ export function cleanEnv(): Record<string, string> {
 }
 
 function claudeCommand(hookSettings: string | null, extraArgs: string[]): [string, string[] | string] {
-  const command = process.env.AGENTHUB_CLAUDE ?? 'claude';
+  const command = process.env.ORCHIA_CLAUDE ?? 'claude';
   const args = [...(hookSettings ? ['--settings', hookSettings] : []), ...extraArgs];
   if (process.platform === 'win32') {
     // `claude` is often an npm .cmd shim, which only cmd.exe can run. The command

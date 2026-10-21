@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path';
 import { isEffortLevel, isModelAlias } from './models.ts';
 
-/** `claude --permission-mode` values offered in AgentHub. */
+/** `claude --permission-mode` values offered in Orchia. */
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'plan', 'auto'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 

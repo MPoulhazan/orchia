@@ -118,7 +118,7 @@ export function writeJsonFile(file: string, data: unknown) {
 
 /** Runs `claude plugin …` in the project and returns its --json output. */
 function claudePlugin(cwd: string, args: string[]): Promise<any> {
-  const command = process.env.AGENTHUB_CLAUDE_CLI ?? 'claude';
+  const command = process.env.ORCHIA_CLAUDE_CLI ?? 'claude';
   return new Promise((resolve, reject) => {
     // Plugin ids and scopes only: nothing that needs quoting for the shell.
     execFile(

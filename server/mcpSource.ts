@@ -105,7 +105,7 @@ function fromClaudeCommand(rest: string[]): McpSource | null {
         const [k, ...v] = value.split(':');
         if (k && v.length) headers[k.trim()] = v.join(':').trim();
       }
-      // --scope and the OAuth options: the scope is picked in AgentHub, the rest is not supported.
+      // --scope and the OAuth options: the scope is picked in Orchia, the rest is not supported.
       continue;
     }
     positional.push(w);

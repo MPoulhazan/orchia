@@ -12,7 +12,7 @@ import { storage } from './storage';
 
 export type NotifyState = 'on' | 'off' | 'blocked';
 
-const KEY = 'agenthub.notifications';
+const KEY = 'orchia.notifications';
 const supported = typeof window !== 'undefined' && 'Notification' in window;
 
 /** True when the user is actually looking at this tab. */

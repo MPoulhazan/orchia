@@ -16,13 +16,13 @@ xterm.js). There is no formatter config: match the style of the file you edit.
 Your real sessions stay safe while you work if you run a second server with its own data:
 
 ```sh
-AGENTHUB_PORT=4399 AGENTHUB_HOME=/tmp/agenthub-dev npx tsx server/index.ts
+ORCHIA_PORT=4399 ORCHIA_HOME=/tmp/orchia-dev npx tsx server/index.ts
 ```
 
-`AGENTHUB_CLAUDE` lets you replace `claude` with a script, for example a fake that prints
+`ORCHIA_CLAUDE` lets you replace `claude` with a script, for example a fake that prints
 a Claude-like screen and posts hook payloads to `http://127.0.0.1:<port>/api/hook`
-(headers `x-agenthub-session: $AGENTHUB_SESSION_ID` and
-`authorization: Bearer $AGENTHUB_TOKEN`). Handy to test statuses and permission cards
+(headers `x-orchia-session: $ORCHIA_SESSION_ID` and
+`authorization: Bearer $ORCHIA_TOKEN`). Handy to test statuses and permission cards
 without spending tokens.
 
 ## Pull requests

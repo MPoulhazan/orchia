@@ -165,7 +165,7 @@ export function SessionPane(props: Props) {
           <span className="ended-text">
             <b>
               {paused
-                ? 'Paused after AgentHub restarted'
+                ? 'Paused after Orchia restarted'
                 : `Claude exited${session.endedAt ? ` ${timeAgo(session.endedAt)}` : ''}${session.exitCode ? ` (code ${session.exitCode})` : ''}`}
             </b>
             {!compact && <span>The conversation is saved. Restart picks it up where it stopped.</span>}

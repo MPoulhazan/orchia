@@ -21,7 +21,23 @@ interface Config {
   projects: Project[];
 }
 
-export const CONFIG_DIR = process.env.AGENTHUB_HOME ?? join(homedir(), '.agenthub');
+export const CONFIG_DIR = configDir();
+
+/** Orchia was called AgentHub: take over its folder, so projects and sessions are kept. */
+function configDir(): string {
+  if (process.env.ORCHIA_HOME) return process.env.ORCHIA_HOME;
+  const dir = join(homedir(), '.orchia');
+  const old = join(homedir(), '.agenthub');
+  if (existsSync(dir) || !existsSync(old)) return dir;
+  try {
+    renameSync(old, dir);
+    return dir;
+  } catch (err) {
+    // Usually an old server still holding files open (Windows): keep using the old folder this time.
+    console.warn(`Could not move ${old} to ${dir}, using it as is: ${(err as Error).message}`);
+    return old;
+  }
+}
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 /** Absolute path with an upper-case drive letter, so the same folder always looks the same. */

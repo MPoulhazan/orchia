@@ -36,7 +36,7 @@ import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatal
 import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, setEnabled, skillsElsewhere } from './skills.ts';
 
 const HOST = '127.0.0.1';
-const PORT = Number(process.env.AGENTHUB_PORT ?? 4317);
+const PORT = Number(process.env.ORCHIA_PORT ?? 4317);
 const DEV_WEB_PORT = 5173;
 const STATIC_DIR = fileURLToPath(new URL('../dist', import.meta.url));
 
@@ -617,7 +617,7 @@ const routes: [string, RegExp, Handler][] = [
 
 /** The session a hook or the status line relay reports for, checked against its token. */
 function reportingSession(req: http.IncomingMessage): Session | null {
-  const session = sessions.get(String(req.headers['x-agenthub-session'] ?? ''));
+  const session = sessions.get(String(req.headers['x-orchia-session'] ?? ''));
   const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
   return session && sameSecret(token, session.token) ? session : null;
 }
@@ -625,7 +625,7 @@ function reportingSession(req: http.IncomingMessage): Session | null {
 /**
  * Called by Claude Code's HTTP hooks. Answers 204, which changes nothing, except
  * for permission requests: those stay open until the user allows or denies them
- * from AgentHub, or answers in the terminal (then 204 too).
+ * from Orchia, or answers in the terminal (then 204 too).
  */
 async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   const session = reportingSession(req);
@@ -781,7 +781,7 @@ process.on('SIGTERM', shutdown);
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code !== 'EADDRINUSE') throw err;
   console.error(
-    `\nPort ${PORT} is already in use: another AgentHub server is probably still running.\n` +
+    `\nPort ${PORT} is already in use: another Orchia server is probably still running.\n` +
       `Stop it (close its terminal or press Ctrl+C there), then run npm start again.\n` +
       `To find it: netstat -ano | findstr :${PORT}\n`,
   );
@@ -789,5 +789,5 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`AgentHub server on http://${HOST}:${PORT}`);
+  console.log(`Orchia server on http://${HOST}:${PORT}`);
 });

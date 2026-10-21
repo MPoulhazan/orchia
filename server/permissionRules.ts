@@ -4,7 +4,7 @@ import { join } from 'node:path';
 /**
  * "Always allow": the allow rules a project keeps in `.claude/settings.local.json`,
  * the file Claude Code itself writes when you answer "Yes, and don't ask again".
- * AgentHub adds rules through the PermissionRequest hook answer (so Claude Code
+ * Orchia adds rules through the PermissionRequest hook answer (so Claude Code
  * writes them), and lists and removes them here.
  */
 

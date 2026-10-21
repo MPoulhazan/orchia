@@ -5,7 +5,7 @@ import { samePath } from './projects.ts';
 
 /**
  * "Own copy": a session that works in its own git worktree, so parallel
- * sessions never edit the same files. AgentHub creates the worktree itself,
+ * sessions never edit the same files. Orchia creates the worktree itself,
  * where Claude Code puts its own (`.claude/worktrees/<name>`, branch
  * `worktree-<name>`), from the project's current HEAD so unpushed commits come
  * along. Merging back and discarding also happen here.
@@ -76,7 +76,7 @@ async function hideWorktrees(projectPath: string) {
   const exclude = join(gitDir, 'info', 'exclude');
   mkdirSync(join(gitDir, 'info'), { recursive: true });
   const text = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
-  appendFileSync(exclude, `${text && !text.endsWith('\n') ? '\n' : ''}# AgentHub: sessions working in their own copy\n/.claude/worktrees/\n`);
+  appendFileSync(exclude, `${text && !text.endsWith('\n') ? '\n' : ''}# Orchia: sessions working in their own copy\n/.claude/worktrees/\n`);
 }
 
 /** A fresh checkout lacks ignored files such as `.env`; copy the ones at the root. */
@@ -217,6 +217,6 @@ export function copyInstructions(copy: SessionCopy): string {
     `You work in your own git worktree at ${copy.path} on branch ${copy.branch}, a separate checkout of the project made from ${copy.base}.`,
     'Other sessions may be editing the main checkout at the same time, so read and edit files only inside this worktree.',
     'It is a fresh checkout: install dependencies before you build, run or test anything.',
-    `You may commit on ${copy.branch}. Do not merge into ${copy.base} or push: the user reviews and merges this copy from AgentHub.`,
+    `You may commit on ${copy.branch}. Do not merge into ${copy.base} or push: the user reviews and merges this copy from Orchia.`,
   ].join(' ');
 }

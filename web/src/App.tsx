@@ -18,12 +18,12 @@ import { setFavicon } from './favicon';
 import { pageActive, useNotifications } from './notifications';
 import { LimitBanner, LimitToasts, topLevel, useLimitAlerts } from './Limits';
 
-const SELECTED_KEY = 'agenthub.selectedSession';
-const SIDEBAR_KEY = 'agenthub.sidebar';
-const VIEW_KEY = 'agenthub.view';
-const GRID_KEY = 'agenthub.grid';
-const LAYOUT_KEY = 'agenthub.gridLayout';
-const INSPECTOR_KEY = 'agenthub.inspector';
+const SELECTED_KEY = 'orchia.selectedSession';
+const SIDEBAR_KEY = 'orchia.sidebar';
+const VIEW_KEY = 'orchia.view';
+const GRID_KEY = 'orchia.grid';
+const LAYOUT_KEY = 'orchia.gridLayout';
+const INSPECTOR_KEY = 'orchia.inspector';
 type GridLayout = '2x2' | '3x2';
 const GRID_CAPACITY: Record<GridLayout, number> = { '2x2': 4, '3x2': 6 };
 
@@ -154,7 +154,7 @@ export function App() {
   const nearLimit = limitLevel === 'high' || limitLevel === 'full';
   const shown = view === 'grid' ? 'Grid' : selected ? [selected.name, selectedProject?.name].filter(Boolean).join(' · ') : '';
   useEffect(() => {
-    document.title = (attentionCount ? `(${attentionCount}) ` : '') + (shown ? `${shown} — AgentHub` : 'AgentHub');
+    document.title = (attentionCount ? `(${attentionCount}) ` : '') + (shown ? `${shown} — Orchia` : 'Orchia');
   }, [attentionCount, shown]);
   useEffect(() => {
     setFavicon(anyWaiting ? 'waiting' : nearLimit ? 'limit' : attentionCount ? 'done' : 'none');
@@ -547,7 +547,7 @@ function EmptyState(props: { projects: Project[]; onOpenPalette: () => void; onO
   );
 }
 
-/** First launch: what AgentHub does, and the folders Claude Code already knows about. */
+/** First launch: what Orchia does, and the folders Claude Code already knows about. */
 function Welcome(props: { onOpenPalette: () => void; onAddPath: (path: string) => Promise<void> }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -563,7 +563,7 @@ function Welcome(props: { onOpenPalette: () => void; onAddPath: (path: string) =
           Run all your Claude Code sessions <span className="hl">in one place</span>
         </h1>
         <p className="welcome-lead">
-          Add a project folder, then start sessions in it. AgentHub shows which sessions are working, which ones need
+          Add a project folder, then start sessions in it. Orchia shows which sessions are working, which ones need
           you, and which ones are done.
         </p>
         <div className="welcome-cta">
