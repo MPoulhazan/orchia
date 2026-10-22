@@ -46,6 +46,8 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   process.stdout.write('Fake Claude done\\r\\n');
   // What Orchia types into the prompt, for the Run check.
   let typed = '';
+  // Raw, like Claude Code: on macOS and Linux the terminal would otherwise turn Enter into \\n and wait for it.
+  if (process.stdin.isTTY) process.stdin.setRawMode(true);
   process.stdin.on('data', (d) => writeFileSync(${JSON.stringify(typedFile)}, (typed += d)));
   setInterval(() => {}, 1000);
 })().catch((err) => { writeFileSync(${JSON.stringify(result)}, JSON.stringify({ error: String(err) })); });
