@@ -20,7 +20,7 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
-import { openIssues } from './githubIssues.ts';
+import { dropIssue, openIssues } from './githubIssues.ts';
 import {
   addConnector,
   cachedConnectors,
@@ -648,6 +648,16 @@ const routes: [string, RegExp, Handler][] = [
     return { ok: true };
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/issues$/, (_req, _url, [id]) => openIssues(findSession(id).cwd)],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/issues\/(\d+)\/close$/, async (_req, _url, [id, n]) => {
+    const error = await dropIssue(findSession(id).cwd, Number(n), 'close');
+    if (error) throw new HttpError(502, error);
+    return { ok: true };
+  }],
+  ['DELETE', /^\/api\/sessions\/([\w-]+)\/issues\/(\d+)$/, async (_req, _url, [id, n]) => {
+    const error = await dropIssue(findSession(id).cwd, Number(n), 'delete');
+    if (error) throw new HttpError(502, error);
+    return { ok: true };
+  }],
   ['PUT', /^\/api\/sessions\/([\w-]+)\/queue$/, async (req, _url, [id]) => {
     const body = await readJson(req);
     if (!Array.isArray(body.ids)) throw new HttpError(400, 'Expected { ids }');

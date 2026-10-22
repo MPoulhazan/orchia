@@ -237,8 +237,11 @@ export interface GitHubIssue {
   updatedAt: string;
 }
 
-/** `unavailable` says why there is no list (no gh, not signed in, no GitHub remote). */
-export type IssuesResult = { issues: GitHubIssue[] } | { unavailable: string };
+/**
+ * `unavailable` says why there is no list (no gh, not signed in, no GitHub remote).
+ * `dir`: the subfolder holding the repository when the project folder isn't one.
+ */
+export type IssuesResult = { issues: GitHubIssue[]; repo: string; dir: string | null } | { unavailable: string };
 
 /** Where a connector is set up: the claude.ai account, every project, this project only, the repo's `.mcp.json`, or a plugin. */
 export type ConnectorSource = 'account' | 'user' | 'local' | 'project' | 'plugin';
@@ -344,6 +347,10 @@ export const api = {
   sendQueuedNow: (id: string) => request(`/api/sessions/${id}/queue/send`, 'POST'),
   /** The repository's open issues, through the user's gh login. */
   issues: (id: string) => request<IssuesResult>(`/api/sessions/${id}/issues`),
+  /** Closes it as not planned; GitHub can reopen it. */
+  closeIssue: (id: string, n: number) => request(`/api/sessions/${id}/issues/${n}/close`, 'POST'),
+  /** For good; GitHub lets only repository admins do it. */
+  deleteIssue: (id: string, n: number) => request(`/api/sessions/${id}/issues/${n}`, 'DELETE'),
   runCommand: (id: string, command: string) => request(`/api/sessions/${id}/run`, 'POST', { command }),
   splitPlan: (id: string, lots: string[]) => request(`/api/sessions/${id}/plan`, 'POST', { lots }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),

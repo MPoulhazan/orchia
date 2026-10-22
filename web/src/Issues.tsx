@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDot, ExternalLink, TriangleAlert } from 'lucide-react';
+import { CircleDot, CircleSlash, ExternalLink, Trash2, TriangleAlert } from 'lucide-react';
 import { api, type GitHubIssue, type IssuesResult, type SessionInfo } from './api';
 import { fuzzyScore } from './fuzzy';
+import { ConfirmButton } from './ui';
 
-/** The Up next prompt for an issue, on one line. Claude reads the issue itself, comments included. */
-export function issuePrompt(issue: GitHubIssue, planFirst: boolean): string {
+/**
+ * The Up next prompt for an issue, on one line. Claude reads the issue itself, comments included.
+ * `-R` names the repository: the session may run in a folder that only holds it (`dir`).
+ */
+export function issuePrompt(issue: GitHubIssue, planFirst: boolean, repo: string, dir: string | null): string {
   const n = issue.number;
   const title = issue.title.replace(/\s+/g, ' ').replace(/"/g, "'").trim();
-  const read = `read it with gh issue view ${n} --comments`;
+  const read = `read it with gh issue view ${n} -R ${repo} --comments${dir ? `, the code is in the ${dir} folder` : ''}`;
   return planFirst
     ? `Work on GitHub issue #${n} "${title}": ${read}, then plan it in plan mode as numbered lots before changing anything. The last lot ends with a commit whose message ends with "Fixes #${n}".`
     : `Work on GitHub issue #${n} "${title}": ${read}, fix it and check that it works, then commit with a message that ends with "Fixes #${n}".`;
@@ -15,7 +19,7 @@ export function issuePrompt(issue: GitHubIssue, planFirst: boolean): string {
 
 /** An Up next prompt made by issuePrompt, read back to show it short: "#12 Title". */
 export function queuedIssue(text: string): { number: number; title: string; planFirst: boolean } | null {
-  const m = text.match(/^Work on GitHub issue #(\d+) "(.*?)": read it with gh issue view \d+ --comments, (then plan)?/);
+  const m = text.match(/^Work on GitHub issue #(\d+) "(.*?)": read it with gh issue view \d+(?: -R \S+)? --comments, (?:the code is in the .*? folder, )?(then plan)?/);
   return m ? { number: Number(m[1]), title: m[2], planFirst: !!m[3] } : null;
 }
 
@@ -35,13 +39,16 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
   const [showOutside, setShowOutside] = useState(false);
   const [error, setError] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
+  // Only the keyboard scrolls the list: scrolling under a still mouse would hover the next row.
+  const byKey = useRef(false);
   const queued = useMemo(() => queuedNumbers(session), [session.queue]);
 
   useEffect(() => {
     api.issues(session.id).then(setResult, (err) => setError(err.message));
   }, [session.id]);
 
-  const all = result && 'issues' in result ? result.issues : [];
+  const repo = result && 'issues' in result ? result : null;
+  const all = repo?.issues ?? [];
   const outside = all.filter((i) => !i.team);
   const items = useMemo(() => {
     const q = query.trim();
@@ -58,6 +65,8 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
+    if (!byKey.current) return;
+    byKey.current = false;
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }, [active]);
 
@@ -87,7 +96,7 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
     try {
       for (const n of toQueue) {
         const issue = all.find((i) => i.number === n)!;
-        await api.enqueue(session.id, issuePrompt(issue, planFirst.has(n)));
+        await api.enqueue(session.id, issuePrompt(issue, planFirst.has(n), repo!.repo, repo!.dir));
       }
       onClose();
     } catch (err) {
@@ -95,17 +104,36 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
     }
   }
 
+  /** Closed or deleted on GitHub: gone from the list. */
+  async function drop(issue: GitHubIssue, how: 'close' | 'delete') {
+    setError('');
+    try {
+      await (how === 'close' ? api.closeIssue(session.id, issue.number) : api.deleteIssue(session.id, issue.number));
+      setResult((r) => (r && 'issues' in r ? { ...r, issues: r.issues.filter((i) => i.number !== issue.number) } : r));
+      setPicked((p) => p.filter((x) => x !== issue.number));
+      setActive((i) => Math.max(0, Math.min(i, items.length - 2)));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  // On the whole dialog: a click on a row or in the preview must not leave the keys dead.
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
+    const onControl = (e.target as HTMLElement).closest('button, a');
+    if (e.key === 'Escape') {
+      onClose();
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
+      byKey.current = true;
       setActive((i) => Math.min(i + 1, items.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
+      byKey.current = true;
       setActive((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Tab' && current) {
       e.preventDefault();
       if (!queued.has(current.number)) toggle(current.number);
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' && !onControl) {
       e.preventDefault();
       queue();
     }
@@ -114,13 +142,13 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
   const unavailable = result && 'unavailable' in result ? result.unavailable : '';
   let lastGroup = '';
   return (
-    <div className="palette-backdrop" onMouseDown={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="palette issue-picker" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Queue GitHub issues">
+    <div className="palette-backdrop" onMouseDown={onClose}>
+      <div className="palette issue-picker" onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown} role="dialog" aria-label="Queue GitHub issues">
         <div className="palette-crumb">
           <CircleDot size={13} />
           <span>
-            GitHub issues of {projectName}
-            {result && !unavailable && ` · ${all.length} open`}
+            GitHub issues of {repo?.dir ? `${projectName}/${repo.dir}` : projectName}
+            {repo && ` · ${all.length} open`}
           </span>
         </div>
         <input
@@ -129,7 +157,6 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
           spellCheck={false}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
           placeholder="Filter issues by number, title or label…"
         />
         {(error || unavailable) && <div className="palette-error">{error || unavailable}</div>}
@@ -150,7 +177,9 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
                   <div
                     className="palette-item issue-item"
                     data-active={i === active}
-                    onMouseMove={() => setActive(i)}
+                    onMouseMove={() => i !== active && setActive(i)}
+                    // Keeps the focus in the filter, so Enter still queues.
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => !isQueued && toggle(issue.number)}
                   >
                     <input
@@ -192,6 +221,17 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
                 <a href={current.url} target="_blank" rel="noreferrer" title="Open on GitHub">
                   <ExternalLink size={13} />
                 </a>
+                <button className="icon-btn" title="Close on GitHub as not planned (it can be reopened)" onClick={() => drop(current, 'close')}>
+                  <CircleSlash size={14} />
+                </button>
+                <ConfirmButton
+                  className="icon-btn"
+                  title="Delete on GitHub, for good (repository admins only)"
+                  confirmLabel="Delete for good"
+                  onConfirm={() => drop(current, 'delete')}
+                >
+                  <Trash2 size={14} />
+                </ConfirmButton>
               </div>
               <small>
                 @{current.author}
@@ -220,6 +260,9 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
           </span>
           <span><kbd>Esc</kbd> close</span>
           <span className="issue-footer-note">Each one ends with a “Fixes #N” commit</span>
+          <button className="btn btn-primary issue-go" disabled={!toQueue.length} onClick={queue}>
+            {action[0].toUpperCase() + action.slice(1)}
+          </button>
         </div>
       </div>
     </div>

@@ -3485,9 +3485,20 @@ a.btn {
 }
 
 
+/* A fixed height: a longer or shorter preview must not move the list under the mouse. */
 .palette.issue-picker {
   width: min(920px, 100% - 32px);
+  height: 70vh;
   max-height: 70vh;
+}
+
+.issue-picker .palette-footer {
+  align-items: center;
+}
+
+.btn.issue-go {
+  height: 28px;
+  padding: 0 12px;
 }
 
 .issue-cols {

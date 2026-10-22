@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** An open issue of the project's GitHub repository, as the issue picker shows it. */
 export interface GitHubIssue {
@@ -17,7 +19,11 @@ export interface GitHubIssue {
   updatedAt: string;
 }
 
-export type IssuesResult = { issues: GitHubIssue[] } | { unavailable: string };
+/**
+ * `repo`: "owner/name". `dir`: the subfolder holding the repository when the project
+ * folder is not one itself (a folder that groups a site and its assets, say).
+ */
+export type IssuesResult = { issues: GitHubIssue[]; repo: string; dir: string | null } | { unavailable: string };
 
 const TEAM = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const MAX_BODY = 4000;
@@ -38,24 +44,51 @@ function gh(cwd: string, args: string[]): Promise<string> {
   });
 }
 
-/** What to tell the user when gh can't list the issues. */
+/** What to tell the user when gh fails. */
 function why(err: Error & { code?: unknown }): string {
   const text = err.message;
   if (err.code === 'ENOENT') return 'Install the GitHub CLI (gh) and run gh auth login to see this project’s issues.';
   if (/gh auth login|not logged|authentication/i.test(text)) return 'Run gh auth login in a terminal to see this project’s issues.';
-  if (/none of the git remotes|not a git repository|no git remotes|could not determine/i.test(text)) return 'This project has no GitHub remote.';
+  if (/none of the git remotes|no git remotes|could not determine/i.test(text)) return 'This project has no GitHub remote.';
   if (/disabled issues|has issues disabled/i.test(text)) return 'Issues are turned off for this repository.';
+  if (/must have admin|not have permission|resource not accessible/i.test(text)) return 'Only an admin of the repository can delete its issues.';
   return text.split('\n')[0] || 'GitHub did not answer.';
+}
+
+class Unavailable extends Error {}
+
+/** The GitHub repository of the folder, else of its only subfolder that is a git repository. */
+async function findRepo(cwd: string): Promise<{ repo: string; dir: string | null }> {
+  const nameOf = async (dir: string) => (await gh(dir, ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'])).trim();
+  try {
+    return { repo: await nameOf(cwd), dir: null };
+  } catch (err) {
+    if (!/not a git repository/i.test((err as Error).message)) throw new Unavailable(why(err as Error));
+  }
+  let dirs: string[] = [];
+  try {
+    dirs = readdirSync(cwd, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.') && existsSync(join(cwd, d.name, '.git')))
+      .map((d) => d.name);
+  } catch {}
+  if (!dirs.length) throw new Unavailable('This project is not a git repository.');
+  if (dirs.length > 1) throw new Unavailable(`This folder holds several repositories (${dirs.join(', ')}): open the one you want as a project.`);
+  try {
+    return { repo: await nameOf(join(cwd, dirs[0])), dir: dirs[0] };
+  } catch (err) {
+    throw new Unavailable(why(err as Error));
+  }
 }
 
 /** The repository's open issues (not pull requests), most recently updated first, through the user's gh login. */
 export async function openIssues(cwd: string): Promise<IssuesResult> {
   let raw: string;
+  let found: { repo: string; dir: string | null };
   try {
-    // {owner}/{repo} is filled in by gh from the folder's git remote.
-    raw = await gh(cwd, ['api', 'repos/{owner}/{repo}/issues?state=open&sort=updated&per_page=60']);
+    found = await findRepo(cwd);
+    raw = await gh(cwd, ['api', `repos/${found.repo}/issues?state=open&sort=updated&per_page=60`]);
   } catch (err) {
-    return { unavailable: why(err as Error) };
+    return { unavailable: err instanceof Unavailable ? err.message : why(err as Error) };
   }
   const list = JSON.parse(raw) as any[];
   const issues = list
@@ -71,5 +104,17 @@ export async function openIssues(cwd: string): Promise<IssuesResult> {
       url: i.html_url ?? '',
       updatedAt: i.updated_at ?? '',
     }));
-  return { issues };
+  return { issues, ...found };
+}
+
+/** Closes an issue as not planned, or deletes it for good (repository admins only). */
+export async function dropIssue(cwd: string, n: number, how: 'close' | 'delete'): Promise<string | null> {
+  try {
+    const { repo } = await findRepo(cwd);
+    const args = how === 'close' ? ['issue', 'close', String(n), '-R', repo, '--reason', 'not planned'] : ['issue', 'delete', String(n), '-R', repo, '--yes'];
+    await gh(cwd, args);
+    return null;
+  } catch (err) {
+    return err instanceof Unavailable ? err.message : why(err as Error);
+  }
 }
