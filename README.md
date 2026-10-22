@@ -10,17 +10,27 @@ hunting through terminals. Everything runs locally: Orchia starts the real
 [![CI](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml/badge.svg)](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/design/focus-dark.png">
-  <img alt="Focus view: a session waits for permission, with the inbox on the left and the session inspector on the right" src="docs/design/focus-light.png">
-</picture>
+<a href="docs/demo/orchia-demo.mp4">
+  <img alt="Demo: four Claude Code sessions in one grid; allow a command from the grid, split a plan into lots queued in Up next, give a session its own copy of the repo and merge it" src="docs/demo/orchia-demo.gif">
+</a>
+
+<sub>25 seconds. Click for the video with sound.</sub>
 
 > [!NOTE]
-> These screenshots are mockups of the **Établi** theme.
+> The demo and the screenshots are mockups of the **Établi** theme, with made-up projects.
 
 ## A look around
 
 <table>
+  <tr>
+    <td colspan="2">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/design/focus-dark.png">
+        <img alt="Focus view: a session waits for permission, with the inbox on the left and the session inspector on the right" src="docs/design/focus-light.png">
+      </picture>
+      <p><b>Focus view.</b> One session at a time, with the inbox on the left and the inspector on the right.</p>
+    </td>
+  </tr>
   <tr>
     <td width="50%">
       <picture>
