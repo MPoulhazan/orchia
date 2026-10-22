@@ -206,6 +206,17 @@ screen:
 - **Uncommitted changes** and **branch** of the project folder, from `git status`
   and `git diff HEAD`. Every session in the same folder sees the same changes.
 
+## Security alerts
+
+Connectors, skills and plugins are checked against the advisories listed in
+[awesome-vetted-claude-code](https://github.com/MPoulhazan/awesome-vetted-claude-code),
+a catalog where each tool is reviewed and checked for CVEs. A shield next to an item in
+the inspector links to its review: red when the issue applies (the version in your
+command is affected, or there is no fix yet), grey when it was fixed in a version Orchia
+can't see, so you can check yours. High and critical issues that apply also show in
+**Needs you**. `npx package` and hosted servers run the latest release, so only issues
+with no fix yet concern them.
+
 ## Environment
 
 | Variable        | Default      | Purpose                         |
@@ -224,7 +235,9 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
   pages open in your browser).
 - Each session gets its own random token; hook calls without it are refused.
 - Nothing leaves your machine except what Claude Code itself sends. There is no
-  telemetry.
+  telemetry. Orchia itself only downloads the public advisory catalog
+  (`tools.json` from awesome-vetted-claude-code), once a day, without sending anything
+  about you or your projects.
 - A connector token you paste is written to Claude Code's own config
   (`~/.claude.json`), where `claude mcp add` would put it.
 

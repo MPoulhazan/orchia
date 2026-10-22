@@ -301,6 +301,7 @@ export function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           limits={limits}
           signInNeeded={state?.signInNeeded ?? []}
+          securityNeeded={state?.securityNeeded ?? []}
         />
       ) : (
         <Rail

@@ -70,6 +70,28 @@ export interface AllowRule {
 }
 
 /** A connector that waits for the user to sign in, in a project with a running session. */
+/** An advisory from the awesome-vetted-claude-code catalog that concerns a connector, skill or plugin. */
+export interface SecurityNote {
+  /** `affected`: the version in use is affected; `unfixed`: no fix yet; `check`: fixed in a version Orchia can't see. */
+  level: 'affected' | 'unfixed' | 'check';
+  severity: 'low' | 'moderate' | 'high' | 'critical';
+  tool: string;
+  summary: string;
+  fixedIn: string | null;
+  url: string;
+  ids: string[];
+}
+
+/** A connector with a high or critical advisory that applies for sure, for "Needs you". */
+export interface SecurityNeeded {
+  sessionId: string;
+  projectId: string;
+  name: string;
+  label: string;
+  shared: boolean;
+  note: SecurityNote;
+}
+
 export interface SignInNeeded {
   sessionId: string;
   projectId: string;
@@ -165,6 +187,7 @@ export interface Skill {
   scope: SkillScope;
   enabled: boolean;
   skillCount?: number;
+  security?: SecurityNote | null;
 }
 
 /** A skill from the app's catalog; `source` is a GitHub link the import reads. */
@@ -207,6 +230,7 @@ export interface Connector {
   toolPrefix: string;
   /** A connected connector that reaches the same server: this one needs no sign-in. */
   duplicateOf?: string;
+  security?: SecurityNote | null;
 }
 
 /** A well-known server from the app's catalog; `reason` when it fits this project. */

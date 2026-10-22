@@ -23,7 +23,7 @@ Built in this order, each kept as simple to use as the rest: no new page, shown 
    into an editable list of prompts ("Do lot 2 of the plan: …"). The Up next queue then sends
    them one by one. A plan with no clear structure gives one lot. Pairs with "Compact between
    tasks".
-5. **Security alerts from awesome-vetted-claude-code.** Match the project's connectors,
+5. ~~**Security alerts from awesome-vetted-claude-code.**~~ built (server/advisories.ts); `npx pkg`, `@latest` and hosted servers count as up to date. Left: Needs you for skills and plugins (connectors only), OSV.dev. Match the project's connectors,
    plugins and skills against `tools.json` (`detect`: plugins, skills, npm, pypi, mcp_urls;
    `advisories`: affected and patched versions). A badge on the item ("Security issue, fixed
    in 1.7.0") with a link; unfixed high or critical ones also go to Needs you. Unknown

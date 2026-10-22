@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
-import { api, type Project, type SessionInfo, type SignInNeeded } from './api';
+import { api, type Project, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
+import { securityText } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -30,10 +31,15 @@ interface Props {
   onOpenSettings: () => void;
   limits: RateLimits | null;
   signInNeeded: SignInNeeded[];
+  securityNeeded: SecurityNeeded[];
 }
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
 const DISMISSED_KEY = 'orchia.dismissedSignIns';
+const DISMISSED_SECURITY_KEY = 'orchia.dismissedSecurity';
+
+/** Dismissed until a new advisory appears for it. */
+const securityKey = (c: SecurityNeeded) => `${c.shared ? c.name : `${c.projectId}:${c.name}`}:${c.note.ids.join(',')}`;
 
 /** A sign-in shared by every project is dismissed everywhere; a project's own, in that project only. */
 const signInKey = (c: SignInNeeded) => (c.shared ? c.name : `${c.projectId}:${c.name}`);
@@ -76,7 +82,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -169,6 +175,7 @@ function Attention(props: {
   projects: Project[];
   sessions: SessionInfo[];
   signIns: SignInNeeded[];
+  security: SecurityNeeded[];
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
@@ -182,14 +189,21 @@ function Attention(props: {
     setDismissed(next);
     storage.set(DISMISSED_KEY, JSON.stringify(next));
   };
-  if (!list.length && !signIns.length) return null;
+  const [dismissedSecurity, setDismissedSecurity] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_SECURITY_KEY) ?? '[]'));
+  const security = props.security.filter((c) => !dismissedSecurity.includes(securityKey(c)));
+  const dismissSecurity = (c: SecurityNeeded) => {
+    const next = [...dismissedSecurity, securityKey(c)];
+    setDismissedSecurity(next);
+    storage.set(DISMISSED_SECURITY_KEY, JSON.stringify(next));
+  };
+  if (!list.length && !signIns.length && !security.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + signIns.length}</span>
+        <span className="section-count">{list.length + signIns.length + security.length}</span>
       </div>
       <div className="attention">
         {list.map((s) => (
@@ -218,6 +232,32 @@ function Attention(props: {
               </span>
             </button>
             <PermissionButtons session={s} small />
+          </div>
+        ))}
+        {security.map((c) => (
+          <div key={securityKey(c)} className="attention-row" data-selected={c.sessionId === props.selectedId}>
+            <button
+              className="attention-open"
+              onClick={() => {
+                const session = props.sessions.find((s) => s.id === c.sessionId);
+                if (session) props.onSelect(session);
+              }}
+            >
+              <span className="attention-title">
+                <span className="mark" data-tone="danger">Security</span>
+                <b>{c.label}</b>
+                <span className="attention-project">· {c.shared ? 'All projects' : projectName(c.projectId)}</span>
+              </span>
+              <span className="attention-detail">{securityText(c.note)}</span>
+            </button>
+            <span className="perm-acts" data-small>
+              <a className="btn btn-secondary" href={c.note.url} target="_blank" rel="noreferrer">
+                Details
+              </a>
+              <button className="icon-btn" title="Dismiss until a new issue is found" onClick={() => dismissSecurity(c)}>
+                <X size={13} />
+              </button>
+            </span>
           </div>
         ))}
         {signIns.map((c) => (

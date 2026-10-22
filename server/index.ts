@@ -13,6 +13,7 @@ import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
+import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -65,6 +66,7 @@ function state() {
     limits,
     settings: settings.get(),
     signInNeeded: signInNeeded(),
+    securityNeeded: securityNeeded(),
   };
 }
 
@@ -113,6 +115,33 @@ function signInNeeded() {
 
 // A sign-in that is needed shows in "Needs you" as soon as a check finds it.
 onConnectorsChecked(() => broadcast());
+
+/**
+ * Connectors with a high or critical advisory that applies for sure (the version in use is
+ * affected, or there is no fix yet), for "Needs you". One row per connector and project.
+ */
+function securityNeeded() {
+  const latest = new Map<string, Session>();
+  for (const s of sessions.values()) {
+    const seen = latest.get(s.projectId);
+    if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
+  }
+  const shared = new Set<string>();
+  return [...latest.values()].flatMap((s) =>
+    cachedConnectors(s.cwd).flatMap((c) => {
+      const note = connectorNote(c);
+      if (!note || note.level === 'check' || (note.severity !== 'high' && note.severity !== 'critical')) return [];
+      const isShared = c.source !== 'local' && c.source !== 'project';
+      if (isShared && shared.has(c.name)) return [];
+      shared.add(c.name);
+      return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note }];
+    }),
+  );
+}
+
+// The catalog of advisories: at start, then once a day.
+refreshAdvisories().then(broadcast);
+setInterval(() => refreshAdvisories().then(broadcast), 60 * 60 * 1000).unref();
 
 /** Push the new state to every client and persist the sessions. */
 function broadcast() {
@@ -381,7 +410,7 @@ const routes: [string, RegExp, Handler][] = [
     const session = findSession(id);
     const skills = await projectSkills(session.cwd);
     const dismissed = projects.get(session.projectId)?.dismissedSkills ?? [];
-    return { skills, lastUsed: session.lastSkill, suggested: suggestSkills(session.cwd, skills, dismissed).length };
+    return { skills: skills.map((s) => ({ ...s, security: skillNote(s) })), lastUsed: session.lastSkill, suggested: suggestSkills(session.cwd, skills, dismissed).length };
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/skills\/available$/, async (_req, _url, [id]) => {
     const session = findSession(id);
@@ -457,7 +486,7 @@ const routes: [string, RegExp, Handler][] = [
   ['GET', /^\/api\/sessions\/([\w-]+)\/connectors$/, async (_req, url, [id]) => {
     const session = findSession(id);
     const { connectors, checkedAt } = await projectConnectors(session.cwd, url.searchParams.has('fresh'));
-    return { connectors, checkedAt, lastUsed: session.lastConnector, signIns: signInsFor(session.cwd) };
+    return { connectors: connectors.map((c) => ({ ...c, security: connectorNote(c) })), checkedAt, lastUsed: session.lastConnector, signIns: signInsFor(session.cwd) };
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/connectors\/available$/, async (_req, _url, [id]) => {
     const session = findSession(id);

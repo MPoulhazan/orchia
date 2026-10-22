@@ -3442,3 +3442,32 @@ a.conn-state:hover {
   height: 28px;
   font-size: 12.5px;
 }
+
+/* ---- Security notes from awesome-vetted-claude-code ------------------------ */
+
+.security-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-right: 4px;
+  color: var(--danger);
+  vertical-align: -2px;
+}
+
+.security-badge[data-level='check'] {
+  color: var(--text-faint);
+}
+
+.security-badge:hover {
+  opacity: 0.75;
+}
+
+.mark[data-tone='danger'] {
+  background: linear-gradient(transparent 10%, var(--danger-bg) 10%, var(--danger-bg) 90%, transparent 90%);
+  color: var(--danger);
+}
+
+a.btn {
+  color: inherit;
+  text-decoration: none;
+}

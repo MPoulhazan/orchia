@@ -14,6 +14,7 @@ import {
 } from './api';
 import { fuzzyScore } from './fuzzy';
 import { ConfirmButton, InspectorSection } from './ui';
+import { SecurityBadge } from './Security';
 
 /**
  * Connectors (MCP servers) in the inspector, and the dialog that adds them. Like
@@ -185,6 +186,7 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
                 />
                 <span className="skill-name">{c.label}</span>
                 <span className="skill-meta">
+                  <SecurityBadge note={c.security} />
                   {usedNow(c) ? (
                     <span className="skill-used">used just now</span>
                   ) : (

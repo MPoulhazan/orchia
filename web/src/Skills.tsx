@@ -4,6 +4,7 @@ import { parseGitHubSource } from '../../server/githubSource';
 import { api, type AvailableSkills, type RepoSkills, type SessionInfo, type Skill, type SkillChange, type SkillScope } from './api';
 import { fuzzyScore } from './fuzzy';
 import { InspectorSection } from './ui';
+import { SecurityBadge } from './Security';
 
 /**
  * Skills in the inspector, and the dialog that adds them.
@@ -113,6 +114,7 @@ export function SkillsSection({ session, change, onAdd }: { session: SessionInfo
               />
               <span className="skill-name">{s.name}</span>
               <span className="skill-meta">
+                <SecurityBadge note={s.security} />
                 {usedNow(s) ? (
                   <span className="skill-used">used just now</span>
                 ) : (
