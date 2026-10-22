@@ -115,6 +115,7 @@ export interface Settings {
   model: string | null;
   effort: string | null;
   permissionMode: PermissionMode | null;
+  compactBetweenTasks: boolean;
 }
 
 /** One plan usage window, in whole percents; resetsAt is ms since epoch. */

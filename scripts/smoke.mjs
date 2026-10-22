@@ -49,8 +49,16 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   // Raw, like Claude Code: on macOS and Linux the terminal would otherwise turn Enter into \\n and wait for it.
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   let planned = false;
+  let compacted = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
+    if (planned && !compacted && typed.includes('/compact\\r')) {
+      // Orchia compacts before sending lot 2.
+      compacted = true;
+      await hook({ hook_event_name: 'PreCompact', trigger: 'manual' });
+      await hook({ hook_event_name: 'PostCompact', trigger: 'manual' });
+      return;
+    }
     if (planned || !typed.includes('\\r')) return;
     // The next turn: a plan in two steps, held for "Split into Up next".
     planned = true;
@@ -60,6 +68,10 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
     const approval = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'ExitPlanMode', tool_input: { plan } });
     out.plan = approval.status === 200 ? await approval.json() : approval.status;
     writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
+    // Lot 1 done, with the context 70% full: Orchia should compact before lot 2.
+    const context = { context_window_size: 200000, current_usage: { input_tokens: 140000 } };
+    execSync(settings.statusLine.command, { input: JSON.stringify({ session_id: 'smoke-session', context_window: context }) });
+    await hook({ hook_event_name: 'Stop', last_assistant_message: 'Lot 1 done.' });
   });
   setInterval(() => {}, 1000);
 })().catch((err) => { writeFileSync(${JSON.stringify(result)}, JSON.stringify({ error: String(err) })); });
@@ -148,6 +160,14 @@ try {
   const queued = (await session(id)).queue.map((q) => q.text);
   if (queued.length !== 1 || !queued[0].includes('lot 2 of 2') || !queued[0].includes('Wire the queue')) throw new Error(`Unexpected queue: ${JSON.stringify(queued)}`);
   step('splits a plan: lot 1 approved, lot 2 in Up next');
+
+  const typedAll = await until('lot 2 sent after a /compact', async () => {
+    const typed = existsSync(typedFile) ? readFileSync(typedFile, 'utf8') : '';
+    return typed.includes('Continue the plan with lot 2') ? typed : null;
+  }, 15000);
+  const compactAt = typedAll.indexOf('/compact');
+  if (compactAt < 0 || compactAt > typedAll.indexOf('Continue the plan with lot 2')) throw new Error(`No /compact before lot 2: ${JSON.stringify(typedAll)}`);
+  step('compacts a full context before the next lot');
 
   console.log('\nSmoke test passed');
 } catch (err) {

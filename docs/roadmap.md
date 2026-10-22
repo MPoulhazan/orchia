@@ -107,8 +107,10 @@ notifications and theme. Next, in this order:
 
 - **Git workflow**: replaced by the own copy setting (see "Delegate longer, in parallel").
   **Auto-commit** (commit after each finished task) stays, off by default.
-- **Compact between tasks**: when a turn ends (Stop hook) and the context is over ~60%
-  (status line), type `/compact` while the session is idle, instead of Claude Code's
-  own auto-compact firing mid-task. Never while the user is typing in that terminal.
+- ~~**Compact between tasks**~~ built, on by default: only right before an Up next prompt goes
+  (not after every turn, which would surprise someone still chatting), when the status line
+  says the context is over 60%. Typed like a queued prompt (never over a draft or while the
+  user types); PostCompact (trigger manual) releases the queue; 3 min without it, the queue
+  shows "Paused".
 - **Suggest a fresh start** (only if the need shows up): when a prompt looks unrelated
   to the session, offer to send it to a new session. Never clears on its own.

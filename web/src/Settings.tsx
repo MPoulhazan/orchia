@@ -26,6 +26,11 @@ const THEMES: [ThemePref, typeof Monitor, string][] = [
   ['dark', Moon, 'Dark'],
 ];
 
+const ON_OFF: { value: 'on' | 'off'; label: string }[] = [
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+];
+
 const SMOOTH_SCROLL: { value: SmoothScrollPref; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'on', label: 'On' },
@@ -90,6 +95,20 @@ export function SettingsDialog(props: {
               <Options items={PERMISSION_MODES} value={settings.permissionMode} onChange={(permissionMode) => change({ permissionMode })} />
             </Field>
             {error && <p className="model-error">{error}</p>}
+          </section>
+
+          <section className="settings-section">
+            <h3>Up next</h3>
+            <Field
+              label="Compact between tasks"
+              description="Before sending the next queued prompt, Orchia types /compact when the conversation fills more than 60% of the context, so Claude Code doesn't compact in the middle of a task."
+            >
+              <Options
+                items={ON_OFF}
+                value={settings.compactBetweenTasks ? 'on' : 'off'}
+                onChange={(v) => change({ compactBetweenTasks: v === 'on' })}
+              />
+            </Field>
           </section>
 
           {props.project && (

@@ -40,6 +40,8 @@ import { copySkill,installPlugin, newSkillPrompt, pluginCatalog, projectSkills, 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.ORCHIA_PORT ?? 4317);
 const DEV_WEB_PORT = 5173;
+/** Share of the context window above which Orchia compacts before the next Up next prompt. */
+const COMPACT_AT = 0.6;
 const STATIC_DIR = fileURLToPath(new URL('../dist', import.meta.url));
 
 const projects = new ProjectStore();
@@ -47,6 +49,7 @@ const hookSettings = writeHookSettings(CONFIG_DIR, PORT);
 const sessions = new Map<string, Session>();
 const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
+Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
 
 // ---- Live state -------------------------------------------------------------
@@ -356,7 +359,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {

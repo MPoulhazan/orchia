@@ -10,14 +10,16 @@ export function isPermissionMode(value: unknown): value is PermissionMode {
   return PERMISSION_MODES.includes(value as any);
 }
 
-/** What new sessions start with. null keeps Claude Code's own default. */
+/** What new sessions start with (null keeps Claude Code's own default), and what Orchia does on its own. */
 export interface Settings {
   model: string | null;
   effort: string | null;
   permissionMode: PermissionMode | null;
+  /** Before sending the next Up next prompt, type /compact when the context is well filled. */
+  compactBetweenTasks: boolean;
 }
 
-const DEFAULTS: Settings = { model: null, effort: null, permissionMode: null };
+const DEFAULTS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true };
 
 /** Keeps known values only, so a hand-edited or older file never breaks a launch. */
 function clean(raw: any): Settings {
@@ -25,6 +27,7 @@ function clean(raw: any): Settings {
     model: isModelAlias(raw?.model) ? raw.model : null,
     effort: isEffortLevel(raw?.effort) ? raw.effort : null,
     permissionMode: isPermissionMode(raw?.permissionMode) ? raw.permissionMode : null,
+    compactBetweenTasks: raw?.compactBetweenTasks !== false,
   };
 }
 
@@ -53,6 +56,7 @@ export class SettingsStore {
     if (next.model !== null && !isModelAlias(next.model)) throw new Error('Unknown model');
     if (next.effort !== null && !isEffortLevel(next.effort)) throw new Error('Unknown effort level');
     if (next.permissionMode !== null && !isPermissionMode(next.permissionMode)) throw new Error('Unknown permission mode');
+    if (typeof next.compactBetweenTasks !== 'boolean') throw new Error('compactBetweenTasks must be true or false');
     this.settings = next;
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.settings, null, 2));

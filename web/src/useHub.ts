@@ -10,7 +10,7 @@ export interface HubState {
   securityNeeded: SecurityNeeded[];
 }
 
-const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null };
+const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true };
 
 /** Live projects + sessions pushed by the server; reconnects if the server restarts. */
 export function useHub() {

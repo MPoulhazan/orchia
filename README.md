@@ -177,6 +177,10 @@ wait in Up next, sent one at a time as Claude finishes. Approving in the termina
 approves the whole plan, as usual. The plan is cut along its own structure, without a
 model call.
 
+Between two Up next prompts, when the conversation fills more than 60% of the context,
+Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
+task. Turn it off in Settings, under **Compact between tasks**.
+
 ## Model and effort
 
 The chip next to the session name shows the model that last answered (read from

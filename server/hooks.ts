@@ -64,6 +64,8 @@ export function writeHookSettings(dir: string, port: number): string {
       Stop: on(),
       StopFailure: on(),
       PostModelSwitch: on(),
+      PreCompact: on(),
+      PostCompact: on(),
     },
     statusLine: { type: 'command', command: `node "${STATUS_LINE_SCRIPT}" ${port}` },
   };
@@ -89,6 +91,11 @@ export function activityFromHook(payload: any): ActivityUpdate | null {
       return { activity: 'waiting', detail: payload.message || 'Needs your input' };
     case 'Stop':
       return { activity: 'idle' };
+    case 'PreCompact':
+      return payload.trigger === 'manual' ? { activity: 'working', detail: 'Compacting the conversation' } : null;
+    case 'PostCompact':
+      // An automatic compaction happens mid-turn, which goes on; a /compact ends there.
+      return payload.trigger === 'manual' ? { activity: 'idle' } : null;
     case 'StopFailure':
       return { activity: 'idle', detail: `Stopped: ${String(payload.error ?? 'error').replace(/_/g, ' ')}` };
     default:

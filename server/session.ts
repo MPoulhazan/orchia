@@ -123,6 +123,9 @@ interface SessionOptions extends Partial<LaunchChoices> {
  * Events: 'data' (output chunk), 'reset' (new process), 'change' (info changed).
  */
 export class Session extends EventEmitter {
+  /** The context share above which to compact before the next queued prompt; null: never. Set by the server from the settings. */
+  static compactAt: () => number | null = () => null;
+
   readonly id: string;
   readonly projectId: string;
   readonly cwd: string;
@@ -161,6 +164,8 @@ export class Session extends EventEmitter {
   private lastInputAt = 0;
   private draftLength = 0;
   private sendTimer: NodeJS.Timeout | null = null;
+  /** Orchia typed /compact before the next queued prompt, and waits for PostCompact. */
+  private compacting: NodeJS.Timeout | null = null;
   /** The skill Claude last used, from the hooks. */
   lastSkill: { name: string; at: number } | null = null;
   /** The MCP server whose tool Claude last called, as in the tool name: `mcp__<server>__<tool>`. */
@@ -373,6 +378,14 @@ export class Session extends EventEmitter {
       this.draftLength = 0;
     }
     if (event === 'StopFailure') this.cleanStop = false;
+    if (event === 'PostCompact' && payload.trigger === 'manual' && this.compacting) {
+      clearTimeout(this.compacting);
+      this.compacting = null;
+      // The status line reports the smaller context with the next reply; until then, don't compact again.
+      if (this.usage) this.usage = { ...this.usage, contextUsed: null };
+      this.cleanStop = true;
+      this.scheduleSend();
+    }
     if (event === 'Stop') {
       this.cleanStop = true;
       this.scheduleSend();
@@ -594,9 +607,30 @@ export class Session extends EventEmitter {
       if (this.draftLength > 0) return this.emit('change'); // Shows "waiting for your draft".
       const quiet = Date.now() - this.lastInputAt;
       if (quiet < TYPING_PAUSE_MS) return this.scheduleSend(TYPING_PAUSE_MS - quiet);
+      if (this.needsCompact()) return this.compact();
       this.sendNext();
     }, delay);
     this.sendTimer.unref();
+  }
+
+  /** Between two queued tasks, a well-filled context is compacted now rather than by Claude Code mid-task. */
+  private needsCompact(): boolean {
+    const at = Session.compactAt();
+    const used = this.usage?.contextUsed;
+    const size = this.usage?.contextSize;
+    return at !== null && !this.compacting && used != null && !!size && used / size >= at;
+  }
+
+  private compact() {
+    this.cleanStop = false;
+    this.typeLine('/compact');
+    this.applyActivity({ activity: 'working', detail: 'Compacting before the next prompt' });
+    // No PostCompact (it failed, or was cancelled): stop holding, the queue shows "Paused".
+    this.compacting = setTimeout(() => {
+      this.compacting = null;
+      if (this.activity === 'working') this.applyActivity({ activity: 'idle' });
+    }, COMPACT_TIMEOUT_MS);
+    this.compacting.unref();
   }
 
   private sendNext() {
@@ -696,6 +730,7 @@ const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 
 /** The queue waits this long after the user's last keystroke. */
 const TYPING_PAUSE_MS = 3000;
+const COMPACT_TIMEOUT_MS = 3 * 60 * 1000;
 
 function permissionKey(payload: any): string {
   return JSON.stringify([payload?.tool_name, payload?.tool_input]);
