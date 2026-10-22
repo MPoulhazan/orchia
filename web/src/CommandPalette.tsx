@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowUp,
+  CircleDot,
   CornerDownLeft,
   Folder,
   FolderOpen,
@@ -54,6 +55,7 @@ interface Props {
   /** With a session shown. */
   onAddSkill?: () => void;
   onAddConnector?: () => void;
+  onPickIssues?: () => void;
 }
 
 const ICON = 15;
@@ -161,6 +163,9 @@ export function CommandPalette(props: Props) {
       ...(props.onAddConnector
         ? [{ id: 'add-connector', group: 'Actions', label: `Add connector to ${currentProject?.name ?? 'this project'}…`, icon: <Plug size={ICON} />, run: () => (props.onAddConnector!(), true) }]
         : []),
+      ...(props.onPickIssues
+        ? [{ id: 'issues', group: 'Actions', label: 'Work on GitHub issues…', detail: 'queue them in Up next', icon: <CircleDot size={ICON} />, run: () => (props.onPickIssues!(), true) }]
+        : []),
       { id: 'settings', group: 'Actions', label: 'Settings…', icon: <Settings size={ICON} />, run: () => (props.onOpenSettings(), true) },
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
       { id: 'theme-light', group: 'Actions', label: 'Theme: Light', icon: <Sun size={ICON} />, run: () => props.onSetTheme('light') },
@@ -171,7 +176,7 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'add-path', group: 'Add', label: `Add ${q}`, icon: <FolderPlus size={ICON} />, run: () => add(q) });
     }
     return out;
-  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector]);
+  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues]);
 
   useEffect(() => setActive(0), [query]);
 

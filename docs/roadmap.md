@@ -30,6 +30,20 @@ Built in this order, each kept as simple to use as the rest: no new page, shown 
    installed version: "may be affected". Fetched once a day and cached: say so in the README
    Security section. Later: OSV.dev for every npm and pypi package.
 
+## GitHub issues to Up next (agreed 2026-10-21)
+
+~~Built~~ in the local app, not Orchia Cloud: it runs agents, and needs nothing but the user's
+`gh` login. One picker (server/githubIssues.ts, web/src/Issues.tsx), opened from **From an
+issue** in Up next or **Work on GitHub issues…** in the palette: list + preview of the text,
+Tab to check, Enter to queue one prompt per issue ("read it with gh issue view, fix, commit
+Fixes #N"). **Plan first** asks for a plan in lots, which goes through Split into Up next; its
+lots now go ahead of what was already queued. Issues from outside the project
+(author_association not OWNER/MEMBER/COLLABORATOR) are hidden until asked, with a warning.
+A fresh session takes its first Up next prompt as soon as Claude's prompt is on screen.
+Left out on purpose: LLM triage, labels or closing from Orchia, a Push button in the Done
+card, sync with Orchia Cloud's `orchia:go` label.
+Unverified on real Claude Code: that "plan it in plan mode" makes Claude enter plan mode.
+
 ## Delegate longer, in parallel
 
 Agreed 2026-10-14. In this order:

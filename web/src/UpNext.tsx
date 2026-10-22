@@ -1,6 +1,7 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import { GripVertical, ListOrdered, Plus, X } from 'lucide-react';
+import { CircleDot, GripVertical, ListOrdered, Plus, X } from 'lucide-react';
 import { api, type SessionInfo } from './api';
+import { queuedIssue } from './Issues';
 
 /** Shown under the terminal while Claude works, or while prompts wait. */
 export function showUpNext(session: SessionInfo): boolean {
@@ -17,7 +18,7 @@ const HELD: Record<NonNullable<SessionInfo['queueHeld']>, string> = {
  * finishes a turn. The server never sends while the user types in the terminal
  * or while Claude waits for an answer.
  */
-export function UpNext({ session }: { session: SessionInfo }) {
+export function UpNext({ session, onPickIssues }: { session: SessionInfo; onPickIssues?: () => void }) {
   const [draft, setDraft] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const queue = session.queue;
@@ -77,26 +78,51 @@ export function UpNext({ session }: { session: SessionInfo }) {
           onDrop={drop(q.id)}
         >
           <span className="upnext-n">{i + 1}</span>
-          <span className="upnext-text" title={q.text}>
-            {q.text}
-          </span>
+          <QueuedText text={q.text} />
           {queue.length > 1 && <GripVertical size={13} className="upnext-grip" aria-hidden />}
           <button className="icon-btn" title="Remove from the queue" onClick={() => api.dequeue(session.id, q.id).catch(() => {})}>
             <X size={13} />
           </button>
         </div>
       ))}
-      <label className="upnext-input">
-        <Plus size={14} />
-        <input
-          value={draft}
-          placeholder={queue.length ? 'Then…' : 'Queue a prompt for when Claude is done'}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKey}
-        />
-        {draft.trim() && <kbd>Enter</kbd>}
-      </label>
+      <div className="upnext-row">
+        <label className="upnext-input">
+          <Plus size={14} />
+          <input
+            value={draft}
+            placeholder={queue.length ? 'Then…' : 'Queue a prompt for when Claude is done'}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onKey}
+          />
+          {draft.trim() && <kbd>Enter</kbd>}
+        </label>
+        {onPickIssues && (
+          <button className="btn btn-secondary upnext-issues" title="Queue GitHub issues of this project" onClick={onPickIssues}>
+            <CircleDot size={13} />
+            From an issue
+          </button>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** A queued prompt; one made from a GitHub issue reads "#12 Title". */
+function QueuedText({ text }: { text: string }) {
+  const issue = queuedIssue(text);
+  return (
+    <>
+      <span className="upnext-text" title={text}>
+        {issue ? (
+          <>
+            <span className="issue-n">#{issue.number}</span> {issue.title}
+          </>
+        ) : (
+          text
+        )}
+      </span>
+      {issue?.planFirst && <span className="issue-tag">plan first</span>}
+    </>
   );
 }
 

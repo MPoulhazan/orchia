@@ -231,6 +231,7 @@ export class Session extends EventEmitter {
     this.activity = 'starting';
     this.detail = null;
     this.unseen = false;
+    this.promptShown = false;
 
     const [file, args] = claudeCommand(this.hookSettings, [
       ...(resume ? ['--resume', this.claudeSessionId] : ['--session-id', this.claudeSessionId]),
@@ -338,8 +339,18 @@ export class Session extends EventEmitter {
   trackStatusLine(payload: unknown) {
     this.usage = usageFromStatusLine(payload);
     // The status line first reports once the prompt is on screen.
-    this.flushPending();
+    const first = !this.promptShown;
+    this.promptShown = true;
+    if (this.pending) return this.flushPending();
+    // A new conversation waiting for its first prompt can take one from Up next.
+    if (first && !this.turns) {
+      this.cleanStop = true;
+      this.scheduleSend();
+    }
   }
+
+  /** Claude's prompt has been on screen since this process started. */
+  private promptShown = false;
 
   private pending: string | null = null;
 
@@ -475,7 +486,8 @@ export class Session extends EventEmitter {
     if (!offer) return false;
     this.planOffer = null;
     offer.reply(lots);
-    this.queue.push(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, lots.length) })));
+    // Ahead of what was already queued: the plan's lots finish this task before the next one starts.
+    this.queue.unshift(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, lots.length) })));
     this.activity = 'working';
     this.detail = null;
     this.unseen = false;
@@ -595,7 +607,8 @@ export class Session extends EventEmitter {
   }
 
   private canSend() {
-    return this.status === 'running' && !!this.proc && this.activity === 'idle' && !this.held.length && this.queue.length > 0;
+    const ready = this.activity === 'idle' || (this.activity === 'starting' && this.promptShown);
+    return this.status === 'running' && !!this.proc && ready && !this.held.length && this.queue.length > 0;
   }
 
   /** Sends the next prompt shortly after a clean Stop, once the user has not typed for a moment. */
@@ -768,7 +781,10 @@ export const MAX_NAME = 60;
 /** A first name for the session until Claude titles it: the prompt's first words, cut at a word. */
 export function nameFromPrompt(prompt: unknown): string | null {
   if (typeof prompt !== 'string') return null;
-  const text = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
+  let text = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
+  // A GitHub issue from Up next: "#12 Its title".
+  const issue = text.match(/^Work on GitHub issue (#\d+) "(.*?)":/);
+  if (issue) text = `${issue[1]} ${issue[2]}`;
   // Slash commands and pasted images say nothing about the task.
   if (!text || text.startsWith('/') || /^\[Image #\d+\]$/.test(text)) return null;
   const limit = 40;

@@ -218,6 +218,22 @@ export interface RepoSkills {
   picked: string[];
 }
 
+/** An open issue of the project's GitHub repository. `team`: opened by the owner, a member or a collaborator. */
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  author: string;
+  team: boolean;
+  comments: number;
+  url: string;
+  updatedAt: string;
+}
+
+/** `unavailable` says why there is no list (no gh, not signed in, no GitHub remote). */
+export type IssuesResult = { issues: GitHubIssue[] } | { unavailable: string };
+
 /** Where a connector is set up: the claude.ai account, every project, this project only, the repo's `.mcp.json`, or a plugin. */
 export type ConnectorSource = 'account' | 'user' | 'local' | 'project' | 'plugin';
 
@@ -320,6 +336,8 @@ export const api = {
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),
   sendQueuedNow: (id: string) => request(`/api/sessions/${id}/queue/send`, 'POST'),
+  /** The repository's open issues, through the user's gh login. */
+  issues: (id: string) => request<IssuesResult>(`/api/sessions/${id}/issues`),
   runCommand: (id: string, command: string) => request(`/api/sessions/${id}/run`, 'POST', { command }),
   splitPlan: (id: string, lots: string[]) => request(`/api/sessions/${id}/plan`, 'POST', { lots }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),

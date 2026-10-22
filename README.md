@@ -90,6 +90,7 @@ in a browser to page through the screens, or add `#grid4-dark` (any screen id an
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and signed in
   (`claude` must work in a terminal)
 - Git, for the inspector's changes view and for sessions in their own copy of the repo
+- Optional: the [GitHub CLI](https://cli.github.com), signed in, to queue GitHub issues
 
 Developed and used daily on Windows 11. CI builds on Windows, macOS and Linux, but
 macOS and Linux have had little real use yet: reports are welcome.
@@ -180,6 +181,19 @@ model call.
 Between two Up next prompts, when the conversation fills more than 60% of the context,
 Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
 task. Turn it off in Settings, under **Compact between tasks**.
+
+## GitHub issues
+
+**From an issue** in Up next (or **Work on GitHub issues…** in `Ctrl K`) lists the
+repository's open issues. Check a few and press Enter: each becomes an Up next prompt
+that has Claude read the issue with `gh issue view`, fix it, and commit with
+"Fixes #N", so GitHub closes the issue when you push. For a big issue, tick **Plan
+first**: Claude plans it in lots, which you split into Up next as above.
+
+Issues opened by someone who is not an owner, member or collaborator are hidden until
+you ask: their text goes to Claude, so read it in the preview first. This needs the
+[GitHub CLI](https://cli.github.com) signed in (`gh auth login`); Orchia uses your `gh`
+login and stores no token.
 
 ## Model and effort
 

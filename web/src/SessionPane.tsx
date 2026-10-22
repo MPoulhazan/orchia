@@ -28,6 +28,8 @@ interface Props {
   /** Focus view only: the inspector button. */
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
+  /** Focus view only: "From an issue" in Up next. */
+  onPickIssues?: () => void;
 }
 
 export function SessionPane(props: Props) {
@@ -148,7 +150,7 @@ export function SessionPane(props: Props) {
       )}
 
       {!compact && showPlanLots(session) && <PlanLots session={session} />}
-      {!compact && showUpNext(session) && <UpNext session={session} />}
+      {!compact && showUpNext(session) && <UpNext session={session} onPickIssues={props.onPickIssues} />}
 
       {compact && session.summary &&(statusOf(session) === 'done' || statusOf(session) === 'idle') && (
         <div className="done-bar" data-status={statusOf(session)} title={session.summary.text}>

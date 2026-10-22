@@ -6,6 +6,7 @@ import { terminalThemes, useTheme } from './theme';
 import { storage } from './storage';
 import { Rail, Sidebar, type View } from './Sidebar';
 import { CommandPalette, type PaletteMode } from './CommandPalette';
+import { IssuePicker } from './Issues';
 import { SessionPane } from './SessionPane';
 import { SessionTabs } from './SessionTabs';
 import { Inspector } from './Inspector';
@@ -51,6 +52,7 @@ export function App() {
   const [focusKey, setFocusKey] = useState(0);
   const [skillPicker, setSkillPicker] = useState(false);
   const [connectorPicker, setConnectorPicker] = useState(false);
+  const [issuePicker, setIssuePicker] = useState(false);
   const [connectorsChange, setConnectorsChange] = useState<ConnectorsChange>(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [askWhere, setAskWhere] = useState<{ project: Project; busy: string[] } | null>(null);
@@ -393,6 +395,7 @@ export function App() {
                   onToggleGrid={() => toggleGrid(selected.id)}
                   inspectorOpen={inspectorOpen}
                   onToggleInspector={toggleInspector}
+                  onPickIssues={() => setIssuePicker(true)}
                 />
               </div>
               {inspectorOpen && (
@@ -454,6 +457,14 @@ export function App() {
                 }
               : undefined
           }
+          onPickIssues={
+            selected?.status === 'running'
+              ? () => {
+                  setPalette(null);
+                  setIssuePicker(true);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -498,6 +509,17 @@ export function App() {
           onDone={() => {
             setConnectorPicker(false);
             setConnectorsChange((n) => n + 1);
+            refocus();
+          }}
+        />
+      )}
+
+      {issuePicker && selected && (
+        <IssuePicker
+          session={selected}
+          projectName={selectedProject?.name ?? 'this project'}
+          onClose={() => {
+            setIssuePicker(false);
             refocus();
           }}
         />
