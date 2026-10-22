@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, GitBranch, X } from 'lucide-react';
-import { api, type AllowRule, type Inspection, type SessionInfo } from './api';
+import { Check, Copy, GitBranch, Play, X } from 'lucide-react';
+import { api, type AllowRule, type CodeBlock, type Inspection, type SessionInfo } from './api';
 import { ConnectorsSection, type ConnectorsChange } from './Connectors';
 import { SkillsSection, type SkillsChange } from './Skills';
 import { InspectorSection } from './ui';
 
 const POLL_MS = 3000;
 
-/** Right-hand panel of the focus view: context, cost, skills, connectors, allow rules, plan, uncommitted changes and branch. */
+/** Right-hand panel of the focus view: last answer's code, context, cost, skills, connectors, allow rules, plan, uncommitted changes and branch. */
 export function Inspector({
   session,
   onClose,
@@ -35,6 +35,8 @@ export function Inspector({
           <X size={15} />
         </button>
       </header>
+
+      {data && <AnswerBlocksSection session={session} blocks={data.blocks} />}
 
       <InspectorSection
         id="context"
@@ -143,6 +145,79 @@ function useInspection(session: SessionInfo): [Inspection | null, () => void] {
     };
   }, [session.id, session.activity, session.status, nonce]);
   return [data?.id === session.id ? data.value : null, () => setNonce((n) => n + 1)];
+}
+
+const COPIED_MS = 1500;
+
+/**
+ * The code blocks of Claude's last reply, read from its Markdown (the terminal only has
+ * them as plain text). Copy for each; Run for a block that is one shell command, which
+ * types it after `!` in Claude's prompt so it runs in the session and Claude sees the output.
+ */
+function AnswerBlocksSection({ session, blocks }: { session: SessionInfo; blocks: CodeBlock[] }) {
+  const [done, setDone] = useState<{ index: number; what: 'copied' | 'sent' } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!done) return;
+    const timer = setTimeout(() => setDone(null), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [done]);
+  useEffect(() => setError(null), [session.id, blocks]);
+
+  if (!blocks.length) return null;
+  const busy = session.status !== 'running' || session.activity !== 'idle' || !!session.permission;
+
+  const copy = (index: number) => {
+    navigator.clipboard.writeText(blocks[index].code).then(
+      () => setDone({ index, what: 'copied' }),
+      () => setError("Couldn't copy: the browser blocked the clipboard"),
+    );
+  };
+  const run = (index: number) => {
+    setError(null);
+    api
+      .runCommand(session.id, blocks[index].command!)
+      .then(() => setDone({ index, what: 'sent' }))
+      .catch((err) => setError((err as Error).message));
+  };
+
+  return (
+    <InspectorSection
+      id="answer-blocks"
+      title="From the last answer"
+      hint="Code from Claude's last reply"
+      summary={blocks.length}
+      footer={error && <p className="skill-error">{error}</p>}
+    >
+      <div className="code-blocks">
+        {blocks.map((b, i) => (
+          <div key={i} className="code-block">
+            <div className="code-block-head">
+              <span className="code-lang">{b.lang || 'text'}</span>
+              {b.command && (
+                <button
+                  className="btn btn-ghost code-btn"
+                  disabled={busy}
+                  title={busy ? 'Available once Claude is waiting for you' : `Runs ${b.command} here, like typing ! in Claude's prompt. Claude sees the output.`}
+                  onClick={() => run(i)}
+                >
+                  {done?.index === i && done.what === 'sent' ? <Check size={13} /> : <Play size={13} />}
+                  {done?.index === i && done.what === 'sent' ? 'Sent' : 'Run'}
+                </button>
+              )}
+              <button className="btn btn-ghost code-btn" title="Copy to the clipboard" onClick={() => copy(i)}>
+                {done?.index === i && done.what === 'copied' ? <Check size={13} /> : <Copy size={13} />}
+                {done?.index === i && done.what === 'copied' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <pre className="code-body">
+              <code>{b.code}</code>
+            </pre>
+          </div>
+        ))}
+      </div>
+    </InspectorSection>
+  );
 }
 
 const NEW_RULE_MS = 4000;

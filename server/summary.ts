@@ -63,3 +63,43 @@ function shorten(text: string): string {
   const cut = text.slice(0, MAX - 1);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), MAX / 2)).replace(/[\s,;:]+$/, '') + '…';
 }
+
+/** A fenced code block from Claude's last reply, for Copy (and Run when it is one shell command). */
+export interface CodeBlock {
+  lang: string;
+  code: string;
+  /** The command Run types, for a shell block holding exactly one; null otherwise. */
+  command: string | null;
+}
+
+const MAX_BLOCKS = 8;
+const MAX_BLOCK_CHARS = 10_000;
+const MAX_COMMAND_CHARS = 500;
+const SHELLS = new Set(['sh', 'bash', 'shell', 'zsh', 'console', 'terminal', 'powershell', 'ps1', 'pwsh', 'cmd', 'bat']);
+const FENCE = /^ {0,3}(`{3,}|~{3,})([^\n`]*)\n([\s\S]*?)\n {0,3}\1[ \t]*$/gm;
+
+/** The fenced blocks of a reply, in order. An unclosed last fence is left out. */
+export function codeBlocks(message: unknown): CodeBlock[] {
+  if (typeof message !== 'string') return [];
+  const blocks: CodeBlock[] = [];
+  for (const [, , info, body] of message.replace(/\r\n/g, '\n').matchAll(FENCE)) {
+    const code = body.replace(/\s+$/, '');
+    if (!code.trim() || code.length > MAX_BLOCK_CHARS) continue;
+    const lang = info.trim().split(/\s+/)[0].toLowerCase();
+    blocks.push({ lang, code, command: SHELLS.has(lang) ? singleCommand(code, lang) : null });
+    if (blocks.length === MAX_BLOCKS) break;
+  }
+  return blocks;
+}
+
+/** The one command a shell block runs, without prompts and comments; null for several. */
+function singleCommand(code: string, lang: string): string | null {
+  // Line continuations: `\` in sh, a backtick in PowerShell.
+  let lines = code.replace(/[ \t]*(\\|`)\n[ \t]*/g, ' ').split('\n');
+  // A console transcript: commands start with a prompt, the rest is output.
+  if (lang === 'console' || lang === 'terminal' || lines.some((l) => /^\s*\$ /.test(l))) {
+    lines = lines.filter((l) => /^\s*[$>] /.test(l));
+  }
+  const commands = lines.map((l) => l.replace(/^\s*[$>] /, '').trim()).filter((l) => l && !l.startsWith('#') && !l.startsWith('REM '));
+  return commands.length === 1 && commands[0].length <= MAX_COMMAND_CHARS ? commands[0] : null;
+}

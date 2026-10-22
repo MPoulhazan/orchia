@@ -19,6 +19,7 @@ const project = `${dir}/project`;
 const fake = `${dir}/fakeclaude.cjs`;
 const result = `${dir}/fake-result.json`;
 const transcript = `${dir}/transcript.jsonl`;
+const typedFile = `${dir}/typed.txt`;
 mkdirSync(project);
 
 writeFileSync(fake, `
@@ -39,9 +40,13 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   const answer = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm test' } });
   out.permission = answer.status === 200 ? await answer.json() : answer.status;
   writeFileSync(${JSON.stringify(transcript)}, JSON.stringify({ type: 'ai-title', aiTitle: 'Fix the "flaky" tests', sessionId: 'smoke-session' }) + '\\n');
-  await hook({ hook_event_name: 'Stop', last_assistant_message: 'All tests pass.', transcript_path: ${JSON.stringify(transcript)} });
+  const reply = ['All tests pass. Run them again with:', '', '\\x60\\x60\\x60bash', 'npm test', '\\x60\\x60\\x60'].join('\\n');
+  await hook({ hook_event_name: 'Stop', last_assistant_message: reply, transcript_path: ${JSON.stringify(transcript)} });
   writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
   process.stdout.write('Fake Claude done\\r\\n');
+  // What Orchia types into the prompt, for the Run check.
+  let typed = '';
+  process.stdin.on('data', (d) => writeFileSync(${JSON.stringify(typedFile)}, (typed += d)));
   setInterval(() => {}, 1000);
 })().catch((err) => { writeFileSync(${JSON.stringify(result)}, JSON.stringify({ error: String(err) })); });
 `);
@@ -113,6 +118,12 @@ try {
   if (asking.name !== 'run the tests') throw new Error(`Not named from the first prompt: ${asking.name}`);
   await until("Claude's title as the name", async () => (await session(id))?.name === 'Fix the "flaky" tests');
   step('names the session from the conversation');
+
+  const { blocks } = await api('GET', `/api/sessions/${id}/inspect`);
+  if (blocks?.length !== 1 || blocks[0].command !== 'npm test') throw new Error(`Unexpected code blocks: ${JSON.stringify(blocks)}`);
+  await api('POST', `/api/sessions/${id}/run`, { command: 'npm test' });
+  await until('the command typed in the prompt', async () => existsSync(typedFile) && readFileSync(typedFile, "utf8").startsWith("!npm test\r"), 5000);
+  step('lists code blocks, Run types the command');
 
   console.log('\nSmoke test passed');
 } catch (err) {

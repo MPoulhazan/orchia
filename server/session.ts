@@ -5,7 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { summarize, type TurnSummary } from './summary.ts';
+import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 
@@ -78,6 +78,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   exited: boolean;
   model?: string | null;
   summary?: TurnSummary | null;
+  blocks?: CodeBlock[];
   queue?: QueuedPrompt[];
   copy?: SessionCopy | null;
   usage?: Usage | null;
@@ -146,6 +147,8 @@ export class Session extends EventEmitter {
   turns: number;
   /** What the last finished turn did, from the Stop hook. */
   summary: TurnSummary | null;
+  /** Code blocks of the last finished turn's reply, for Copy and Run. */
+  blocks: CodeBlock[];
   /** Files edited or written since the turn started. */
   private turnFiles = new Set<string>();
   queue: QueuedPrompt[];
@@ -189,6 +192,7 @@ export class Session extends EventEmitter {
     this.plan = restore?.plan ?? [];
     this.turns = restore?.turns ?? 0;
     this.summary = restore?.summary ?? null;
+    this.blocks = restore?.blocks ?? [];
     this.queue = restore?.queue ?? [];
     this.hookSettings = opts.hookSettings;
     this.cols = opts.cols ?? 120;
@@ -358,6 +362,7 @@ export class Session extends EventEmitter {
       const name = this.autoName && this.turns === 1 ? nameFromPrompt(payload.prompt) : null;
       if (name) this.name = name;
       this.summary = null;
+      this.blocks = [];
       this.turnFiles.clear();
       this.cleanStop = false;
       this.draftLength = 0;
@@ -374,6 +379,7 @@ export class Session extends EventEmitter {
     if (event === 'Stop') {
       const text = summarize(payload.last_assistant_message);
       this.summary = text ? { text, files: this.turnFiles.size, at: Date.now() } : null;
+      this.blocks = codeBlocks(payload.last_assistant_message);
     }
     if (event === 'PostToolUse' && payload.tool_name === 'Skill') {
       const input = payload.tool_input ?? {};
@@ -509,6 +515,20 @@ export class Session extends EventEmitter {
     this.emit('change');
   }
 
+  /**
+   * Runs a command from the last reply as if typed after `!` in Claude's prompt: Claude Code
+   * runs it in the session's folder and Claude sees the output. Only while Claude waits.
+   */
+  runCommand(command: string): string | null {
+    if (!this.blocks.some((b) => b.command === command)) return 'That command is not in the last answer any more';
+    if (this.status !== 'running' || !this.proc || this.activity !== 'idle' || this.held.length) return 'Claude is busy';
+    if (this.draftLength > 0) return "Clear what you typed in Claude's prompt first";
+    // `!` alone switches the prompt to bash mode; typed with the command, it would arrive as a paste.
+    this.proc.write('!');
+    setTimeout(() => this.typeLine(command), 300);
+    return null;
+  }
+
   /** "Send now": the user lifts the hold (stopped turn, or a draft they don't care about). */
   sendNextNow(): boolean {
     if (!this.canSend()) return false;
@@ -624,6 +644,7 @@ export class Session extends EventEmitter {
       plan: this.plan,
       turns: this.turns,
       summary: this.summary,
+      blocks: this.blocks,
       queue: this.queue,
       copy: this.copy,
       autoName: this.autoName,

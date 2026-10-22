@@ -522,6 +522,7 @@ const routes: [string, RegExp, Handler][] = [
       usage: session.usage,
       plan: session.plan,
       turns: session.turns,
+      blocks: session.blocks,
       git: await gitSummary(session.cwd),
       allowRules: projectAllowRules(session.cwd),
     };
@@ -571,6 +572,13 @@ const routes: [string, RegExp, Handler][] = [
     const body = await readJson(req);
     if (!Array.isArray(body.ids)) throw new HttpError(400, 'Expected { ids }');
     findSession(id).reorderQueue(body.ids.map(String));
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/run$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    if (typeof body.command !== 'string') throw new HttpError(400, 'Expected { command }');
+    const refused = findSession(id).runCommand(body.command);
+    if (refused) throw new HttpError(409, refused);
     return { ok: true };
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/queue\/send$/, (_req, _url, [id]) => {

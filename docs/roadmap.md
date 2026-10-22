@@ -6,15 +6,15 @@ Ideas agreed on but not built yet.
 
 Built in this order, each kept as simple to use as the rest: no new page, shown only when it applies.
 
-1. **Tab names from the conversation.** A new session is named from its first prompt right
+1. ~~**Tab names from the conversation.**~~ built. A new session is named from its first prompt right
    away, then from the title Claude Code writes in its transcript (`ai-title` entries, the
    title `/resume` shows). Never overwrites a name the user typed. Terminal titles (OSC) were
    tried first: Claude Code sends none on Windows.
-2. **Copy blocks from the last answer.** Code blocks are plain text in the terminal, so they
+2. ~~**Copy blocks from the last answer.**~~ built in the inspector (not yet in the Done card). Code blocks are plain text in the terminal, so they
    are read from the transcript's Markdown instead. "From the last answer" in the Done card
    and the inspector lists them, each with **Copy**. Not a second rendering of the
    conversation.
-3. **Run a command block.** Shell blocks (bash, sh, PowerShell) also get **Run**, which types
+3. ~~**Run a command block.**~~ built; real Claude Code runs `!` commands and answers about the output. Shell blocks (bash, sh, PowerShell) also get **Run**, which types
    `! <command>` in Claude's prompt: it runs in the session's folder under Claude Code's own
    rules, and Claude sees the output. Command always shown in full; disabled while Claude
    works; one line at a time.

@@ -105,6 +105,13 @@ export interface RateLimits {
   sevenDay: LimitWindow | null;
 }
 
+/** A fenced code block of Claude's last reply; `command` is set when Run can type it. */
+export interface CodeBlock {
+  lang: string;
+  code: string;
+  command: string | null;
+}
+
 export interface Inspection {
   /** From Claude Code's status line; null until it first reports. */
   usage: {
@@ -117,6 +124,7 @@ export interface Inspection {
   } | null;
   plan: { id: string; text: string; status: 'pending' | 'in_progress' | 'completed' }[];
   turns: number;
+  blocks: CodeBlock[];
   /** null outside a git repository. */
   git: {
     branch: string | null;
@@ -284,6 +292,7 @@ export const api = {
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),
   sendQueuedNow: (id: string) => request(`/api/sessions/${id}/queue/send`, 'POST'),
+  runCommand: (id: string, command: string) => request(`/api/sessions/${id}/run`, 'POST', { command }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */

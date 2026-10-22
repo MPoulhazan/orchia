@@ -182,6 +182,10 @@ not reflected in the chip.
 The panel on the right of the focus view (`Alt I`) shows, for the session on
 screen:
 
+- **From the last answer**: the code blocks of Claude's last reply, each with **Copy**.
+  A block that is one shell command also has **Run**, which types `! command` in
+  Claude's prompt: Claude Code runs it in the session's folder and Claude sees the
+  output. Run waits until Claude is waiting for you.
 - **Context** used and **cost so far**, as Claude Code itself estimates them. Claude
   Code only gives these to its status line, so the injected settings also set a
   status line command, `server/statusline.mjs`, which passes them to Orchia and

@@ -3321,3 +3321,55 @@ a.conn-state:hover {
 .merge-text .merge-fail {
   color: var(--danger);
 }
+
+/* Inspector, "From the last answer": Claude's code blocks with Copy and Run. */
+.code-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.code-block-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.code-lang {
+  margin-right: auto;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.btn.code-btn {
+  height: 24px;
+  padding: 0 7px;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.btn.code-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.code-body {
+  margin: 0;
+  max-height: 180px;
+  padding: 8px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+}
