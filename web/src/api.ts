@@ -119,6 +119,12 @@ export interface Settings {
   restartAfterConnectorChange: boolean;
 }
 
+/** The optional link to an Orchia Cloud account (server/cloud.ts). */
+export type CloudStatus =
+  | { state: 'off'; url: string; note: string | null }
+  | { state: 'pairing'; url: string; userCode: string; verifyUrl: string; expiresAt: number }
+  | { state: 'connecting' | 'connected'; url: string; name: string };
+
 /** One plan usage window, in whole percents; resetsAt is ms since epoch. */
 export interface LimitWindow {
   usedPct: number;
@@ -375,6 +381,9 @@ export const api = {
   },
 
   updateSettings: (patch: Partial<Settings>) => request<Settings>('/api/settings', 'PATCH', patch),
+  pairCloud: () => request<CloudStatus>('/api/cloud/pair', 'POST'),
+  cancelCloudPairing: () => request<CloudStatus>('/api/cloud/cancel', 'POST'),
+  disconnectCloud: () => request<CloudStatus>('/api/cloud', 'DELETE'),
 
   suggestions: () => request<Suggestion[]>('/api/suggestions'),
   /** No path: home folder. Empty path: drive list. */

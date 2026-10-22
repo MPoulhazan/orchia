@@ -246,6 +246,7 @@ with no fix yet concern them.
 | `ORCHIA_PORT`   | `4317`       | Server port                     |
 | `ORCHIA_HOME`   | `~/.orchia`  | Where projects are saved        |
 | `ORCHIA_CLAUDE` | `claude`     | Command used to start Claude    |
+| `ORCHIA_CLOUD_URL` | `https://app.orchia.app` | Orchia Cloud server, if you pair |
 
 ## Security
 
@@ -260,6 +261,13 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
   telemetry. Orchia itself only downloads the public advisory catalog
   (`tools.json` from awesome-vetted-claude-code), once a day, without sending anything
   about you or your projects.
+- Orchia Cloud is optional and off by default. If you turn it on in Settings, Orchia
+  pairs with your account through a code you approve in the browser, then keeps one
+  outbound connection open (the cloud never connects to your machine). It sends this
+  computer's name, Orchia's version, your OS and when you are online, nothing else:
+  no code, prompts, terminal output, file or project names. Settings lists exactly what
+  is sent. The device token is saved in `~/.orchia/cloud.json`; Disconnect, or Unpair
+  from Devices on the cloud, revokes it. Set `ORCHIA_CLOUD_URL` to use another server.
 - A connector token you paste is written to Claude Code's own config
   (`~/.claude.json`), where `claude mcp add` would put it.
 
