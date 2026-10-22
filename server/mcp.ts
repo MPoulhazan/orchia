@@ -133,6 +133,15 @@ async function load(cwd: string): Promise<Connector[]> {
   }));
   markDuplicates(connectors);
   cache.set(cwd.toLowerCase(), { at: Date.now(), connectors });
+  // A connector of the account, the user or a plugin is the same in every project: the other projects' last check is out of date.
+  const shared = new Map(connectors.filter((c) => c.source !== 'local' && c.source !== 'project').map((c) => [c.name, c]));
+  for (const [key, hit] of cache) {
+    if (key === cwd.toLowerCase()) continue;
+    hit.connectors = hit.connectors.map((c) => {
+      const now = shared.get(c.name);
+      return now ? { ...c, state: now.state, detail: now.detail } : c;
+    });
+  }
   for (const listener of listeners) listener();
   return connectors;
 }
@@ -362,21 +371,31 @@ export function signIn(cwd: string, name: string, onSignedIn?: () => void) {
           "This service needs an access token: Claude Code can't sign in to it."
         : (text.match(/Couldn't[^\r\n]*/)?.[0] ?? 'Sign-in did not finish.');
     }
-    state.done = true;
     // Check the list again; a sign-in that worked stays known until that check is done, a failed one until the next try.
-    projectConnectors(cwd, true)
-      .then(({ connectors }) => {
-        // The browser said yes but Claude Code got no token: say so, rather than just showing "Sign in" again.
-        const after = connectors.find((c) => c.name === name);
-        if (!state.error && after?.state === 'needs-auth') {
-          state.error = after.duplicateOf
-            ? `The sign-in didn't reach Claude Code. ${after.duplicateOf} already connects to this service: you can remove this one.`
-            : "The sign-in didn't reach Claude Code. Try again, or sign in with /mcp in a Claude Code terminal.";
-        }
-      })
+    // A claude.ai connector's token goes through the account first: Claude Code may only see it some seconds later.
+    const check = async () => {
+      if (state.error) return;
+      let after: Connector | undefined;
+      for (const wait of CONFIRM_WAITS_MS) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        after = (await projectConnectors(cwd, true)).connectors.find((c) => c.name === name);
+        if (after?.state !== 'needs-auth') return;
+      }
+      // The browser said yes but Claude Code got no token: say so, rather than just showing "Sign in" again.
+      state.error = after?.duplicateOf
+        ? `The sign-in didn't reach Claude Code. ${after.duplicateOf} already connects to this service: you can remove this one.`
+        : "The sign-in didn't reach Claude Code. Try again, or sign in with /mcp in a Claude Code terminal.";
+    };
+    check()
+      .catch(() => {})
       .finally(() => {
+        state.done = true;
         if (!state.error) onSignedIn?.();
         if (signIns.get(key) === state && !state.error) signIns.delete(key);
+        for (const listener of listeners) listener();
       });
   });
 }
+
+/** Checks after a sign-in, until Claude Code sees it. */
+const CONFIRM_WAITS_MS = [0, 5_000, 15_000];
