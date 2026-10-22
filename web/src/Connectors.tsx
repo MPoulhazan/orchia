@@ -39,7 +39,17 @@ const CONNECTOR_CHANGED = 'orchia:connector-changed';
 /** Bumped by the add dialog, so the list refreshes and offers a restart. */
 export type ConnectorsChange = number;
 
-export function ConnectorsSection({ session, change, onAdd }: { session: SessionInfo; change: ConnectorsChange; onAdd: () => void }) {
+export function ConnectorsSection({
+  session,
+  change,
+  onAdd,
+  autoRestart,
+}: {
+  session: SessionInfo;
+  change: ConnectorsChange;
+  onAdd: () => void;
+  autoRestart: boolean;
+}) {
   const [data, setData] = useState<({ id: string } & Awaited<ReturnType<typeof api.connectors>>) | null>(null);
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(false);
@@ -55,6 +65,10 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
     load();
   }, [session.id, session.activity, change]);
   useEffect(() => setChanged(false), [session.id]);
+  // A restart (by hand or by itself) applied the change.
+  useEffect(() => {
+    if (session.activity === 'starting') setChanged(false);
+  }, [session.activity]);
   useEffect(() => {
     const onChanged = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== session.id) return;
@@ -158,9 +172,13 @@ export function ConnectorsSection({ session, change, onAdd }: { session: Session
         <>
           {changed && (
             <div className="skill-reload">
-              <span>Connectors load when the session starts. Restart it to use the change. The conversation is kept.</span>
+              <span>
+                {autoRestart
+                  ? 'Connectors load when the session starts. It restarts by itself once Claude is free, keeping the conversation.'
+                  : 'Connectors load when the session starts. Restart it to use the change. The conversation is kept.'}
+              </span>
               <button className="btn btn-secondary conn-restart" onClick={restart} disabled={session.activity === 'working'}>
-                Restart session
+                {autoRestart ? 'Restart now' : 'Restart session'}
               </button>
             </div>
           )}

@@ -205,6 +205,10 @@ screen:
   then runs your own status line (from your user or project settings) unchanged.
   Side effect: with any status line set, Claude Code hides some footer hints such
   as "esc to interrupt".
+- **Skills** and **Connectors** of the project: turn them on or off, add, sign in, remove.
+  Connectors load when Claude starts, so after a change Orchia restarts the project's
+  sessions by itself once Claude is free, keeping the conversation (Settings: **Restart by
+  itself**).
 - **Plan**, when Claude keeps one with its task tools (`TaskCreate`/`TaskUpdate`,
   or `TodoWrite`). Recent models don't use them by default, so it is often absent.
 - **Uncommitted changes** and **branch** of the project folder, from `git status`

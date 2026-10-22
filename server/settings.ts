@@ -17,9 +17,11 @@ export interface Settings {
   permissionMode: PermissionMode | null;
   /** Before sending the next Up next prompt, type /compact when the context is well filled. */
   compactBetweenTasks: boolean;
+  /** After a connector change, restart the project's sessions once Claude is free, keeping the conversation. */
+  restartAfterConnectorChange: boolean;
 }
 
-const DEFAULTS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true };
+const DEFAULTS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true };
 
 /** Keeps known values only, so a hand-edited or older file never breaks a launch. */
 function clean(raw: any): Settings {
@@ -28,6 +30,7 @@ function clean(raw: any): Settings {
     effort: isEffortLevel(raw?.effort) ? raw.effort : null,
     permissionMode: isPermissionMode(raw?.permissionMode) ? raw.permissionMode : null,
     compactBetweenTasks: raw?.compactBetweenTasks !== false,
+    restartAfterConnectorChange: raw?.restartAfterConnectorChange !== false,
   };
 }
 
@@ -57,6 +60,7 @@ export class SettingsStore {
     if (next.effort !== null && !isEffortLevel(next.effort)) throw new Error('Unknown effort level');
     if (next.permissionMode !== null && !isPermissionMode(next.permissionMode)) throw new Error('Unknown permission mode');
     if (typeof next.compactBetweenTasks !== 'boolean') throw new Error('compactBetweenTasks must be true or false');
+    if (typeof next.restartAfterConnectorChange !== 'boolean') throw new Error('restartAfterConnectorChange must be true or false');
     this.settings = next;
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.settings, null, 2));

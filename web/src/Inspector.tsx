@@ -15,6 +15,7 @@ export function Inspector({
   onAddSkill,
   connectorsChange,
   onAddConnector,
+  autoRestart,
 }: {
   session: SessionInfo;
   onClose: () => void;
@@ -22,6 +23,8 @@ export function Inspector({
   onAddSkill: () => void;
   connectorsChange: ConnectorsChange;
   onAddConnector: () => void;
+  /** Settings: Orchia restarts the session by itself after a connector change. */
+  autoRestart: boolean;
 }) {
   const [data, reload] = useInspection(session);
   const usage = data?.usage ?? null;
@@ -56,7 +59,7 @@ export function Inspector({
 
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
-      <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} />
+      <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} autoRestart={autoRestart} />
 
       {data && <AllowRulesSection session={session} rules={data.allowRules} onChange={reload} />}
 

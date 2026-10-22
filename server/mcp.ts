@@ -330,7 +330,7 @@ export function signInsFor(cwd: string): Record<string, SignIn> {
  * Runs `claude mcp login <name>`: it opens the browser on the service's sign-in
  * page and waits for it to call back. It needs a terminal, so it runs in a pty.
  */
-export function signIn(cwd: string, name: string) {
+export function signIn(cwd: string, name: string, onSignedIn?: () => void) {
   // Goes through cmd on Windows: no quotes or shell characters in the name.
   if (!/^[\w .:-]{1,80}$/.test(name)) throw new Error('This connector can only sign in from a terminal: claude mcp login');
   const key = signInKey(cwd, name);
@@ -375,6 +375,7 @@ export function signIn(cwd: string, name: string) {
         }
       })
       .finally(() => {
+        if (!state.error) onSignedIn?.();
         if (signIns.get(key) === state && !state.error) signIns.delete(key);
       });
   });

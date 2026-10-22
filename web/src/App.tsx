@@ -403,6 +403,7 @@ export function App() {
                   onAddSkill={() => setSkillPicker(true)}
                   connectorsChange={connectorsChange}
                   onAddConnector={() => setConnectorPicker(true)}
+                  autoRestart={state?.settings.restartAfterConnectorChange ?? true}
                 />
               )}
             </>

@@ -155,8 +155,31 @@ function broadcast() {
 
 function addSession(session: Session) {
   session.on('change', broadcast);
+  session.on('change', restartQuietOnes);
   sessions.set(session.id, session);
 }
+
+/** Sessions to restart once quiet, so a connector change reaches them ("Restart by itself"). */
+const restartWhenQuiet = new Set<Session>();
+
+/** Connectors load when claude starts: every running session of the project needs a restart. */
+function connectorsChanged(session: Session) {
+  if (!settings.get().restartAfterConnectorChange) return;
+  for (const s of sessions.values()) if (s.projectId === session.projectId && s.status === 'running') restartWhenQuiet.add(s);
+  restartQuietOnes();
+}
+
+function restartQuietOnes() {
+  for (const s of restartWhenQuiet) {
+    if (s.status !== 'running') restartWhenQuiet.delete(s);
+    else if (s.isQuiet()) {
+      restartWhenQuiet.delete(s);
+      s.restart({ fresh: false, hasTranscript: hasTranscript(s.claudeSessionId) });
+    }
+  }
+}
+// Typing pauses end without any event.
+setInterval(restartQuietOnes, 5000).unref();
 
 /** null (or missing) keeps Claude Code's default; anything else must be a known value. */
 function parseChoices(body: any): LaunchChoices {
@@ -359,7 +382,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {
@@ -514,12 +537,13 @@ const routes: [string, RegExp, Handler][] = [
     const body = await readJson(req);
     try {
       if (body.action === 'signin') {
-        signIn(session.cwd, String(body.name ?? ''));
+        signIn(session.cwd, String(body.name ?? ''), () => connectorsChanged(session));
         broadcast();
         return { ok: true };
       }
       if (body.action === 'toggle') {
         setConnectorEnabled(session.cwd, String(body.name ?? ''), body.on === true);
+        connectorsChanged(session);
         return { ok: true };
       }
       if (body.action === 'add') {
@@ -528,6 +552,7 @@ const routes: [string, RegExp, Handler][] = [
         const token = server.type === 'stdio' ? null : await tokenFrom(server, body);
         const added: McpServerConfig = token && server.type !== 'stdio' ? { ...server, headers: { ...server.headers, Authorization: `Bearer ${token}` } } : server;
         addConnector(session.cwd, String(body.name ?? '').trim(), added, body.scope === 'all' ? 'all' : 'project');
+        connectorsChanged(session);
         return { ok: true };
       }
       if (body.action === 'token') {
@@ -538,10 +563,12 @@ const routes: [string, RegExp, Handler][] = [
         if (!token) throw new Error('Paste a token');
         setConnectorToken(session.cwd, name, token);
         projectConnectors(session.cwd, true).catch(() => {});
+        connectorsChanged(session);
         return { ok: true };
       }
       if (body.action === 'remove') {
         removeConnector(session.cwd, String(body.name ?? ''));
+        connectorsChanged(session);
         return { ok: true };
       }
     } catch (err) {

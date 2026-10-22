@@ -76,7 +76,7 @@ Next (lot 2 of the 2026-10-14 plan):
 
 - **Account first**: when the claude.ai account already has the service (Supabase, Vercel…),
   say so in the catalog instead of offering a second one.
-- **Restart by itself** once the session is idle after a connector change (conversation kept).
+- ~~**Restart by itself**~~ built: toggle, add, token, remove or a finished sign-in queue every running session of the project; each restarts (`--resume`) once quiet (idle, nothing held, empty Up next, no draft, not typing for 3 s). Setting on by default.
 
 Only if needed:
 

@@ -613,6 +613,20 @@ export class Session extends EventEmitter {
     this.sendTimer.unref();
   }
 
+  /** Claude waits with nothing pending and the user isn't typing: a restart now interrupts nothing. */
+  isQuiet(): boolean {
+    return (
+      this.status === 'running' &&
+      this.activity === 'idle' &&
+      !this.held.length &&
+      !this.planOffer &&
+      !this.compacting &&
+      !this.queue.length &&
+      this.draftLength === 0 &&
+      Date.now() - this.lastInputAt > TYPING_PAUSE_MS
+    );
+  }
+
   /** Between two queued tasks, a well-filled context is compacted now rather than by Claude Code mid-task. */
   private needsCompact(): boolean {
     const at = Session.compactAt();

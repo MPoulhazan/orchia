@@ -111,6 +111,20 @@ export function SettingsDialog(props: {
             </Field>
           </section>
 
+          <section className="settings-section">
+            <h3>Connectors</h3>
+            <Field
+              label="Restart by itself"
+              description="Connectors load when a session starts. After you add, remove, turn on or sign in to one, Orchia restarts the project's sessions as soon as Claude is free. The conversation is kept."
+            >
+              <Options
+                items={ON_OFF}
+                value={settings.restartAfterConnectorChange ? 'on' : 'off'}
+                onChange={(v) => change({ restartAfterConnectorChange: v === 'on' })}
+              />
+            </Field>
+          </section>
+
           {props.project && (
             <section className="settings-section">
               <h3>{props.project.name}</h3>
