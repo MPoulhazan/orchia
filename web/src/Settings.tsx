@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun, X } from 'lucide-react';
-import { api, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
+import { api, type CloudStatus, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
 import type { NotifyState } from './notifications';
@@ -40,6 +40,7 @@ const SMOOTH_SCROLL: { value: SmoothScrollPref; label: string }[] = [
 /** App-wide settings: defaults for new sessions (kept by the server), notifications, theme and scrolling (kept in this browser). */
 export function SettingsDialog(props: {
   settings: Settings;
+  cloud: CloudStatus;
   /** The project shown when Settings opened, for its own settings. */
   project: Project | null;
   themePref: ThemePref;
@@ -138,6 +139,8 @@ export function SettingsDialog(props: {
             </section>
           )}
 
+          <CloudSection cloud={props.cloud} />
+
           <section className="settings-section">
             <h3>This browser</h3>
             <Field
@@ -195,5 +198,83 @@ function Options<T extends string | null>(props: { items: { value: T; label: str
         </button>
       ))}
     </div>
+  );
+}
+
+/** Optional pairing with an Orchia Cloud account. Says exactly what leaves this machine before it does. */
+function CloudSection(props: { cloud: CloudStatus }) {
+  const { cloud } = props;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function run(action: () => Promise<unknown>) {
+    setBusy(true);
+    setError('');
+    try {
+      await action();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const host = cloud.url.replace(/^https?:\/\//, '');
+
+  return (
+    <section className="settings-section">
+      <h3>Orchia Cloud</h3>
+      <p className="settings-note">
+        Optional. Pairs this computer with your account on {host || 'Orchia Cloud'}. Off unless you turn it on.
+      </p>
+      <Field
+        label="Connection"
+        description={
+          cloud.state === 'off'
+            ? cloud.note ?? 'Orchia opens a connection to the cloud. The cloud never connects to this computer.'
+            : cloud.state === 'pairing'
+              ? 'Check that the browser shows the same code, then approve it there.'
+              : cloud.state === 'connected'
+                ? `Paired as "${cloud.name}". Unpair here or from Devices on ${host}.`
+                : `Paired as "${cloud.name}". Reaching ${host}…`
+        }
+      >
+        <div className="option-row">
+          {cloud.state === 'off' && (
+            <button className="option" disabled={busy} onClick={() => run(api.pairCloud)}>
+              Connect to Orchia Cloud
+            </button>
+          )}
+          {cloud.state === 'pairing' && (
+            <>
+              <span className="cloud-code">{cloud.userCode}</span>
+              <a className="option" href={cloud.verifyUrl} target="_blank" rel="noreferrer">
+                Open {host}
+              </a>
+              <button className="option" disabled={busy} onClick={() => run(api.cancelCloudPairing)}>
+                Cancel
+              </button>
+            </>
+          )}
+          {(cloud.state === 'connected' || cloud.state === 'connecting') && (
+            <>
+              <span className={`cloud-dot${cloud.state === 'connected' ? ' on' : ''}`} aria-hidden />
+              <span className="cloud-state">{cloud.state === 'connected' ? 'Connected' : 'Connecting'}</span>
+              <button className="option" disabled={busy} onClick={() => run(api.disconnectCloud)}>
+                Disconnect
+              </button>
+            </>
+          )}
+        </div>
+        {error && <p className="model-error">{error}</p>}
+      </Field>
+      <Field label="What is sent" description="Your code, prompts, terminal output, file and project names never leave this computer.">
+        <ul className="cloud-sent">
+          <li>This computer's name ("{cloud.state === 'off' || cloud.state === 'pairing' ? 'its hostname' : cloud.name}")</li>
+          <li>Orchia's version and your operating system</li>
+          <li>When this computer is online</li>
+        </ul>
+      </Field>
+    </section>
   );
 }

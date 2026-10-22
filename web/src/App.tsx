@@ -486,6 +486,7 @@ export function App() {
       {settingsOpen && state && (
         <SettingsDialog
           settings={state.settings}
+          cloud={state.cloud}
           project={selectedProject ?? projects.find((p) => p.id === lastProjectId.current) ?? null}
           themePref={theme.pref}
           onSetTheme={theme.setPref}

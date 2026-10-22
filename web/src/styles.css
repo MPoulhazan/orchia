@@ -3656,3 +3656,39 @@ a.btn {
     border-right: 0;
   }
 }
+
+/* ---- Orchia Cloud (Settings) --------------------------------------------- */
+
+.cloud-code {
+  align-self: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+
+.cloud-dot {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.cloud-dot.on {
+  background: var(--accent);
+}
+
+.cloud-state {
+  align-self: center;
+  font-size: 13px;
+}
+
+.cloud-sent {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}

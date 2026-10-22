@@ -11,6 +11,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
+import { CloudLink } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
@@ -52,6 +53,7 @@ const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
+const cloud = new CloudLink(CONFIG_DIR, () => broadcast());
 
 // ---- Live state -------------------------------------------------------------
 // Every client keeps one events socket open and receives the whole state on
@@ -69,6 +71,7 @@ function state() {
     sessions: [...sessions.values()].map((s) => s.info()),
     limits,
     settings: settings.get(),
+    cloud: cloud.get(),
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
   };
@@ -391,6 +394,21 @@ const routes: [string, RegExp, Handler][] = [
     }
     broadcast();
     return settings.get();
+  }],
+  ['POST', /^\/api\/cloud\/pair$/, async () => {
+    try {
+      return await cloud.pair();
+    } catch (err) {
+      throw new HttpError(502, (err as Error).message.startsWith('Orchia Cloud') ? (err as Error).message : 'Could not reach Orchia Cloud. Check your connection.');
+    }
+  }],
+  ['POST', /^\/api\/cloud\/cancel$/, () => {
+    cloud.cancelPairing();
+    return cloud.get();
+  }],
+  ['DELETE', /^\/api\/cloud$/, async () => {
+    await cloud.disconnect();
+    return cloud.get();
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/config$/, async (req, _url, [id]) => {
     const session = findSession(id);
