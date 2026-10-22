@@ -49,6 +49,8 @@ export interface SessionInfo {
    * A permission request that can be answered from Orchia: "Run" + `npm test`.
    * `always`: the rules "Always allow" saves, as Claude Code suggests them; may be empty.
    */
+  /** The lots of a plan waiting for review, when it splits into some. */
+  planLots: string[] | null;
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;
@@ -293,6 +295,7 @@ export const api = {
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),
   sendQueuedNow: (id: string) => request(`/api/sessions/${id}/queue/send`, 'POST'),
   runCommand: (id: string, command: string) => request(`/api/sessions/${id}/run`, 'POST', { command }),
+  splitPlan: (id: string, lots: string[]) => request(`/api/sessions/${id}/plan`, 'POST', { lots }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */

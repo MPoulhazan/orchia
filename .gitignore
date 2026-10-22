@@ -2,3 +2,4 @@ node_modules/
 dist/
 *.log
 *.tgz
+.playwright-mcp/

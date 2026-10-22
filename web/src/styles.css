@@ -446,6 +446,7 @@ kbd {
   flex-direction: column;
   gap: 3px;
   width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: none;
@@ -475,7 +476,14 @@ kbd {
 }
 
 .attention-title b {
+  min-width: 4ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text);
+}
+
+.attention-title .mark {
+  flex: none;
 }
 
 .attention-project {
@@ -3372,4 +3380,65 @@ a.conn-state:hover {
   font-size: 12px;
   line-height: 1.45;
   white-space: pre;
+}
+
+/* ---- Plan in lots: "Split into Up next" under the terminal ------------------ */
+
+.planlots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--hl);
+  background: var(--hl-soft);
+}
+
+.planlots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.planlots-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 4px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.planlots-item .upnext-n {
+  padding-top: 3px;
+}
+
+.planlots-text {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: 12.5px/1.45 var(--font-mono);
+  resize: vertical;
+}
+
+.planlots-text:focus {
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.planlots-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.planlots-actions .btn {
+  height: 28px;
+  font-size: 12.5px;
 }

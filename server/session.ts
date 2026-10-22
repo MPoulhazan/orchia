@@ -5,6 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
+import { lotPrompt } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -41,6 +42,8 @@ export interface SessionInfo {
   effortChoice: string | null;
   /** Permission mode claude was launched with; null means Claude Code's own default. */
   permissionMode: PermissionMode | null;
+  /** The lots of a plan waiting for review, when it splits into some ("Split into Up next"). */
+  planLots: string[] | null;
   /** The permission request Orchia can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
@@ -166,6 +169,8 @@ export class Session extends EventEmitter {
   readonly token = randomBytes(24).toString('hex');
 
   private held: HeldPermission[] = [];
+  /** A plan waiting for review that splits into lots; answering it approves lot 1 only. */
+  private planOffer: { id: string; lots: string[]; reply: (lots: string[] | null) => void } | null = null;
   private readonly hookSettings: string | null;
   private cols: number;
   private rows: number;
@@ -390,6 +395,7 @@ export class Session extends EventEmitter {
     if (mcp) this.lastConnector = { toolPrefix: mcp[1], at: Date.now() };
     // The user answered Claude Code's own prompt: the call ran, or the turn moved on.
     if (event === 'PostToolUse') this.releasePermissions((p) => p.key === permissionKey(payload));
+    if (event === 'PostToolUse' && payload.tool_name === 'ExitPlanMode') this.releasePlan();
     if (event === 'UserPromptSubmit' || event === 'Stop' || event === 'StopFailure') this.releasePermissions();
     const plan = nextPlan(this.plan, payload);
     if (plan) this.plan = plan;
@@ -423,12 +429,45 @@ export class Session extends EventEmitter {
   }
 
   /** Lets the matching held requests go without a decision (all by default). */
-  releasePermissions(which: (p: HeldPermission) => boolean = () => true) {
-    const gone = this.held.filter(which);
+  releasePermissions(which?: (p: HeldPermission) => boolean) {
+    if (!which) this.releasePlan();
+    const gone = this.held.filter(which ?? (() => true));
     if (!gone.length) return;
     this.held = this.held.filter((p) => !gone.includes(p));
     for (const p of gone) p.reply(null);
     this.emit('change');
+  }
+
+  /** Keeps the ExitPlanMode PermissionRequest open while the user may split the plan here. */
+  holdPlan(lots: string[], reply: (lots: string[] | null) => void): string {
+    this.releasePlan();
+    const id = randomUUID();
+    this.planOffer = { id, lots, reply };
+    this.emit('change');
+    return id;
+  }
+
+  /** Lets Claude Code's own plan prompt decide; with an id, only if that offer is still the one shown. */
+  releasePlan(id?: string) {
+    const offer = this.planOffer;
+    if (!offer || (id && offer.id !== id)) return;
+    this.planOffer = null;
+    offer.reply(null);
+    this.emit('change');
+  }
+
+  /** Approves lot 1 of the plan and queues the others in Up next. False when the plan was answered elsewhere. */
+  answerPlan(lots: string[]): boolean {
+    const offer = this.planOffer;
+    if (!offer) return false;
+    this.planOffer = null;
+    offer.reply(lots);
+    this.queue.push(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, lots.length) })));
+    this.activity = 'working';
+    this.detail = null;
+    this.unseen = false;
+    this.emit('change');
+    return true;
   }
 
   applyActivity({ activity, detail }: ActivityUpdate) {
@@ -611,6 +650,7 @@ export class Session extends EventEmitter {
       modelChoice: this.modelChoice,
       effortChoice: this.effortChoice,
       permissionMode: this.permissionMode,
+      planLots: this.planOffer?.lots ?? null,
       permission: this.held[0]
         ? {
             id: this.held[0].id,

@@ -18,7 +18,7 @@ Built in this order, each kept as simple to use as the rest: no new page, shown 
    `! <command>` in Claude's prompt: it runs in the session's folder under Claude Code's own
    rules, and Claude sees the output. Command always shown in full; disabled while Claude
    works; one line at a time.
-4. **Plan to Up next.** The "Plan ready for review" card gets **Split into Up next**: the plan
+4. ~~**Plan to Up next.**~~ built (server/planLots.ts): the ExitPlanMode PermissionRequest is held and answered with `updatedInput.plan` = plan + "do lot 1 only"; verified on real Claude Code. The "Plan ready for review" card gets **Split into Up next**: the plan
    is cut by its own structure (numbered items, `##` headings, "Lot 1…"), with no model call,
    into an editable list of prompts ("Do lot 2 of the plan: …"). The Up next queue then sends
    them one by one. A plan with no clear structure gives one lot. Pairs with "Compact between

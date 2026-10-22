@@ -168,6 +168,15 @@ the first answer applies.
 This uses the `PermissionRequest` hook: Orchia keeps it open until you answer,
 for up to 10 minutes. Deny rules in your Claude settings still apply.
 
+## Plans in lots
+
+When Claude presents a plan made of numbered steps or "Lot 1, Lot 2…" sections, a bar
+under the terminal offers **Split into Up next**. You can edit or leave out lots, then
+**Start lot 1**: the plan is approved with lot 1 as the whole task, and the other lots
+wait in Up next, sent one at a time as Claude finishes. Approving in the terminal still
+approves the whole plan, as usual. The plan is cut along its own structure, without a
+model call.
+
 ## Model and effort
 
 The chip next to the session name shows the model that last answered (read from

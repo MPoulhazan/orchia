@@ -48,7 +48,19 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let typed = '';
   // Raw, like Claude Code: on macOS and Linux the terminal would otherwise turn Enter into \\n and wait for it.
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
-  process.stdin.on('data', (d) => writeFileSync(${JSON.stringify(typedFile)}, (typed += d)));
+  let planned = false;
+  process.stdin.on('data', async (d) => {
+    writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
+    if (planned || !typed.includes('\\r')) return;
+    // The next turn: a plan in two steps, held for "Split into Up next".
+    planned = true;
+    await hook({ hook_event_name: 'UserPromptSubmit', prompt: typed });
+    const plan = ['# Plan', '', '## Steps', '1. Add the parser.', '2. Wire the queue.'].join('\\n');
+    await hook({ hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: { plan } });
+    const approval = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'ExitPlanMode', tool_input: { plan } });
+    out.plan = approval.status === 200 ? await approval.json() : approval.status;
+    writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
+  });
   setInterval(() => {}, 1000);
 })().catch((err) => { writeFileSync(${JSON.stringify(result)}, JSON.stringify({ error: String(err) })); });
 `);
@@ -126,6 +138,16 @@ try {
   await api('POST', `/api/sessions/${id}/run`, { command: 'npm test' });
   await until('the command typed in the prompt', async () => existsSync(typedFile) && readFileSync(typedFile, "utf8").startsWith("!npm test\r"), 5000);
   step('lists code blocks, Run types the command');
+
+  const planning = await until('the plan lots', async () => (await session(id))?.planLots);
+  if (planning.length !== 2) throw new Error(`Unexpected lots: ${JSON.stringify(planning)}`);
+  await api('POST', `/api/sessions/${id}/plan`, { lots: planning });
+  const approved = await until("Claude's plan answer", async () => JSON.parse(readFileSync(result, 'utf8')).plan);
+  const firstLot = approved?.hookSpecificOutput?.decision?.updatedInput?.plan ?? '';
+  if (!firstLot.includes('Do lot 1 only') || !firstLot.endsWith('1. Add the parser.')) throw new Error(`Unexpected approval: ${JSON.stringify(approved)}`);
+  const queued = (await session(id)).queue.map((q) => q.text);
+  if (queued.length !== 1 || !queued[0].includes('lot 2 of 2') || !queued[0].includes('Wire the queue')) throw new Error(`Unexpected queue: ${JSON.stringify(queued)}`);
+  step('splits a plan: lot 1 approved, lot 2 in Up next');
 
   console.log('\nSmoke test passed');
 } catch (err) {

@@ -12,6 +12,7 @@ import { projectAllowRules, removeAllowRule, suggestedRules } from './permission
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
+import { firstLotPlan, splitPlan } from './planLots.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -574,6 +575,13 @@ const routes: [string, RegExp, Handler][] = [
     findSession(id).reorderQueue(body.ids.map(String));
     return { ok: true };
   }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/plan$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    const lots = Array.isArray(body.lots) ? body.lots.map((l: unknown) => String(l).trim()).filter(Boolean) : [];
+    if (!lots.length) throw new HttpError(400, 'Expected { lots }');
+    if (!findSession(id).answerPlan(lots)) throw new HttpError(409, 'The plan was already answered');
+    return { ok: true };
+  }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/run$/, async (req, _url, [id]) => {
     const body = await readJson(req);
     if (typeof body.command !== 'string') throw new HttpError(400, 'Expected { command }');
@@ -646,6 +654,7 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   const update = activityFromHook(payload);
   if (update) session.applyActivity(update);
 
+  if (payload?.hook_event_name === 'PermissionRequest' && payload.tool_name === 'ExitPlanMode') return holdPlan(session, payload, res);
   const ask = payload?.hook_event_name === 'PermissionRequest' ? permissionAsk(payload, session.cwd) : null;
   if (!ask || session.status !== 'running') return res.writeHead(204).end();
   let timer: NodeJS.Timeout;
@@ -660,6 +669,31 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   timer = setTimeout(() => session.releasePermissions((p) => p.id === id), (PERMISSION_WAIT_S - 5) * 1000);
   // Claude Code drops the request once its own prompt is answered.
   res.on('close', () => session.releasePermissions((p) => p.id === id));
+}
+
+/**
+ * A plan to review that splits into lots stays open for "Split into Up next": the answer
+ * approves it with lot 1 as the whole task (the other lots go to Up next). Approving or
+ * rejecting it in the terminal instead closes the request, and Orchia lets go.
+ */
+function holdPlan(session: Session, payload: any, res: http.ServerResponse) {
+  const plan = payload.tool_input?.plan;
+  const lots = splitPlan(plan);
+  if (!lots || session.status !== 'running') return res.writeHead(204).end();
+  let timer: NodeJS.Timeout;
+  const id = session.holdPlan(lots, (chosen) => {
+    clearTimeout(timer);
+    if (res.writableEnded || res.destroyed) return;
+    if (!chosen) return res.writeHead(204).end();
+    sendJson(res, 200, {
+      hookSpecificOutput: {
+        hookEventName: 'PermissionRequest',
+        decision: { behavior: 'allow', updatedInput: { ...payload.tool_input, plan: firstLotPlan(plan, chosen) } },
+      },
+    });
+  });
+  timer = setTimeout(() => session.releasePlan(id), (PERMISSION_WAIT_S - 5) * 1000);
+  res.on('close', () => session.releasePlan(id));
 }
 
 /** Called by statusline.mjs each time Claude Code refreshes its status line. */

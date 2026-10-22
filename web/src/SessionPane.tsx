@@ -7,6 +7,7 @@ import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
 import { PermissionButtons, PermissionText } from './Permission';
+import { PlanLots, showPlanLots } from './PlanLots';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
 import { ChangesView, useCopyChanges } from './Changes';
 
@@ -146,6 +147,7 @@ export function SessionPane(props: Props) {
         </div>
       )}
 
+      {!compact && showPlanLots(session) && <PlanLots session={session} />}
       {!compact && showUpNext(session) && <UpNext session={session} />}
 
       {compact && session.summary &&(statusOf(session) === 'done' || statusOf(session) === 'idle') && (
