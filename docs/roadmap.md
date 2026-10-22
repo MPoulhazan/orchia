@@ -74,8 +74,9 @@ The Connectors section in the inspector is built (see, turn off per project, add
 sign-in, none, or an access token (GitHub: taken from the gh CLI or pasted).
 Next (lot 2 of the 2026-10-14 plan):
 
-- **Account first**: when the claude.ai account already has the service (Supabase, Vercel…),
-  say so in the catalog instead of offering a second one.
+- ~~**Account first**~~ built: the catalog never offered a second one (sameConnector), and a
+  search for a service the project already reaches now shows it under "Already set up"
+  ("Claude account · Claude can already use it here") instead of finding nothing.
 - ~~**Restart by itself**~~ built: toggle, add, token, remove or a finished sign-in queue every running session of the project; each restarts (`--resume`) once quiet (idle, nothing held, empty Up next, no draft, not typing for 3 s). Setting on by default.
 
 Only if needed:

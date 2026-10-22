@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Link2, Plug, Plus, Power, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Link2, Plug, Plus, Power, Sparkles, Trash2 } from 'lucide-react';
 import { describeServer, parseMcpSource, type McpServerConfig } from '../../server/mcpSource';
 import {
   api,
@@ -310,6 +310,7 @@ function ConnectorState({
 type Choice =
   | { kind: 'add'; name: string; title: string; summary: string; server: McpServerConfig; reason?: string; pasted?: boolean }
   | { kind: 'enable'; connector: Connector }
+  | { kind: 'there'; title: string; connector: Connector }
   | { kind: 'account' };
 
 interface Item {
@@ -333,6 +334,7 @@ export function ConnectorPicker({
 }) {
   const [catalog, setCatalog] = useState<ConnectorCatalogItem[] | null>(null);
   const [off, setOff] = useState<Connector[]>([]);
+  const [already, setAlready] = useState<{ title: string; summary: string; connector: Connector }[]>([]);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [picked, setPicked] = useState<Extract<Choice, { kind: 'add' }> | null>(null);
@@ -342,7 +344,10 @@ export function ConnectorPicker({
   useEffect(() => {
     api
       .availableConnectors(session.id)
-      .then((r) => setCatalog(r.catalog))
+      .then((r) => {
+        setCatalog(r.catalog);
+        setAlready(r.already);
+      })
       .catch((err) => setError(err.message));
     api
       .connectors(session.id)
@@ -370,13 +375,19 @@ export function ConnectorPicker({
             .sort((a, b) => (b.score as number) - (a.score as number))
             .map((r) => r.t)
         : list;
+    // Searching for a service the project already reaches says so, rather than finding nothing.
+    if (q) {
+      for (const a of rank(already, (a) => `${a.title} ${a.connector.label}`)) {
+        if (a.connector.state !== 'disabled') out.push({ key: `there:${a.connector.name}`, group: 'Already set up', choice: { kind: 'there', title: a.title, connector: a.connector } });
+      }
+    }
     for (const c of rank(off, (c) => c.label)) out.push({ key: `off:${c.name}`, group: 'Turned off in this project', choice: { kind: 'enable', connector: c } });
     for (const c of rank(catalog ?? [], (c) => `${c.title} ${c.summary}`)) {
       out.push({ key: `catalog:${c.name}`, group: c.reason && !q ? 'Suggested for this project' : 'Popular', choice: { kind: 'add', ...c } });
     }
     if (catalog) out.push({ key: 'account', group: 'More', choice: { kind: 'account' } });
     return out;
-  }, [catalog, off, query]);
+  }, [catalog, off, already, query]);
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
@@ -386,6 +397,7 @@ export function ConnectorPicker({
   async function choose(choice: Choice) {
     if (choice.kind === 'add') return setPicked(choice);
     if (choice.kind === 'account') return window.open(ACCOUNT_URL, '_blank', 'noreferrer');
+    if (choice.kind === 'there') return onClose();
     try {
       await api.changeConnectors(session.id, { action: 'toggle', name: choice.connector.name, on: true });
       onDone();
@@ -441,12 +453,14 @@ export function ConnectorPicker({
                     {header}
                     <div className="palette-item skill-item" data-active={i === active} onMouseMove={() => setActive(i)} onClick={() => choose(c)}>
                       <span className="palette-icon">
-                        {c.kind === 'enable' ? <Power size={15} /> : c.kind === 'account' ? <ExternalLink size={15} /> : c.pasted ? <Link2 size={15} /> : c.reason ? <Sparkles size={15} /> : <Plug size={15} />}
+                        {c.kind === 'there' ? <Check size={15} /> : c.kind === 'enable' ? <Power size={15} /> : c.kind === 'account' ? <ExternalLink size={15} /> : c.pasted ? <Link2 size={15} /> : c.reason ? <Sparkles size={15} /> : <Plug size={15} />}
                       </span>
                       <span className="skill-item-text">
-                        <b>{c.kind === 'enable' ? c.connector.label : c.kind === 'account' ? 'Connect more apps to your Claude account' : c.title}</b>
+                        <b>{c.kind === 'there' ? c.title : c.kind === 'enable' ? c.connector.label : c.kind === 'account' ? 'Connect more apps to your Claude account' : c.title}</b>
                         <small>
-                          {c.kind === 'enable'
+                          {c.kind === 'there'
+                            ? `${SOURCE_LABEL[c.connector.source]} · Claude can already use it here${c.connector.label.toLowerCase() !== c.title.toLowerCase() ? ` (as ${c.connector.label})` : ''}`
+                            : c.kind === 'enable'
                             ? `${SOURCE_LABEL[c.connector.source]} · Turn it on here`
                             : c.kind === 'account'
                               ? 'On claude.ai. They show up here in every project.'

@@ -337,7 +337,8 @@ export const api = {
       /** Sign-ins started from Orchia, by server name. */
       signIns: Record<string, { url: string | null; error: string | null; done: boolean }>;
     }>(`/api/sessions/${id}/connectors`),
-  availableConnectors: (id: string) => request<{ catalog: ConnectorCatalogItem[] }>(`/api/sessions/${id}/connectors/available`),
+  availableConnectors: (id: string) =>
+    request<{ catalog: ConnectorCatalogItem[]; already: { title: string; summary: string; connector: Connector }[] }>(`/api/sessions/${id}/connectors/available`),
   changeConnectors: (id: string, change: ConnectorChange) => request<{ ok: true }>(`/api/sessions/${id}/connectors`, 'POST', change),
   probeConnector: (id: string, server: McpServerConfig) =>
     request<{ auth: ConnectorAuth }>(`/api/sessions/${id}/connectors/probe`, 'POST', { server }),

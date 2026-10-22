@@ -123,6 +123,17 @@ export function sameConnector(entry: { name: string; title?: string; server: Mcp
   return entry.server.type !== 'stdio' && /^https?:/.test(c.target) && host(c.target) === host(entry.server.url);
 }
 
+/**
+ * Catalog services the project already reaches (often through the claude.ai account), so a
+ * search for one says it is there instead of finding nothing, and never offers a second one.
+ */
+export function catalogAlreadyThere(have: Connector[]): { title: string; summary: string; connector: Connector }[] {
+  return CATALOG.flatMap((entry) => {
+    const connector = have.find((c) => sameConnector(entry, c));
+    return connector ? [{ title: entry.title, summary: entry.summary, connector }] : [];
+  });
+}
+
 /** The catalog minus what the project has, suggestions first. */
 export function catalogConnectors(cwd: string, have: Connector[]): CatalogItem[] {
   const deps = projectDeps(cwd);

@@ -31,7 +31,7 @@ import {
   signIn,
   signInsFor,
 } from './mcp.ts';
-import { catalogConnectors } from './mcpCatalog.ts';
+import { catalogAlreadyThere, catalogConnectors } from './mcpCatalog.ts';
 import { checkToken, cliToken, probeConnector, tokenHelp } from './mcpProbe.ts';
 import { configFrom, type McpServerConfig } from './mcpSource.ts';
 import { catalogSkills, suggestionsWithStars, suggestSkills } from './skillCatalog.ts';
@@ -517,7 +517,7 @@ const routes: [string, RegExp, Handler][] = [
   ['GET', /^\/api\/sessions\/([\w-]+)\/connectors\/available$/, async (_req, _url, [id]) => {
     const session = findSession(id);
     const { connectors } = await projectConnectors(session.cwd);
-    return { catalog: catalogConnectors(session.cwd, connectors) };
+    return { catalog: catalogConnectors(session.cwd, connectors), already: catalogAlreadyThere(connectors) };
   }],
   // How a server gets its access, before adding it: see mcpProbe.ts.
   ['POST', /^\/api\/sessions\/([\w-]+)\/connectors\/probe$/, async (req, _url, [id]) => {
