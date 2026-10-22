@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import { CircleDot, GripVertical, ListOrdered, Plus, X } from 'lucide-react';
+import { GripVertical, ListOrdered, Plus, X } from 'lucide-react';
 import { api, type SessionInfo } from './api';
 import { queuedIssue } from './Issues';
 
@@ -18,7 +18,7 @@ const HELD: Record<NonNullable<SessionInfo['queueHeld']>, string> = {
  * finishes a turn. The server never sends while the user types in the terminal
  * or while Claude waits for an answer.
  */
-export function UpNext({ session, onPickIssues }: { session: SessionInfo; onPickIssues?: () => void }) {
+export function UpNext({ session }: { session: SessionInfo }) {
   const [draft, setDraft] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const queue = session.queue;
@@ -96,12 +96,6 @@ export function UpNext({ session, onPickIssues }: { session: SessionInfo; onPick
           />
           {draft.trim() && <kbd>Enter</kbd>}
         </label>
-        {onPickIssues && (
-          <button className="btn btn-secondary upnext-issues" title="Queue GitHub issues of this project" onClick={onPickIssues}>
-            <CircleDot size={13} />
-            From an issue
-          </button>
-        )}
       </div>
     </div>
   );

@@ -72,6 +72,15 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
 
   // The checked issues in the order they were checked, else the one under the cursor.
   const toQueue = (picked.length ? picked : current ? [current.number] : []).filter((n) => !queued.has(n));
+  // Claude waits with nothing queued: the server sends the first one right away.
+  const startsNow = session.activity === 'idle' && !session.queue.length;
+  const action = !toQueue.length
+    ? 'queue'
+    : startsNow
+      ? `start #${toQueue[0]}${toQueue.length > 1 ? `, queue ${toQueue.length - 1} more` : ''}`
+      : toQueue.length > 1
+        ? `queue ${toQueue.length} in Up next`
+        : `queue #${toQueue[0]} in Up next`;
 
   async function queue() {
     if (!toQueue.length) return;
@@ -207,7 +216,7 @@ export function IssuePicker({ session, projectName, onClose }: { session: Sessio
           <span><kbd>Tab</kbd> select</span>
           <span>
             <kbd>Enter</kbd>{' '}
-            {toQueue.length > 1 ? `queue ${toQueue.length} in Up next` : toQueue.length ? `queue #${toQueue[0]} in Up next` : 'queue'}
+            {action}
           </span>
           <span><kbd>Esc</kbd> close</span>
           <span className="issue-footer-note">Each one ends with a “Fixes #N” commit</span>

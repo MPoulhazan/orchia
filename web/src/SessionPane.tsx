@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm';
-import { GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, SquareTerminal, X } from 'lucide-react';
+import { CircleDot, GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, SquareTerminal, X } from 'lucide-react';
 import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
 import { useState } from 'react';
@@ -28,7 +28,7 @@ interface Props {
   /** Focus view only: the inspector button. */
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
-  /** Focus view only: "From an issue" in Up next. */
+  /** Focus view only: queue GitHub issues, whether Claude works or waits. */
   onPickIssues?: () => void;
 }
 
@@ -73,6 +73,11 @@ export function SessionPane(props: Props) {
         {compact && <QueueBadge session={session} />}
         <span className="pane-spacer" />
 
+        {props.onPickIssues && session.status === 'running' && (
+          <button className="icon-btn" title="Work on GitHub issues" onClick={props.onPickIssues}>
+            <CircleDot size={14} />
+          </button>
+        )}
         <button className="icon-btn" title="Restart (keeps the conversation)" onClick={() => api.restartSession(session.id)}>
           <RotateCcw size={14} />
         </button>
@@ -150,7 +155,7 @@ export function SessionPane(props: Props) {
       )}
 
       {!compact && showPlanLots(session) && <PlanLots session={session} />}
-      {!compact && showUpNext(session) && <UpNext session={session} onPickIssues={props.onPickIssues} />}
+      {!compact && showUpNext(session) && <UpNext session={session} />}
 
       {compact && session.summary &&(statusOf(session) === 'done' || statusOf(session) === 'idle') && (
         <div className="done-bar" data-status={statusOf(session)} title={session.summary.text}>
