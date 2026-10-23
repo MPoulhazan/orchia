@@ -6,6 +6,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  GitBranch,
   History,
   LayoutGrid,
   Monitor,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { api, type FolderListing, type Project, type Suggestion } from './api';
 import { fuzzyScore } from './fuzzy';
+import { parseGitHubSource } from '../../server/githubSource';
 import type { ThemePref } from './theme';
 import type { View } from './Sidebar';
 
@@ -60,6 +62,10 @@ interface Props {
 
 const ICON = 15;
 const looksLikePath = (q: string) => /^([a-zA-Z]:[\\/]|[\\/]|~)/.test(q);
+/** A GitHub repository URL or owner/repo, not a path or a sentence. */
+const looksLikeRepo = (q: string) => !looksLikePath(q) && !/\s/.test(q) && parseGitHubSource(q) !== null;
+
+type CloneTarget = Awaited<ReturnType<typeof api.cloneTarget>>;
 
 export function CommandPalette(props: Props) {
   const { projects, currentProject, onClose } = props;
@@ -69,6 +75,9 @@ export function CommandPalette(props: Props) {
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [listing, setListing] = useState<FolderListing | null>(null);
+  const [target, setTarget] = useState<CloneTarget | null>(null);
+  const [cloning, setCloning] = useState<CloneTarget | null>(null);
+  const stopClone = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +88,22 @@ export function CommandPalette(props: Props) {
   useEffect(() => {
     if (mode === 'browse' && !listing) navigate(undefined);
   }, [mode]);
+
+  // Where a pasted repository would land, shown before Enter.
+  useEffect(() => {
+    setTarget(null);
+    const q = query.trim();
+    if (mode !== 'root' || !looksLikeRepo(q)) return;
+    let live = true;
+    const timer = setTimeout(() => api.cloneTarget(q).then((t) => live && setTarget(t), () => {}), 150);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query, mode]);
+
+  // Closing the palette stops a clone under way.
+  useEffect(() => () => stopClone.current?.abort(), []);
 
   function navigate(path: string | undefined) {
     setError('');
@@ -99,8 +124,32 @@ export function CommandPalette(props: Props) {
     return true; // closed by onAddPath once the project exists
   }
 
+  function clone(t: CloneTarget) {
+    if (t.existing) return add(t.path);
+    setError('');
+    const stop = new AbortController();
+    stopClone.current = stop;
+    setCloning(t);
+    api.cloneProject(t.repo, stop.signal).then(
+      (project) => {
+        stopClone.current = null;
+        props.onOpenProject(project);
+        onClose();
+      },
+      (e) => {
+        stopClone.current = null;
+        setCloning(null);
+        if (!stop.signal.aborted) setError(e.message);
+      },
+    );
+    return true; // closed once the clone is a project
+  }
+
   const items = useMemo<Item[]>(() => {
     const q = query.trim();
+    if (cloning) {
+      return [{ id: 'cloning', group: 'GitHub', label: `Cloning ${cloning.repo}…`, detail: cloning.path, icon: <GitBranch size={ICON} />, run: () => true }];
+    }
     const rank = <T,>(list: T[], text: (x: T) => string) =>
       list
         .map((x) => ({ x, s: fuzzyScore(q, text(x)) }))
@@ -175,8 +224,21 @@ export function CommandPalette(props: Props) {
     if (q && looksLikePath(q)) {
       out.unshift({ id: 'add-path', group: 'Add', label: `Add ${q}`, icon: <FolderPlus size={ICON} />, run: () => add(q) });
     }
+    if (target) {
+      out.unshift({
+        id: 'clone',
+        group: 'GitHub',
+        label: target.existing ? `Open ${target.repo}, already cloned` : `Clone ${target.repo}`,
+        detail: target.path,
+        icon: <GitBranch size={ICON} />,
+        run: () => clone(target),
+      });
+    } else if (mode === 'root' && looksLikeRepo(q)) {
+      const { owner, repo } = parseGitHubSource(q)!;
+      out.unshift({ id: 'clone', group: 'GitHub', label: `Clone ${owner}/${repo}`, detail: '…', icon: <GitBranch size={ICON} />, run: () => true });
+    }
     return out;
-  }, [mode, query, listing, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues]);
+  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -201,7 +263,8 @@ export function CommandPalette(props: Props) {
       runItem(items[active]);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (mode === 'browse' && props.initialMode === 'root') {
+      if (cloning) stopClone.current?.abort();
+      else if (mode === 'browse' && props.initialMode === 'root') {
         setMode('root');
         setQuery('');
       } else onClose();
@@ -227,9 +290,10 @@ export function CommandPalette(props: Props) {
           autoFocus
           spellCheck={false}
           value={query}
+          readOnly={!!cloning}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={mode === 'browse' ? 'Filter folders, or paste a path…' : 'Search projects, folders and actions…'}
+          placeholder={mode === 'browse' ? 'Filter folders, or paste a path…' : 'Search projects and actions, or paste a GitHub URL…'}
         />
         {error && <div className="palette-error">{error}</div>}
         <div className="palette-list" ref={listRef}>
@@ -258,7 +322,7 @@ export function CommandPalette(props: Props) {
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>Enter</kbd> select</span>
           {mode === 'browse' && <span><kbd>Backspace</kbd> parent</span>}
-          <span><kbd>Esc</kbd> {mode === 'browse' && props.initialMode === 'root' ? 'back' : 'close'}</span>
+          <span><kbd>Esc</kbd> {cloning ? 'stop the clone' : mode === 'browse' && props.initialMode === 'root' ? 'back' : 'close'}</span>
         </div>
       </div>
     </div>

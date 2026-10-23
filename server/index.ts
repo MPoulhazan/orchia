@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Session } from './session.ts';
 import { CONFIG_DIR, ProjectStore, isCopyMode } from './projects.ts';
+import { cloneRepo, cloneTarget } from './clone.ts';
 import { MergeConflictError, canCopy, copyChanges, copyIsEmpty, createCopy, mergeCopy, removeCopy, resolvePrompt, type SessionCopy } from './copies.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
@@ -358,6 +359,29 @@ const routes: [string, RegExp, Handler][] = [
       return project;
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
+    }
+  }],
+  ['GET', /^\/api\/projects\/clone$/, async (_req, url) => {
+    try {
+      return await cloneTarget(url.searchParams.get('url') ?? '', projects.list());
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+  }],
+  ['POST', /^\/api\/projects\/clone$/, async (req) => {
+    const body = await readJson(req);
+    // Closing the palette or the tab stops the clone.
+    const stop = new AbortController();
+    const onClose = () => stop.abort();
+    req.socket.once('close', onClose);
+    try {
+      const project = projects.add(await cloneRepo(String(body.url ?? ''), projects.list(), stop.signal));
+      broadcast();
+      return project;
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    } finally {
+      req.socket.off('close', onClose);
     }
   }],
   ['PATCH', /^\/api\/projects\/([\w-]+)$/, async (req, _url, [id]) => {

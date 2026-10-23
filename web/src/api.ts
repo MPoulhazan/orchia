@@ -304,9 +304,10 @@ export type SkillChange =
   | { action: 'dismiss'; name: string }
   | { action: 'reload' };
 
-async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     method,
+    signal,
     headers: body === undefined ? undefined : { 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -320,6 +321,10 @@ const wsBase = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${locat
 export const api = {
   addProject: (path: string) => request<Project>('/api/projects', 'POST', { path }),
   removeProject: (id: string) => request('/api/projects/' + id, 'DELETE'),
+  /** Where a GitHub repository would be cloned, or the clone already there. */
+  cloneTarget: (url: string) => request<{ repo: string; path: string; existing: boolean }>(`/api/projects/clone?url=${encodeURIComponent(url)}`),
+  /** Aborting `signal` stops the clone and removes what it wrote. */
+  cloneProject: (url: string, signal?: AbortSignal) => request<Project>('/api/projects/clone', 'POST', { url }, signal),
 
   /** Without `where`, the server may ask first: `{ choose }` lists the sessions already at work in the folder. */
   createSession: (projectId: string, where?: 'copy' | 'same', remember = false) =>
