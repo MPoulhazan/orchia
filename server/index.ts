@@ -907,6 +907,9 @@ function attachStream(ws: WebSocket, session: Session) {
   session.on('data', onData);
   session.on('reset', onReset);
 
+  // With the session open in two windows, the PTY has one size: the window typed in
+  // takes it back, or Claude draws past its edges (input box below the bottom).
+  let size: { cols: number; rows: number } | null = null;
   ws.on('message', (raw) => {
     let msg: any;
     try {
@@ -914,8 +917,14 @@ function attachStream(ws: WebSocket, session: Session) {
     } catch {
       return;
     }
-    if (msg.t === 'in' && typeof msg.d === 'string') session.write(msg.d);
-    if (msg.t === 'resize') session.resize(Math.floor(msg.cols), Math.floor(msg.rows));
+    if (msg.t === 'in' && typeof msg.d === 'string') {
+      if (size) session.resize(size.cols, size.rows);
+      session.write(msg.d);
+    }
+    if (msg.t === 'resize') {
+      size = { cols: Math.floor(msg.cols), rows: Math.floor(msg.rows) };
+      session.resize(size.cols, size.rows);
+    }
   });
 
   ws.on('close', () => {

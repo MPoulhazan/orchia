@@ -159,10 +159,16 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
     };
 
     let frame = 0;
-    const observer = new ResizeObserver(() => {
+    const refit = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(sendSize);
-    });
+    };
+    const observer = new ResizeObserver(refit);
+    // Coming back to this window: take the session's size back from another one showing
+    // it, and catch a layout change the observer missed.
+    const onVisible = () => document.visibilityState === 'visible' && refit();
+    window.addEventListener('focus', refit);
+    document.addEventListener('visibilitychange', onVisible);
 
     // Wait for the monospace font so the cell grid is measured correctly.
     document.fonts.load('13px "Atkinson Hyperlegible Mono Variable"').finally(() => {
@@ -190,6 +196,8 @@ export function TerminalView({ sessionId, theme, focusKey, fontSize = 13, autoFo
       host.removeEventListener('drop', onDrop);
       cancelAnimationFrame(frame);
       observer.disconnect();
+      window.removeEventListener('focus', refit);
+      document.removeEventListener('visibilitychange', onVisible);
       ws.close();
       term.dispose();
     };
