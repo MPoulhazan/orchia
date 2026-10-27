@@ -1,12 +1,20 @@
 # Orchia
 
-One dashboard for all your Claude Code sessions, organized by project.
+**Run five Claude Code sessions at once without babysitting five terminals.**
 
-Run several sessions side by side, see at a glance which ones are working, which
-ones need you and which ones are done, and answer permission requests without
-hunting through terminals. Everything runs locally: Orchia starts the real
-`claude` CLI in terminals it hosts, and listens to it through Claude Code hooks.
+Orchia is a local dashboard for all your Claude Code sessions, organized by project. See at
+a glance which ones are working, which ones need you and which ones are done, and allow or
+deny their permission requests straight from the grid.
 
+```sh
+npx orchia
+```
+
+Then open http://127.0.0.1:4317. Orchia starts the real `claude` CLI in terminals it hosts
+and listens to it through Claude Code hooks: your settings, skills and subscription stay as
+they are, and nothing leaves your machine.
+
+[![npm](https://img.shields.io/npm/v/orchia.svg)](https://www.npmjs.com/package/orchia)
 [![CI](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml/badge.svg)](https://github.com/MPoulhazan/orchia/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -16,8 +24,20 @@ hunting through terminals. Everything runs locally: Orchia starts the real
 
 <sub>25 seconds. Click for the video with sound.</sub>
 
-> [!NOTE]
-> The demo and the screenshots are mockups of the **Établi** theme, with made-up projects.
+## Why Orchia
+
+- **One inbox for every session.** Sessions waiting on a permission, a question or a plan
+  come first, with **Allow** and **Deny** right there. No more tabbing through terminals to
+  find the one that has been stuck for ten minutes.
+- **Plans in lots.** When Claude proposes a multi-step plan, split it: lot 1 starts now, the
+  rest waits in **Up next** and is sent one at a time as Claude finishes, with a `/compact`
+  in between when the context fills up.
+- **GitHub issues to commits.** Pick open issues: each becomes a queued task that ends in a
+  commit with `Fixes #N`.
+- **Its own copy of the repo.** Let a session work in an isolated copy, then review and
+  merge it.
+- **Security alerts.** Your connectors, skills and plugins are checked against known CVEs.
+- **Local and private.** Listens on `127.0.0.1` only. No telemetry, no account.
 
 ## A look around
 
@@ -90,7 +110,8 @@ hunting through terminals. Everything runs locally: Orchia starts the real
   </tr>
 </table>
 
-The screenshots come from [docs/design/mockups.html](docs/design/mockups.html). Open it
+The demo and the screenshots show the **Établi** theme with made-up projects, rendered from
+[docs/design/mockups.html](docs/design/mockups.html). Open it
 in a browser to page through the screens, or add `#grid4-dark` (any screen id and
 `light` or `dark`) to the URL to render one screen at full size.
 
@@ -106,6 +127,12 @@ Developed and used daily on Windows 11. CI builds on Windows, macOS and Linux, b
 macOS and Linux have had little real use yet: reports are welcome.
 
 ## Run
+
+```sh
+npx orchia       # or: npm install -g orchia, then orchia
+```
+
+From source:
 
 ```sh
 git clone https://github.com/MPoulhazan/orchia.git
