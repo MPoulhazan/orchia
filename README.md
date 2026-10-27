@@ -305,6 +305,14 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
   no code, prompts, terminal output, file or project names. Settings lists exactly what
   is sent. The device token is saved in `~/.orchia/cloud.json`; Disconnect, or Unpair
   from Devices on the cloud, revokes it. Set `ORCHIA_CLOUD_URL` to use another server.
+- "Needs you on your phone", a second switch that is also off by default, sends the
+  sessions that need you to the cloud so you can allow or deny from your phone: each
+  one's session and project name, why it waits, a permission request's tool and target
+  (the command, file or URL), and the summary of a finished turn. Still no code,
+  prompts or terminal output. The phone can only answer a request Claude already made,
+  never start one or type in a session, and "Always allow" stays on your computer.
+  Settings can limit it to Deny, or keep shell commands for the computer. Claude Code's
+  own deny rules still apply.
 - A connector token you paste is written to Claude Code's own config
   (`~/.claude.json`), where `claude mcp add` would put it.
 

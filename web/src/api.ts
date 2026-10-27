@@ -117,6 +117,10 @@ export interface Settings {
   permissionMode: PermissionMode | null;
   compactBetweenTasks: boolean;
   restartAfterConnectorChange: boolean;
+  /** Once paired with Orchia Cloud, send what needs you there (server/cloud.ts, RemoteNeed). */
+  remoteNeeds: boolean;
+  /** What a phone may answer: everything, everything but shell commands, or Deny only. */
+  remoteAnswers: 'all' | 'no-shell' | 'deny-only';
 }
 
 /** The optional link to an Orchia Cloud account (server/cloud.ts). */

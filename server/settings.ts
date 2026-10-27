@@ -6,6 +6,10 @@ import { isEffortLevel, isModelAlias } from './models.ts';
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'plan', 'auto'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
+/** What a phone may answer through Orchia Cloud: everything, everything but shell commands, or Deny only. */
+export const REMOTE_ANSWERS = ['all', 'no-shell', 'deny-only'] as const;
+export type RemoteAnswers = (typeof REMOTE_ANSWERS)[number];
+
 export function isPermissionMode(value: unknown): value is PermissionMode {
   return PERMISSION_MODES.includes(value as any);
 }
@@ -19,9 +23,20 @@ export interface Settings {
   compactBetweenTasks: boolean;
   /** After a connector change, restart the project's sessions once Claude is free, keeping the conversation. */
   restartAfterConnectorChange: boolean;
+  /** Once paired, send what needs you (waiting sessions, permission requests, end summaries) to Orchia Cloud. */
+  remoteNeeds: boolean;
+  remoteAnswers: RemoteAnswers;
 }
 
-const DEFAULTS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true };
+const DEFAULTS: Settings = {
+  model: null,
+  effort: null,
+  permissionMode: null,
+  compactBetweenTasks: true,
+  restartAfterConnectorChange: true,
+  remoteNeeds: false,
+  remoteAnswers: 'all',
+};
 
 /** Keeps known values only, so a hand-edited or older file never breaks a launch. */
 function clean(raw: any): Settings {
@@ -31,6 +46,8 @@ function clean(raw: any): Settings {
     permissionMode: isPermissionMode(raw?.permissionMode) ? raw.permissionMode : null,
     compactBetweenTasks: raw?.compactBetweenTasks !== false,
     restartAfterConnectorChange: raw?.restartAfterConnectorChange !== false,
+    remoteNeeds: raw?.remoteNeeds === true,
+    remoteAnswers: REMOTE_ANSWERS.includes(raw?.remoteAnswers) ? raw.remoteAnswers : 'all',
   };
 }
 
@@ -61,6 +78,8 @@ export class SettingsStore {
     if (next.permissionMode !== null && !isPermissionMode(next.permissionMode)) throw new Error('Unknown permission mode');
     if (typeof next.compactBetweenTasks !== 'boolean') throw new Error('compactBetweenTasks must be true or false');
     if (typeof next.restartAfterConnectorChange !== 'boolean') throw new Error('restartAfterConnectorChange must be true or false');
+    if (typeof next.remoteNeeds !== 'boolean') throw new Error('remoteNeeds must be true or false');
+    if (!REMOTE_ANSWERS.includes(next.remoteAnswers)) throw new Error('Unknown remoteAnswers value');
     this.settings = next;
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.settings, null, 2));

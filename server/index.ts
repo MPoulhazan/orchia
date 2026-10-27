@@ -12,7 +12,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
-import { CloudLink } from './cloud.ts';
+import { CloudLink, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
@@ -54,7 +54,49 @@ const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, () => broadcast());
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, answer: remoteAnswer });
+
+// ---- Needs you on your phone (Orchia Cloud) ---------------------------------
+
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+/** Running sessions that need you, cut to what Settings says is sent. */
+function remoteNeeds(): RemoteNeed[] | null {
+  if (!settings.get().remoteNeeds) return null;
+  const projectNames = new Map(projects.list().map((p) => [p.id, p.name]));
+  return [...sessions.values()].flatMap((s): RemoteNeed[] => {
+    const info = s.info();
+    if (info.status !== 'running') return [];
+    const ask = info.permission;
+    const kind = ask ? 'permission' : info.activity === 'waiting' ? 'waiting' : info.activity === 'idle' && info.summary && info.unseen ? 'done' : null;
+    if (!kind) return [];
+    return [
+      {
+        sessionId: info.id,
+        session: clip(info.name, 80),
+        project: clip(projectNames.get(info.projectId) ?? '', 80),
+        kind,
+        detail: info.detail ? clip(info.detail, 200) : null,
+        permission: ask ? { id: ask.id, tool: clip(ask.tool, 80), verb: ask.verb, target: clip(ask.target, 300) } : null,
+        summary: kind === 'done' ? clip(info.summary!.text, 600) : null,
+      },
+    ];
+  });
+}
+
+/** An Allow or Deny from the phone, for the request it was shown: the oldest one of the session. */
+function remoteAnswer(sessionId: string, permissionId: string, allow: boolean): string | null {
+  const { remoteNeeds: on, remoteAnswers } = settings.get();
+  if (!on) return 'Needs you on your phone is turned off in Orchia on this computer.';
+  const session = sessions.get(sessionId);
+  const ask = session?.info().permission;
+  if (!session || ask?.id !== permissionId) return 'Already answered.';
+  if (allow && remoteAnswers === 'deny-only') return 'Orchia on this computer only accepts Deny from your phone.';
+  if (allow && remoteAnswers === 'no-shell' && SHELL_TOOLS.has(ask.tool)) return 'Orchia on this computer only lets you allow shell commands there.';
+  // Never "Always allow" from afar: that would save a rule on this machine.
+  return session.answerPermission(permissionId, allow, false) ? null : 'Already answered.';
+}
 
 // ---- Live state -------------------------------------------------------------
 // Every client keeps one events socket open and receives the whole state on
@@ -156,6 +198,7 @@ function broadcast() {
   const msg = JSON.stringify(state());
   for (const ws of eventClients) if (ws.readyState === ws.OPEN) ws.send(msg);
   sessionStore.save(() => [...sessions.values()].map((s) => s.record()));
+  cloud.report();
 }
 
 function addSession(session: Session) {
@@ -410,7 +453,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {

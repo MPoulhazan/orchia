@@ -6,7 +6,9 @@ import { WebSocket } from 'ws';
 // Optional link to an Orchia Cloud account. Off until the user turns it on in Settings; pairing
 // works like `gh auth login`: Orchia shows a code, the user approves it in the browser.
 // The connection is outbound only: the cloud never reaches into this machine.
-// Sent today: this computer's name, Orchia's version and the OS. Nothing about projects or sessions.
+// Always sent: this computer's name, Orchia's version and the OS. With "Needs you on your phone"
+// turned on, also what needs you (RemoteNeed below). Never prompts, code or terminal output.
+// The cloud can only answer a permission request that is already waiting: never start one, never type.
 
 const CLOUD_URL = (process.env.ORCHIA_CLOUD_URL ?? 'https://app.orchia.app').replace(/\/$/, '');
 /** Close code the cloud sends when this device was unpaired there. */
@@ -34,6 +36,27 @@ interface Saved {
   name: string;
 }
 
+/** One session that needs you, as the phone shows it. Settings lists these fields as what is sent. */
+export interface RemoteNeed {
+  sessionId: string;
+  session: string;
+  project: string;
+  /** `permission` can be answered from the phone; `waiting` (a question, a plan) and `done` cannot. */
+  kind: 'permission' | 'waiting' | 'done';
+  detail: string | null;
+  permission: { id: string; tool: string; verb: string; target: string } | null;
+  /** The end-of-turn summary, for `done`. */
+  summary: string | null;
+}
+
+export interface CloudHooks {
+  onChange: () => void;
+  /** What needs you right now; null while "Needs you on your phone" is off. */
+  needs: () => RemoteNeed[] | null;
+  /** Applies an Allow or Deny from the phone; returns why it was refused, or null once applied. */
+  answer: (sessionId: string, permissionId: string, allow: boolean) => string | null;
+}
+
 export class CloudLink {
   private readonly file: string;
   private saved: Saved | null = null;
@@ -42,8 +65,10 @@ export class CloudLink {
   private pollTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private retries = 0;
+  /** The needs last sent on the current connection, to send only changes. */
+  private sentNeeds: string | null = null;
 
-  constructor(dir: string, private readonly onChange: () => void) {
+  constructor(dir: string, private readonly hooks: CloudHooks) {
     this.file = join(dir, 'cloud.json');
     if (!existsSync(this.file)) return;
     try {
@@ -64,7 +89,18 @@ export class CloudLink {
 
   private set(status: CloudStatus) {
     this.status = status;
-    this.onChange();
+    this.hooks.onChange();
+  }
+
+  /** Sends what needs you when it changed. Called on every state change; cheap when nothing moved. */
+  report() {
+    const ws = this.ws;
+    if (!ws || this.status.state !== 'connected' || ws.readyState !== ws.OPEN) return;
+    const items = this.hooks.needs() ?? [];
+    const json = JSON.stringify(items);
+    if (json === this.sentNeeds) return;
+    this.sentNeeds = json;
+    ws.send(JSON.stringify({ type: 'needs', items }));
   }
 
   /** Asks the cloud for a code; the user approves it in the browser while Orchia polls. */
@@ -152,7 +188,17 @@ export class CloudLink {
       } catch {
         return;
       }
-      if (msg.type === 'ready' && this.ws === ws) this.set({ state: 'connected', url: saved.url, name: saved.name });
+      if (this.ws !== ws) return;
+      if (msg.type === 'ready') {
+        this.sentNeeds = null;
+        this.set({ state: 'connected', url: saved.url, name: saved.name });
+        this.report();
+      }
+      if (msg.type === 'answer' && typeof msg.requestId === 'string') {
+        const ok = typeof msg.sessionId === 'string' && typeof msg.permissionId === 'string' && typeof msg.allow === 'boolean';
+        const error = ok ? this.hooks.answer(msg.sessionId, msg.permissionId, msg.allow) : 'Malformed answer';
+        ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
+      }
     });
     ws.on('unexpected-response', (_req, res) => {
       if (res.statusCode === 401) this.forget('This computer was unpaired from Orchia Cloud.');

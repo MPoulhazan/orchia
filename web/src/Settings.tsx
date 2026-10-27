@@ -31,7 +31,13 @@ const ON_OFF: { value: 'on' | 'off'; label: string }[] = [
   { value: 'off', label: 'Off' },
 ];
 
-const SMOOTH_SCROLL: { value: SmoothScrollPref; label: string }[] = [
+const REMOTE_ANSWERS: { value: Settings['remoteAnswers']; label: string; description: string }[] = [
+  { value: 'all', label: 'Allow and Deny', description: 'Allow and Deny both work from your phone. "Always allow" stays on this computer.' },
+  { value: 'no-shell', label: 'No shell commands', description: 'Shell commands (Bash, PowerShell) can only be allowed here. Everything else, and Deny, works from your phone.' },
+  { value: 'deny-only', label: 'Deny only', description: 'Your phone can only deny, which stops the turn. Allowing stays on this computer.' },
+];
+
+const SMOOTH_SCROLL:{ value: SmoothScrollPref; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'on', label: 'On' },
   { value: 'off', label: 'Off' },
@@ -139,7 +145,7 @@ export function SettingsDialog(props: {
             </section>
           )}
 
-          <CloudSection cloud={props.cloud} />
+          <CloudSection cloud={props.cloud} settings={settings} onChange={change} />
 
           <section className="settings-section">
             <h3>This browser</h3>
@@ -202,8 +208,10 @@ function Options<T extends string | null>(props: { items: { value: T; label: str
 }
 
 /** Optional pairing with an Orchia Cloud account. Says exactly what leaves this machine before it does. */
-function CloudSection(props: { cloud: CloudStatus }) {
-  const { cloud } = props;
+function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange: (patch: Partial<Settings>) => void }) {
+  const { cloud, settings } = props;
+  const paired = cloud.state === 'connected' || cloud.state === 'connecting';
+  const answers = REMOTE_ANSWERS.find((a) => a.value === settings.remoteAnswers) ?? REMOTE_ANSWERS[0];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -268,11 +276,38 @@ function CloudSection(props: { cloud: CloudStatus }) {
         </div>
         {error && <p className="model-error">{error}</p>}
       </Field>
-      <Field label="What is sent" description="Your code, prompts, terminal output, file and project names never leave this computer.">
+      {paired && (
+        <Field
+          label="Needs you on your phone"
+          description="Shows the sessions that need you on Orchia Cloud, with a notification, so you can allow or deny a waiting request from your phone. The phone can only answer a request Claude already made: it can't start one or type in a session."
+        >
+          <Options items={ON_OFF} value={settings.remoteNeeds ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteNeeds: v === 'on' })} />
+        </Field>
+      )}
+      {paired && settings.remoteNeeds && (
+        <Field label="From your phone" description={answers.description}>
+          <Options items={REMOTE_ANSWERS} value={settings.remoteAnswers} onChange={(remoteAnswers) => props.onChange({ remoteAnswers })} />
+        </Field>
+      )}
+      <Field
+        label="What is sent"
+        description={
+          settings.remoteNeeds
+            ? 'Your code, prompts and terminal output never leave this computer.'
+            : 'Your code, prompts, terminal output, file and project names never leave this computer.'
+        }
+      >
         <ul className="cloud-sent">
           <li>This computer's name ("{cloud.state === 'off' || cloud.state === 'pairing' ? 'its hostname' : cloud.name}")</li>
           <li>Orchia's version and your operating system</li>
           <li>When this computer is online</li>
+          {settings.remoteNeeds && (
+            <>
+              <li>For each session that needs you: its name and its project's name</li>
+              <li>Why it waits, and a permission request's tool and target (the command, file or URL, cut at 300 characters)</li>
+              <li>The summary of a finished turn you haven't looked at yet</li>
+            </>
+          )}
         </ul>
       </Field>
     </section>
