@@ -9,6 +9,7 @@ import {
   GitBranch,
   History,
   LayoutGrid,
+  ListOrdered,
   Monitor,
   Package,
   Plug,
@@ -58,6 +59,8 @@ interface Props {
   onAddSkill?: () => void;
   onAddConnector?: () => void;
   onPickIssues?: () => void;
+  /** Types /lots in the current session: Claude restates its plan as lots to run one after another. */
+  onRunAsLots?: () => void;
 }
 
 const ICON = 15;
@@ -215,6 +218,9 @@ export function CommandPalette(props: Props) {
       ...(props.onPickIssues
         ? [{ id: 'issues', group: 'Actions', label: 'Work on GitHub issues…', detail: 'queue them in Up next', icon: <CircleDot size={ICON} />, run: () => (props.onPickIssues!(), true) }]
         : []),
+      ...(props.onRunAsLots
+        ? [{ id: 'lots', group: 'Actions', label: 'Run the last plan as lots', detail: '/lots', icon: <ListOrdered size={ICON} />, run: () => props.onRunAsLots!() }]
+        : []),
       { id: 'settings', group: 'Actions', label: 'Settings…', icon: <Settings size={ICON} />, run: () => (props.onOpenSettings(), true) },
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
       { id: 'theme-light', group: 'Actions', label: 'Theme: Light', icon: <Sun size={ICON} />, run: () => props.onSetTheme('light') },
@@ -238,7 +244,7 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'clone', group: 'GitHub', label: `Clone ${owner}/${repo}`, detail: '…', icon: <GitBranch size={ICON} />, run: () => true });
     }
     return out;
-  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues]);
+  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues, !props.onRunAsLots]);
 
   useEffect(() => setActive(0), [query]);
 

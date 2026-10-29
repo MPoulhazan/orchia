@@ -55,6 +55,8 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let answered = false;
   let answerLot1 = false;
   let cleared = false;
+  let clearedLot2 = false;
+  let lotsAsked = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -95,6 +97,19 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       // Clear mode: Claude Code starts a new conversation, then Orchia sends lot 2.
       cleared = true;
       await hook({ hook_event_name: 'SessionStart', source: 'clear' });
+      return;
+    }
+    if (cleared && !clearedLot2 && /You are running a plan in 2 lots[^\\r]*\\r/.test(typed)) {
+      clearedLot2 = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'answer lot 2' });
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'Button wired.\\n\\nLOT 2 DONE' });
+      return;
+    }
+    if (clearedLot2 && !lotsAsked && typed.endsWith('/lots\\r')) {
+      // /lots: Claude restates its last plan with "### Lot N:" headings.
+      lotsAsked = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: '/lots' });
+      await hook({ hook_event_name: 'Stop', last_assistant_message: '### Lot 1: Tokens\\nMove colors.\\n\\n### Lot 2: Toggle\\nAdd the button.' });
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -245,6 +260,15 @@ try {
   if (clearAt < 0 || clearAt > lot2At) throw new Error(`No /clear between the lots: ${JSON.stringify(afterClear.slice(lot1At))}`);
   if (!afterClear.slice(lot2At).includes('The whole plan: Lot 1: CSV writer')) throw new Error('The lot after /clear lacks the whole plan');
   step('clears between lots, with the whole plan in the next prompt');
+
+  await until('the cleared run done', async () => (await session(id))?.lotRun?.state === 'done');
+  await api('POST', `/api/sessions/${id}/queue`, { text: '/lots' });
+  const asked = await until('the lots of /lots, editor open', async () => {
+    const s = await session(id);
+    return s?.answerLotsAsked ? s.answerLots : null;
+  });
+  if (asked.length !== 2 || !asked[1].startsWith('### Lot 2: Toggle')) throw new Error(`Unexpected /lots answer: ${JSON.stringify(asked)}`);
+  step('/lots restates the plan as lots and opens the editor');
 
   console.log('\nSmoke test passed');
 } catch (err) {

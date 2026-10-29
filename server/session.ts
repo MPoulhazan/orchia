@@ -1,11 +1,12 @@
 import { createRequire } from 'node:module';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { DEFAULT_LOT_OPTIONS, LOT_FORMAT_INSTRUCTION, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
+import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -17,6 +18,8 @@ const { Terminal: HeadlessTerminal } = require('@xterm/headless') as typeof impo
 const { SerializeAddon } = require('@xterm/addon-serialize') as typeof import('@xterm/addon-serialize');
 
 const SCROLLBACK = 5000;
+/** A Claude Code plugin with Orchia's commands, loaded with --plugin-dir in the sessions Orchia starts. */
+const PLUGIN_DIR = fileURLToPath(new URL('./plugin', import.meta.url));
 
 /** `suspended`: restored after a server restart, resumes the conversation on demand. */
 export type SessionStatus = 'running' | 'exited' | 'suspended';
@@ -46,6 +49,8 @@ export interface SessionInfo {
   planLots: string[] | null;
   /** The lots of Claude's last answer, outside plan mode ("Run as a sequence"). */
   answerLots: string[] | null;
+  /** The user asked for these lots with /lots: the lot editor opens right away. */
+  answerLotsAsked: boolean;
   /** The permission request Orchia can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
@@ -185,6 +190,8 @@ export class Session extends EventEmitter {
   private runningLot: { n: number; total: number } | null = null;
   /** The lots of Claude's last answer, offered as "Run as a sequence" until the next turn starts. */
   private answerLots: string[] | null = null;
+  /** The current turn answers /lots (typed, or its expanded prompt as some hooks report it). */
+  private lotsAsked = false;
   lotBlocked: LotBlocked | null = null;
   /** The last lot that said `LOT n DONE`; kept until a turn outside the run starts. */
   private lastLotDone: { n: number; total: number } | null = null;
@@ -269,9 +276,10 @@ export class Session extends EventEmitter {
       ...(this.modelChoice ? ['--model', this.modelChoice] : []),
       ...(this.effortChoice ? ['--effort', this.effortChoice] : []),
       ...(this.permissionMode ? ['--permission-mode', this.permissionMode] : []),
-      // One flag for both: the lot format always, the copy's rules when it works in a copy.
-      '--append-system-prompt',
-      [LOT_FORMAT_INSTRUCTION, ...(this.copy ? [copyInstructions(this.copy)] : [])].join(' '),
+      ...(this.copy ? ['--append-system-prompt', copyInstructions(this.copy)] : []),
+      // Orchia's own commands (/lots), for this session only.
+      '--plugin-dir',
+      PLUGIN_DIR,
     ]);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
@@ -418,6 +426,7 @@ export class Session extends EventEmitter {
       this.blocks = [];
       this.turnFiles.clear();
       this.answerLots = null;
+      this.lotsAsked = /^\s*(\/(orchia:)?lots\b|Restate the plan you just proposed as lots)/.test(String(payload.prompt ?? ''));
       // A prompt that isn't one of the run's lots ends the "all lots done" state.
       if (!this.runningLot) this.lastLotDone = null;
       this.cleanStop = false;
@@ -819,6 +828,7 @@ export class Session extends EventEmitter {
       permissionMode: this.permissionMode,
       planLots: this.planOffer?.lots ?? null,
       answerLots: this.answerLots,
+      answerLotsAsked: !!this.answerLots && this.lotsAsked,
       permission: this.held[0]
         ? {
             id: this.held[0].id,

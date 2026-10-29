@@ -53,6 +53,8 @@ export interface SessionInfo {
   planLots: string[] | null;
   /** The lots of Claude's last answer, outside plan mode ("Run as a sequence"). */
   answerLots: string[] | null;
+  /** The user asked for these lots with /lots: the lot editor opens right away. */
+  answerLotsAsked: boolean;
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;

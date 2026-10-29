@@ -223,10 +223,11 @@ So you can start a plan and walk away without coming back to lots piled on a bro
 Outside plan mode too: when one of Claude's answers is a plan with titled lots ("Lot 1",
 "Phase 2", "Task 3", or codes like "T1, T2, T3" in order, as headings or bold lines), the
 same bar offers **Run as a sequence**. A plain numbered list doesn't count, so a summary of
-what was done doesn't trigger it. To make this reliable, sessions started from Orchia get one
-line added to Claude's system prompt (`--append-system-prompt`): when Claude proposes a plan
-in lots, it titles them `### Lot 1: …`, `### Lot 2: …`. Your settings and `CLAUDE.md` are not
-touched, and `claude` run outside Orchia is unchanged.
+what was done doesn't trigger it. Whatever shape Claude's plan took (a table, "T1, T2"…),
+type `/lots` in the session (or **Run the last plan as lots** in `Ctrl K`): Claude restates
+it as `### Lot N:` lots and the lot editor opens right away. `/lots` comes from a small
+plugin Orchia loads with `--plugin-dir` in its own sessions only; `claude` run outside Orchia
+is unchanged.
 
 Before starting, pick what happens **Between lots**: **Compact when needed** (the default,
 see below) keeps the conversation, **Clear** gives each lot a fresh one. With Clear, Orchia

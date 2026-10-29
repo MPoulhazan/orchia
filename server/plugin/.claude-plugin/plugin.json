@@ -1,0 +1,5 @@
+{
+  "name": "orchia",
+  "description": "Commands Orchia adds to the Claude Code sessions it starts.",
+  "version": "0.1.0"
+}

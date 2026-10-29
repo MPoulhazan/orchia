@@ -467,6 +467,10 @@ export function App() {
                 }
               : undefined
           }
+          onRunAsLots={
+            // Through Up next: typed once Claude is free, never over a draft.
+            selected?.status === 'running' ? () => void api.enqueue(selected.id, '/lots').catch(() => {}) : undefined
+          }
         />
       )}
 

@@ -19,17 +19,6 @@ export function splitPlan(plan: unknown): string[] | null {
   return lots && lots.length >= 2 && lots.length <= MAX_LOTS ? lots : null;
 }
 
-/**
- * Appended to Claude's system prompt in every Orchia session, so a plan in lots comes in the
- * one format splitAnswer is sure to read. The matching below stays for plans written otherwise.
- * No double quotes or percent signs: on Windows it travels inside a quoted cmd.exe argument.
- */
-export const LOT_FORMAT_INSTRUCTION =
-  'When you propose a plan made of several lots, phases or tasks for the user to run one after another, ' +
-  'title each one as a Markdown heading of the form ### Lot 1: Short title, ### Lot 2: Short title, and so on, ' +
-  'even if the user named them differently. Orchia reads these headings to offer running the lots as a sequence. ' +
-  'Do not split work into lots when the user did not ask for a plan.';
-
 /** A heading or a bold line that starts with "Lot 2", "Phase 2", "Step 2"…: a lot title in an ordinary answer. */
 const ANSWER_LOT = /^(?:#{2,4}\s+|\*\*)(?:lot|phase|step|stage|étape|task|tâche|part|partie|milestone|sprint)\s*\d+\b/i;
 /** A short code as a lot title, "**T1 — Schema**" or "### L2: API": one capital letter, a number, then a separator. */

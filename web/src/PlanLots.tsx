@@ -17,14 +17,16 @@ export function PlanLots({ session }: { session: SessionInfo }) {
   // A plan waiting for review takes precedence; otherwise an ordinary answer in lots.
   const fromPlan = session.activity === 'waiting' && !!session.planLots;
   const found = (fromPlan ? session.planLots : session.answerLots) ?? [];
-  const [lots, setLots] = useState<string[] | null>(null);
+  // Lots asked for with /lots skip the offer: the editor is what the user wants.
+  const opened = !fromPlan && session.answerLotsAsked ? found : null;
+  const [lots, setLots] = useState<string[] | null>(opened);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [between, setBetween] = useState<'compact' | 'clear'>('compact');
   const [commit, setCommit] = useState(true);
   // A new plan (Claude revised it) starts over.
   useEffect(() => {
-    setLots(null);
+    setLots(opened);
     setError(null);
   }, [found.join('\n')]);
 
