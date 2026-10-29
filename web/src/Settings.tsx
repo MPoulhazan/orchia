@@ -289,10 +289,18 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
           <Options items={REMOTE_ANSWERS} value={settings.remoteAnswers} onChange={(remoteAnswers) => props.onChange({ remoteAnswers })} />
         </Field>
       )}
+      {paired && (
+        <Field
+          label="Security alerts in Orchia Cloud"
+          description="Lists this computer's open security issues on Orchia Cloud's Security page, next to your other computers': known CVEs in your connectors, secrets that reached the model, risky permission settings. A secret's value is never sent."
+        >
+          <Options items={ON_OFF} value={settings.remoteSecurity ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteSecurity: v === 'on' })} />
+        </Field>
+      )}
       <Field
         label="What is sent"
         description={
-          settings.remoteNeeds
+          settings.remoteNeeds || settings.remoteSecurity
             ? 'Your code, prompts and terminal output never leave this computer.'
             : 'Your code, prompts, terminal output, file and project names never leave this computer.'
         }
@@ -306,6 +314,12 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
               <li>For each session that needs you: its name and its project's name</li>
               <li>Why it waits, and a permission request's tool and target (the command, file or URL, cut at 300 characters)</li>
               <li>The summary of a finished turn you haven't looked at yet</li>
+            </>
+          )}
+          {settings.remoteSecurity && (
+            <>
+              <li>For each open security issue: its kind, severity, a short description, and the project and session names</li>
+              <li>For a secret that reached the model: its kind and first and last characters (ghp_…a41f), never its value</li>
             </>
           )}
         </ul>

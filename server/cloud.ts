@@ -7,7 +7,8 @@ import { WebSocket } from 'ws';
 // works like `gh auth login`: Orchia shows a code, the user approves it in the browser.
 // The connection is outbound only: the cloud never reaches into this machine.
 // Always sent: this computer's name, Orchia's version and the OS. With "Needs you on your phone"
-// turned on, also what needs you (RemoteNeed below). Never prompts, code or terminal output.
+// turned on, also what needs you (RemoteNeed below); with "Security alerts in Orchia Cloud", the
+// open security issues (RemoteFinding). Never prompts, code, terminal output or a secret's value.
 // The cloud can only answer a permission request that is already waiting: never start one, never type.
 
 const CLOUD_URL = (process.env.ORCHIA_CLOUD_URL ?? 'https://app.orchia.app').replace(/\/$/, '');
@@ -49,10 +50,31 @@ export interface RemoteNeed {
   summary: string | null;
 }
 
+/**
+ * One open security issue, as Orchia Cloud's Security page shows it. Settings lists these fields
+ * as what is sent. A secret is only named by its kind and first and last characters (`ghp_…a41f`).
+ */
+export interface RemoteFinding {
+  /** Stable while the issue lasts, so the cloud can tell when it was resolved. */
+  id: string;
+  category: 'cve' | 'secret' | 'config';
+  severity: 'low' | 'moderate' | 'high' | 'critical';
+  title: string;
+  detail: string;
+  /** Null when it concerns every project (the user's settings, a shared connector). */
+  project: string | null;
+  session: string | null;
+  /** Where to fix it: the advisory's review, the page to revoke a token. */
+  fixUrl: string | null;
+  since: number;
+}
+
 export interface CloudHooks {
   onChange: () => void;
   /** What needs you right now; null while "Needs you on your phone" is off. */
   needs: () => RemoteNeed[] | null;
+  /** Open security issues; null while "Security alerts in Orchia Cloud" is off. */
+  security: () => RemoteFinding[] | null;
   /** Applies an Allow or Deny from the phone; returns why it was refused, or null once applied. */
   answer: (sessionId: string, permissionId: string, allow: boolean) => string | null;
 }
@@ -67,6 +89,7 @@ export class CloudLink {
   private retries = 0;
   /** The needs last sent on the current connection, to send only changes. */
   private sentNeeds: string | null = null;
+  private sentSecurity: string | null = null;
 
   constructor(dir: string, private readonly hooks: CloudHooks) {
     this.file = join(dir, 'cloud.json');
@@ -98,9 +121,17 @@ export class CloudLink {
     if (!ws || this.status.state !== 'connected' || ws.readyState !== ws.OPEN) return;
     const items = this.hooks.needs() ?? [];
     const json = JSON.stringify(items);
-    if (json === this.sentNeeds) return;
-    this.sentNeeds = json;
-    ws.send(JSON.stringify({ type: 'needs', items }));
+    if (json !== this.sentNeeds) {
+      this.sentNeeds = json;
+      ws.send(JSON.stringify({ type: 'needs', items }));
+    }
+    // null tells the cloud to forget this computer's issues: the switch was turned off.
+    const findings = this.hooks.security();
+    const security = JSON.stringify(findings);
+    if (security !== this.sentSecurity) {
+      this.sentSecurity = security;
+      ws.send(JSON.stringify({ type: 'security', items: findings }));
+    }
   }
 
   /** Asks the cloud for a code; the user approves it in the browser while Orchia polls. */
@@ -191,6 +222,7 @@ export class CloudLink {
       if (this.ws !== ws) return;
       if (msg.type === 'ready') {
         this.sentNeeds = null;
+        this.sentSecurity = null;
         this.set({ state: 'connected', url: saved.url, name: saved.name });
         this.report();
       }

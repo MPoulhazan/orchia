@@ -12,7 +12,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore } from './settings.ts';
-import { CloudLink, type RemoteNeed } from './cloud.ts';
+import { CloudLink, type RemoteFinding, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
@@ -57,7 +57,7 @@ const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, answer: remoteAnswer });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
@@ -88,6 +88,75 @@ function remoteNeeds(): RemoteNeed[] | null {
       },
     ];
   });
+}
+
+/** When each security issue was first seen since Orchia started; secrets keep their own date. */
+const findingSince = new Map<string, number>();
+
+/** Open security issues for Orchia Cloud's Security page, cut to what Settings says is sent. */
+function remoteSecurity(): RemoteFinding[] | null {
+  if (!settings.get().remoteSecurity) return null;
+  const projectName = (id: string) => clip(projects.get(id)?.name ?? '', 80);
+  const since = (id: string) => findingSince.get(id) ?? (findingSince.set(id, Date.now()), Date.now());
+  const sessionName = (id: string) => {
+    const s = sessions.get(id);
+    return s ? clip(s.name, 80) : null;
+  };
+
+  const secretFindings = secrets.open().map((e): RemoteFinding => ({
+    id: `secret:${e.fingerprint}`,
+    category: 'secret',
+    severity: e.severity,
+    title: `${e.label} reached the model`,
+    detail: clip(`${e.masked} ${e.source === 'prompt' ? 'in a prompt' : e.source === 'tool-output' ? `in the output of ${e.where ?? 'a tool'}` : `in ${e.where ?? 'a tool call'}`}`, 300),
+    project: projectName(e.projectId),
+    session: clip(e.sessionName, 80),
+    fixUrl: e.rotateUrl,
+    since: e.firstSeenAt,
+  }));
+
+  const configFindings = configNeeded().map(({ projectId, sessionId, risk }): RemoteFinding => {
+    const id = `config:${risk.shared ? '' : `${projectId}:`}${risk.id}`;
+    return {
+      id,
+      category: 'config',
+      severity: risk.severity,
+      title: risk.title,
+      detail: clip(risk.detail, 300),
+      project: risk.shared ? null : projectName(projectId),
+      session: risk.shared ? null : sessionName(sessionId),
+      fixUrl: null,
+      since: since(id),
+    };
+  });
+
+  // Every advisory that applies for sure, whatever its severity: the page is the full list, Needs you only the urgent ones.
+  const cveSeen = new Set<string>();
+  const cveFindings = latestSessions(false).flatMap((s) =>
+    cachedConnectors(s.cwd).flatMap((c): RemoteFinding[] => {
+      const note = connectorNote(c);
+      if (!note || note.level === 'check') return [];
+      const shared = c.source !== 'local' && c.source !== 'project';
+      const id = `cve:${shared ? '' : `${s.projectId}:`}${c.name}:${note.ids.join(',')}`;
+      if (cveSeen.has(id)) return [];
+      cveSeen.add(id);
+      return [
+        {
+          id,
+          category: 'cve',
+          severity: note.severity,
+          title: clip(`${note.tool}: ${note.summary}`, 200),
+          detail: note.level === 'unfixed' ? 'No fix yet.' : `The version in use is affected. Fixed in ${note.fixedIn}.`,
+          project: shared ? null : projectName(s.projectId),
+          session: null,
+          fixUrl: note.url,
+          since: since(id),
+        },
+      ];
+    }),
+  );
+
+  return [...secretFindings, ...cveFindings, ...configFindings];
 }
 
 /** "All 4 lots done", "Lot 2/4 blocked: tests fail"; null outside a run of lots. Same words as the desktop notification. */
@@ -205,19 +274,24 @@ function securityNeeded() {
   );
 }
 
+/** The newest session of each project, to read the project's connectors and settings through. */
+function latestSessions(runningOnly: boolean): Session[] {
+  const latest = new Map<string, Session>();
+  for (const s of sessions.values()) {
+    if (runningOnly && s.status !== 'running') continue;
+    const seen = latest.get(s.projectId);
+    if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
+  }
+  return [...latest.values()];
+}
+
 /**
  * Permission settings that let Claude do more than expected (any shell command, no prompts,
  * readable .env files), for "Needs you". One row per project, and once for the user's settings.
  */
 function configNeeded() {
-  const latest = new Map<string, Session>();
-  for (const s of sessions.values()) {
-    if (s.status !== 'running') continue;
-    const seen = latest.get(s.projectId);
-    if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
-  }
   const shared = new Set<string>();
-  return [...latest.values()].flatMap((s) =>
+  return latestSessions(true).flatMap((s) =>
     configRisks(s.cwd)
       .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
       .map((risk) => ({ sessionId: s.id, projectId: s.projectId, risk })),
@@ -498,7 +572,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {
