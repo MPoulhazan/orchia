@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { ListOrdered, X } from 'lucide-react';
 import { api, type SessionInfo } from './api';
 
-/** Shown under the terminal while Claude waits on a plan that splits into lots. */
+/** Shown under the terminal while Claude waits on a plan that splits into lots, or after an answer in lots. */
 export function showPlanLots(session: SessionInfo): boolean {
-  return session.status === 'running' && session.activity === 'waiting' && !!session.planLots;
+  if (session.status !== 'running') return false;
+  return (session.activity === 'waiting' && !!session.planLots) || (session.activity === 'idle' && !!session.answerLots);
 }
 
 /**
@@ -13,7 +14,9 @@ export function showPlanLots(session: SessionInfo): boolean {
  * still works as usual; the first answer wins.
  */
 export function PlanLots({ session }: { session: SessionInfo }) {
-  const found = session.planLots ?? [];
+  // A plan waiting for review takes precedence; otherwise an ordinary answer in lots.
+  const fromPlan = session.activity === 'waiting' && !!session.planLots;
+  const found = (fromPlan ? session.planLots : session.answerLots) ?? [];
   const [lots, setLots] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -28,10 +31,14 @@ export function PlanLots({ session }: { session: SessionInfo }) {
       <div className="planlots" aria-label="Plan in lots">
         <div className="upnext-head">
           <ListOrdered size={13} />
-          <b>This plan has {found.length} lots.</b>
-          <span className="upnext-hint">Run them one at a time, or answer in the terminal to approve it all.</span>
+          <b>{fromPlan ? 'This plan' : "Claude's answer"} has {found.length} lots.</b>
+          <span className="upnext-hint">
+            {fromPlan
+              ? 'Run them one at a time, or answer in the terminal to approve it all.'
+              : 'Run them one after another, each only once the previous one is done.'}
+          </span>
           <button className="btn btn-secondary upnext-send" onClick={() => setLots(found)}>
-            Split into Up next
+            {fromPlan ? 'Split into Up next' : 'Run as a sequence'}
           </button>
         </div>
       </div>

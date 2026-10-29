@@ -5,7 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { lotNotDone, lotPrompt } from './planLots.ts';
+import { lotNotDone, lotPrompt, splitAnswer } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -44,6 +44,8 @@ export interface SessionInfo {
   permissionMode: PermissionMode | null;
   /** The lots of a plan waiting for review, when it splits into some ("Split into Up next"). */
   planLots: string[] | null;
+  /** The lots of Claude's last answer, outside plan mode ("Run as a sequence"). */
+  answerLots: string[] | null;
   /** The permission request Orchia can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
@@ -173,6 +175,8 @@ export class Session extends EventEmitter {
   private cleanStop = false;
   /** The lot of a split plan Claude is working on, checked for `LOT n DONE` when the turn ends. */
   private runningLot: { n: number; total: number } | null = null;
+  /** The lots of Claude's last answer, offered as "Run as a sequence" until the next turn starts. */
+  private answerLots: string[] | null = null;
   lotBlocked: LotBlocked | null = null;
   /** Last keystroke from the user, and roughly how much they typed into Claude's prompt since Enter. */
   private lastInputAt = 0;
@@ -399,6 +403,7 @@ export class Session extends EventEmitter {
       this.summary = null;
       this.blocks = [];
       this.turnFiles.clear();
+      this.answerLots = null;
       this.cleanStop = false;
       this.draftLength = 0;
     }
@@ -412,6 +417,9 @@ export class Session extends EventEmitter {
       this.scheduleSend();
     }
     if (event === 'Stop') {
+      // An answer in lots is offered only outside a run of lots, so a lot's report isn't taken for a new plan.
+      const inRun = !!this.runningLot || !!this.lotBlocked || this.queue.some((q) => q.lot);
+      this.answerLots = inRun ? null : splitAnswer(payload.last_assistant_message);
       this.checkLot(payload.last_assistant_message);
       this.cleanStop = true;
       this.scheduleSend();
@@ -498,7 +506,7 @@ export class Session extends EventEmitter {
   /** Approves lot 1 of the plan and queues the others in Up next. False when the plan was answered elsewhere. */
   answerPlan(lots: string[]): boolean {
     const offer = this.planOffer;
-    if (!offer) return false;
+    if (!offer) return this.runAnswerLots(lots);
     this.planOffer = null;
     offer.reply(lots);
     // Ahead of what was already queued: the plan's lots finish this task before the next one starts.
@@ -510,6 +518,20 @@ export class Session extends EventEmitter {
     this.detail = null;
     this.unseen = false;
     this.emit('change');
+    return true;
+  }
+
+  /**
+   * "Run as a sequence" on an ordinary answer in lots: all of them go to the front of Up next,
+   * lot 1 right away. False when the offer is gone (a new turn started).
+   */
+  private runAnswerLots(lots: string[]): boolean {
+    if (!this.answerLots) return false;
+    this.answerLots = null;
+    const total = lots.length;
+    this.queue.unshift(...lots.map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 1, total), lot: { n: i + 1, total } })));
+    this.lotBlocked = null;
+    if (!this.sendNextNow()) this.emit('change');
     return true;
   }
 
@@ -750,6 +772,7 @@ export class Session extends EventEmitter {
       effortChoice: this.effortChoice,
       permissionMode: this.permissionMode,
       planLots: this.planOffer?.lots ?? null,
+      answerLots: this.answerLots,
       permission: this.held[0]
         ? {
             id: this.held[0].id,

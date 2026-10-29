@@ -142,7 +142,7 @@ from the phone (Orchia Cloud, "Needs you on your phone").
    Claude to commit and end with `LOT n DONE`, or `LOT n BLOCKED: <reason>`. Without
    `DONE`, the rest of the queue holds and Up next says why, with **Resume** and **Drop the
    rest**. A later turn that ends with `LOT n DONE` (the user helped by hand) lifts the hold.
-2. **Lots outside plan mode.** The same bar when an ordinary answer is a plan in lots
+2. ~~**Lots outside plan mode.**~~ built (`splitAnswer`, smoke-tested; reuses POST /plan). The same bar when an ordinary answer is a plan in lots
    ("Lot N", "Phase N", "Step N" headings only, not any numbered list, so a summary doesn't
    trigger it). "Run as a sequence" types lot 1 and queues the rest.
 3. **Compact or clear between lots.** An option in the lot editor: compact when needed

@@ -19,6 +19,36 @@ export function splitPlan(plan: unknown): string[] | null {
   return lots && lots.length >= 2 && lots.length <= MAX_LOTS ? lots : null;
 }
 
+/** A heading or a bold line that starts with "Lot 2", "Phase 2", "Step 2"…: a lot title in an ordinary answer. */
+const ANSWER_LOT = /^(?:#{2,4}\s+|\*\*)(?:lot|phase|step|stage|étape)\s*\d+\b/i;
+
+/**
+ * The lots of an ordinary answer (not a plan Claude presents for review), or null. Stricter
+ * than splitPlan: only titled lots count, never a plain numbered list, so a summary of what
+ * was done ("1. Fixed X 2. Fixed Y") doesn't read as a plan. Each lot runs to the next title.
+ */
+export function splitAnswer(answer: unknown): string[] | null {
+  if (typeof answer !== 'string') return null;
+  const lines = answer.replace(/\r\n/g, '\n').split('\n');
+  const starts = lines.flatMap((l, i) => (ANSWER_LOT.test(l.trim()) ? [i] : []));
+  if (starts.length < 2 || starts.length > MAX_LOTS) return null;
+  return starts.map((start, n) => {
+    let end = n + 1 < starts.length ? starts[n + 1] : lines.length;
+    // The last lot stops at a rule or a heading of its level or above, before any closing remarks.
+    if (n + 1 === starts.length) {
+      const level = lines[start].trim().match(/^#+/)?.[0].length ?? 6;
+      for (let i = start + 1; i < lines.length; i++) {
+        const heading = lines[i].match(/^(#{1,6})\s/);
+        if (/^---\s*$/.test(lines[i]) || (heading && heading[1].length <= level)) {
+          end = i;
+          break;
+        }
+      }
+    }
+    return lines.slice(start, end).join('\n').trim();
+  });
+}
+
 /** Headings of one level that number the work ("### Lot 2: API"); a lot runs to the next heading at that level or above. */
 function byHeadings(lines: string[]): string[] | null {
   const headings = lines.map((l, i) => ({ i, m: l.match(HEADING) })).filter((h) => h.m && LOT_TITLE.test(h.m[2]));
@@ -68,7 +98,7 @@ export function firstLotPlan(plan: string, lots: string[]): string {
 
 /** The Up next prompt for a later lot, on one line (Claude Code submits at a line break). */
 export function lotPrompt(lot: string, n: number, total: number): string {
-  let text = lot.replace(/^#+\s+/gm, '').replace(/\s*\n\s*/g, ' ').trim();
+  let text = lot.replace(/^#+\s+/gm, '').replace(/\*\*/g, '').replace(/\s*\n\s*/g, ' ').trim();
   if (text.length > MAX_LOT_CHARS) text = `${text.slice(0, MAX_LOT_CHARS - 1).replace(/\s+\S*$/, '')}…`;
   return `Continue the plan with lot ${n} of ${total} only, then stop: ${text} ${lotRules(n)}`;
 }

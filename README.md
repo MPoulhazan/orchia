@@ -220,6 +220,10 @@ the reason. The next lot only goes after `LOT n DONE`: when a lot fails, ends on
 or says neither, the rest waits and Up next says why, with **Resume** and **Drop the rest**.
 So you can start a plan and walk away without coming back to lots piled on a broken one.
 
+Outside plan mode too: when one of Claude's answers is a plan with titled lots ("Lot 1",
+"Phase 2", "Step 3" as headings or bold lines), the same bar offers **Run as a sequence**.
+A plain numbered list doesn't count, so a summary of what was done doesn't trigger it.
+
 Between two Up next prompts, when the conversation fills more than 60% of the context,
 Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
 task. Turn it off in Settings, under **Compact between tasks**.

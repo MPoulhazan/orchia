@@ -51,6 +51,8 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let planned = false;
   let compacted = false;
   let lot2 = false;
+  let lot3 = false;
+  let answered = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -65,6 +67,20 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       lot2 = true;
       await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'lot 2' });
       await hook({ hook_event_name: 'Stop', last_assistant_message: 'Two tests fail.\\n\\nLOT 2 BLOCKED: tests fail' });
+      return;
+    }
+    if (lot2 && !lot3 && /Continue the plan with lot 3[^\\r]*\\r/.test(typed)) {
+      lot3 = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'lot 3' });
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'Lots shown.\\n\\nLOT 3 DONE' });
+      return;
+    }
+    if (lot3 && !answered && /Plan the export[^\\r]*\\r/.test(typed)) {
+      // An ordinary answer in lots, outside plan mode: offered as "Run as a sequence".
+      answered = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'Plan the export' });
+      const answer = ['Here is the plan.', '', '**Lot 1: CSV writer**', 'Write rows.', '', '**Lot 2: Download button**', 'Wire it.'].join('\\n');
+      await hook({ hook_event_name: 'Stop', last_assistant_message: answer });
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -187,6 +203,15 @@ try {
   await until('lot 3 sent on Resume', async () => readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 3'), 5000);
   if ((await session(id)).lotBlocked) throw new Error('Still blocked after Resume');
   step('Resume sends the next lot');
+
+  await api('POST', `/api/sessions/${id}/queue`, { text: 'Plan the export' });
+  const answerLots = await until('the lots of an ordinary answer', async () => (await session(id))?.answerLots);
+  if (answerLots.length !== 2 || !answerLots[1].includes('Download button')) throw new Error(`Unexpected answer lots: ${JSON.stringify(answerLots)}`);
+  await api('POST', `/api/sessions/${id}/plan`, { lots: answerLots });
+  await until('lot 1 of the answer typed', async () => readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 1 of 2 only, then stop: Lot 1: CSV writer'), 5000);
+  const left = (await session(id)).queue;
+  if (left.length !== 1 || left[0].lot?.n !== 2 || (await session(id)).answerLots) throw new Error(`Unexpected queue after Run as a sequence: ${JSON.stringify(left)}`);
+  step('runs an ordinary answer in lots as a sequence');
 
   console.log('\nSmoke test passed');
 } catch (err) {

@@ -51,6 +51,8 @@ export interface SessionInfo {
    */
   /** The lots of a plan waiting for review, when it splits into some. */
   planLots: string[] | null;
+  /** The lots of Claude's last answer, outside plan mode ("Run as a sequence"). */
+  answerLots: string[] | null;
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;
