@@ -319,6 +319,7 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
           {settings.remoteSecurity && (
             <>
               <li>For each open security issue: its kind, severity, a short description, and the project and session names</li>
+              <li>What you decided about it: an accepted risk with your note, or a false positive</li>
               <li>For a secret that reached the model: its kind and first and last characters (ghp_…a41f), never its value</li>
             </>
           )}

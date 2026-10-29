@@ -116,6 +116,7 @@ function remoteSecurity(): RemoteFinding[] | null {
     session: clip(e.sessionName, 80),
     fixUrl: e.rotateUrl,
     since: e.firstSeenAt,
+    triage: triage.get(secretKey(e.fingerprint)),
   }));
 
   const configFindings = configNeeded().map(({ projectId, sessionId, risk }): RemoteFinding => {
@@ -130,6 +131,7 @@ function remoteSecurity(): RemoteFinding[] | null {
       session: risk.shared ? null : sessionName(sessionId),
       fixUrl: null,
       since: since(id),
+      triage: triage.get(id),
     };
   });
 
@@ -154,6 +156,7 @@ function remoteSecurity(): RemoteFinding[] | null {
           session: null,
           fixUrl: note.url,
           since: since(id),
+          triage: triage.get(id),
         },
       ];
     }),

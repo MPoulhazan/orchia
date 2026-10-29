@@ -2,6 +2,7 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'nod
 import { hostname, platform } from 'node:os';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
+import type { Triage } from './triage.ts';
 
 // Optional link to an Orchia Cloud account. Off until the user turns it on in Settings; pairing
 // works like `gh auth login`: Orchia shows a code, the user approves it in the browser.
@@ -67,6 +68,8 @@ export interface RemoteFinding {
   /** Where to fix it: the advisory's review, the page to revoke a token. */
   fixUrl: string | null;
   since: number;
+  /** What the user decided (server/triage.ts): the cloud files it under Accepted risk or Closed. */
+  triage: Triage | null;
 }
 
 export interface CloudHooks {

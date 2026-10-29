@@ -366,7 +366,8 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
 - "Security alerts in Orchia Cloud", a third switch, also off by default, lists this
   computer's open security issues on the cloud's Security page: CVEs in your connectors,
   secrets that reached the model and risky permission settings, each with its severity,
-  a short description and the project and session names. A secret is only named by its
+  a short description, the project and session names, and what you decided about it (an
+  accepted risk with your note, or a false positive). A secret is only named by its
   kind and first and last characters (`ghp_…a41f`), never its value. Turning the switch
   off removes this computer's issues from the cloud.
 - A connector token you paste is written to Claude Code's own config
