@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
-import { secretText, securityText } from './Security';
+import { SecurityAlertRow, secretText, securityText } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -38,14 +38,6 @@ interface Props {
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
 const DISMISSED_KEY = 'orchia.dismissedSignIns';
-const DISMISSED_SECURITY_KEY = 'orchia.dismissedSecurity';
-const DISMISSED_CONFIG_KEY = 'orchia.dismissedConfigRisks';
-
-/** A risk in the user's settings is dismissed everywhere; a project's own, in that project only. */
-const configKey = (c: ConfigNeeded) => (c.risk.shared ? c.risk.id : `${c.projectId}:${c.risk.id}`);
-
-/** Dismissed until a new advisory appears for it. */
-const securityKey = (c: SecurityNeeded) => `${c.shared ? c.name : `${c.projectId}:${c.name}`}:${c.note.ids.join(',')}`;
 
 /** A sign-in shared by every project is dismissed everywhere; a project's own, in that project only. */
 const signInKey = (c: SignInNeeded) => (c.shared ? c.name : `${c.projectId}:${c.name}`);
@@ -197,20 +189,13 @@ function Attention(props: {
     setDismissed(next);
     storage.set(DISMISSED_KEY, JSON.stringify(next));
   };
-  const [dismissedSecurity, setDismissedSecurity] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_SECURITY_KEY) ?? '[]'));
-  const security = props.security.filter((c) => !dismissedSecurity.includes(securityKey(c)));
-  const dismissSecurity = (c: SecurityNeeded) => {
-    const next = [...dismissedSecurity, securityKey(c)];
-    setDismissedSecurity(next);
-    storage.set(DISMISSED_SECURITY_KEY, JSON.stringify(next));
-  };
-  const secrets = props.secrets;
-  const [dismissedConfig, setDismissedConfig] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_CONFIG_KEY) ?? '[]'));
-  const config = props.config.filter((c) => !dismissedConfig.includes(configKey(c)));
-  const dismissConfig = (c: ConfigNeeded) => {
-    const next = [...dismissedConfig, configKey(c)];
-    setDismissedConfig(next);
-    storage.set(DISMISSED_CONFIG_KEY, JSON.stringify(next));
+  // Security alerts stay until they are decided (fixed, accepted risk, false positive): no plain dismiss.
+  const security = props.security.filter((c) => !c.triage);
+  const secrets = props.secrets.filter((e) => !e.triage);
+  const config = props.config.filter((c) => !c.triage);
+  const openSession = (id: string) => {
+    const session = props.sessions.find((s) => s.id === id);
+    if (session) props.onSelect(session);
   };
   if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
@@ -251,51 +236,39 @@ function Attention(props: {
           </div>
         ))}
         {secrets.map((e) => (
-          <div key={e.id} className="attention-row" data-selected={e.sessionId === props.selectedId}>
-            <button
-              className="attention-open"
-              onClick={() => {
-                const session = props.sessions.find((s) => s.id === e.sessionId);
-                if (session) props.onSelect(session);
-              }}
-            >
-              <span className="attention-title">
-                <span className="mark" data-tone="danger">Secret</span>
-                <b>{e.label}</b>
-                <span className="attention-project">· {projectName(e.projectId)}</span>
-              </span>
-              <span className="attention-detail">{secretText(e)}</span>
-            </button>
-            <span className="perm-acts" data-small>
-              {e.rotateUrl && (
+          <SecurityAlertRow
+            key={e.key}
+            alertKey={e.key}
+            mark="Secret"
+            danger
+            title={e.label}
+            where={projectName(e.projectId)}
+            detail={secretText(e)}
+            selected={e.sessionId === props.selectedId}
+            onOpen={() => openSession(e.sessionId)}
+            revocable
+            actions={
+              e.rotateUrl && (
                 <a className="btn btn-secondary" href={e.rotateUrl} target="_blank" rel="noreferrer" title="Revoke it, then put a new one where it is used">
                   Revoke
                 </a>
-              )}
-              <button className="btn btn-secondary" title="It is revoked, or it doesn't matter" onClick={() => api.resolveSecret(e.id)}>
-                Done
-              </button>
-            </span>
-          </div>
+              )
+            }
+          />
         ))}
         {config.map((c) => (
-          <div key={configKey(c)} className="attention-row" data-selected={c.sessionId === props.selectedId}>
-            <button
-              className="attention-open"
-              onClick={() => {
-                const session = props.sessions.find((s) => s.id === c.sessionId);
-                if (session) props.onSelect(session);
-              }}
-            >
-              <span className="attention-title">
-                <span className="mark" data-tone={c.risk.severity === 'high' ? 'danger' : undefined}>Config</span>
-                <b>{c.risk.title}</b>
-                <span className="attention-project">· {c.risk.shared ? 'All projects' : projectName(c.projectId)}</span>
-              </span>
-              <span className="attention-detail">{c.risk.detail}</span>
-            </button>
-            <span className="perm-acts" data-small>
-              {c.risk.fix && (
+          <SecurityAlertRow
+            key={c.key}
+            alertKey={c.key}
+            mark="Config"
+            danger={c.risk.severity === 'high'}
+            title={c.risk.title}
+            where={c.risk.shared ? 'All projects' : projectName(c.projectId)}
+            detail={c.risk.detail}
+            selected={c.sessionId === props.selectedId}
+            onOpen={() => openSession(c.sessionId)}
+            actions={
+              c.risk.fix && (
                 <button
                   className="btn btn-secondary"
                   title={c.risk.fix === 'deny-env' ? 'Adds Read(./.env) and Read(./.env.*) to the deny rules in .claude/settings.local.json' : `Removes ${c.risk.rule} from .claude/settings.local.json`}
@@ -303,38 +276,27 @@ function Attention(props: {
                 >
                   {c.risk.fix === 'deny-env' ? 'Block reads' : 'Remove rule'}
                 </button>
-              )}
-              <button className="icon-btn" title="Dismiss" onClick={() => dismissConfig(c)}>
-                <X size={13} />
-              </button>
-            </span>
-          </div>
+              )
+            }
+          />
         ))}
         {security.map((c) => (
-          <div key={securityKey(c)} className="attention-row" data-selected={c.sessionId === props.selectedId}>
-            <button
-              className="attention-open"
-              onClick={() => {
-                const session = props.sessions.find((s) => s.id === c.sessionId);
-                if (session) props.onSelect(session);
-              }}
-            >
-              <span className="attention-title">
-                <span className="mark" data-tone="danger">Security</span>
-                <b>{c.label}</b>
-                <span className="attention-project">· {c.shared ? 'All projects' : projectName(c.projectId)}</span>
-              </span>
-              <span className="attention-detail">{securityText(c.note)}</span>
-            </button>
-            <span className="perm-acts" data-small>
+          <SecurityAlertRow
+            key={c.key}
+            alertKey={c.key}
+            mark="Security"
+            danger
+            title={c.label}
+            where={c.shared ? 'All projects' : projectName(c.projectId)}
+            detail={securityText(c.note)}
+            selected={c.sessionId === props.selectedId}
+            onOpen={() => openSession(c.sessionId)}
+            actions={
               <a className="btn btn-secondary" href={c.note.url} target="_blank" rel="noreferrer">
                 Details
               </a>
-              <button className="icon-btn" title="Dismiss until a new issue is found" onClick={() => dismissSecurity(c)}>
-                <X size={13} />
-              </button>
-            </span>
-          </div>
+            }
+          />
         ))}
         {signIns.map((c) => (
           <SignInRow

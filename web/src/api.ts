@@ -96,7 +96,20 @@ export interface SecurityNeeded {
   label: string;
   shared: boolean;
   note: SecurityNote;
+  key: string;
+  triage: Triage | null;
 }
+
+/** What the user decided about a security alert (server/triage.ts); null while it is open. */
+export interface Triage {
+  status: 'accepted' | 'false-positive';
+  note: string;
+  at: number;
+  /** When an accepted risk comes back; null for a false positive. */
+  expiresAt: number | null;
+}
+
+export type TriageChoice = 'fixed' | 'accepted' | 'false-positive' | 'open';
 
 /** A secret that reached the model (in a prompt or a tool call). Only its start and end are known here. */
 export interface SecretExposure {
@@ -116,6 +129,8 @@ export interface SecretExposure {
   sessionName: string;
   firstSeenAt: number;
   count: number;
+  key: string;
+  triage: Triage | null;
 }
 
 /** A permission setting that lets Claude do more than expected, in a project with a running session. */
@@ -134,6 +149,8 @@ export interface ConfigNeeded {
     fix: 'remove-allow' | 'deny-env' | null;
     rule?: string;
   };
+  key: string;
+  triage: Triage | null;
 }
 
 export interface SignInNeeded {
@@ -396,6 +413,7 @@ export const api = {
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
   removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
   resolveSecret: (id: string) => request(`/api/secrets/${id}/resolve`, 'POST'),
+  triageFinding: (key: string, status: TriageChoice, note = '') => request('/api/findings/triage', 'POST', { key, status, note }),
   fixConfigRisk: (sessionId: string, riskId: string) => request(`/api/sessions/${sessionId}/config-risks/fix`, 'POST', { id: riskId }),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),

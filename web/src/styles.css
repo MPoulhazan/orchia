@@ -509,6 +509,37 @@ kbd {
   gap: 6px;
 }
 
+/* "Accept the risk": a reason, then the alert leaves Needs you for 90 days. */
+.triage-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.triage-form input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.triage-form .btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.triage-error {
+  color: var(--danger, #c2362f);
+  font-size: 12px;
+}
+
 .perm-acts[data-small='true'] .btn {
   height: 26px;
   padding: 0 10px;

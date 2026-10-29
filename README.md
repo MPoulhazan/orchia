@@ -300,7 +300,7 @@ Orchia also watches for secrets that reach the model: a token in your prompt, or
 tool call's input or output (`cat .env` printing an API key). Only formats with a fixed
 prefix are recognized (GitHub, Anthropic, OpenAI, AWS, Stripe live, GitLab, Slack, npm,
 Google API keys and private keys), so an alert is almost always real. It shows in
-**Needs you** with a link to revoke the secret, and goes away when you click **Done**.
+**Needs you** with a link to revoke the secret; click **Revoked** once you have.
 Orchia keeps only the kind of secret, its first and last characters (`ghp_…a41f`) and a
 hash to recognize it again, in `~/.orchia/secrets.json`; never the secret itself.
 
@@ -314,6 +314,17 @@ for projects with a running session:
   and `Read(./.env.*)` to the deny rules of `.claude/settings.local.json`. This stops
   Claude's Read tool, not a shell command such as `cat .env`, which the secret alert above
   still catches.
+
+A security alert has no plain dismiss: it stays in **Needs you** until it is decided, so
+alerts don't pile up unread.
+
+- **Fixed**: on its own for a CVE or a setting, as soon as Orchia no longer sees the
+  problem; **Revoked** for a secret, which only you can do.
+- **Accept the risk…** (under the ⋯ menu) asks why, then hides the alert for 90 days. It
+  comes back once after that, to be looked at again.
+- **Not a real issue (false positive)** hides it for good: a test token, an example key.
+
+Decisions are kept in `~/.orchia/triage.json`.
 
 ## Environment
 
