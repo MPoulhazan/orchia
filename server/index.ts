@@ -16,7 +16,7 @@ import { CloudLink, type RemoteFinding, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
-import { SecretStore, secretsInHook } from './secrets.ts';
+import { SecretStore, redactSecrets, secretsInHook } from './secrets.ts';
 import { configRisks, denyEnvReads } from './configRisks.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
@@ -83,7 +83,8 @@ function remoteNeeds(): RemoteNeed[] | null {
         project: clip(projectNames.get(info.projectId) ?? '', 80),
         kind,
         detail: detail ? clip(detail, 200) : null,
-        permission: ask ? { id: ask.id, tool: clip(ask.tool, 80), verb: ask.verb, target: clip(ask.target, 300) } : null,
+        // A command can hold a token (`curl -H "Authorization: Bearer ghp_…"`): only its masked form leaves.
+        permission: ask ? { id: ask.id, tool: clip(ask.tool, 80), verb: ask.verb, target: clip(redactSecrets(ask.target), 300) } : null,
         summary: kind === 'done' ? clip(info.summary!.text, 600) : null,
       },
     ];

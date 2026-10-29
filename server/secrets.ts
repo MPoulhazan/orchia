@@ -62,6 +62,11 @@ export function findSecrets(text: string): SecretHit[] {
   return [...hits.values()];
 }
 
+/** `text` with every secret it holds replaced by its masked form: `echo AKIA…Y777`. */
+export function redactSecrets(text: string): string {
+  return RULES.reduce((out, rule) => out.replace(rule.pattern, (value) => mask(rule.kind, value)), text);
+}
+
 function mask(kind: string, value: string): string {
   if (kind === 'private-key') return value.match(/^-----BEGIN [A-Z ]+-----/)?.[0] ?? 'PRIVATE KEY';
   const prefix = value.match(/^(?:github_pat_|[a-z]+[_-](?:ant-)?|AKIA|ASIA|AIza)/)?.[0] ?? value.slice(0, 4);
@@ -126,6 +131,16 @@ export class SecretStore {
       const saved = JSON.parse(readFileSync(file, 'utf8'));
       if (Array.isArray(saved?.exposures)) this.exposures = saved.exposures;
     } catch {}
+    // Orchia 0c70fc6 to 18b24b6 kept the command as it ran, secret included: clean those up.
+    let cleaned = false;
+    for (const e of this.exposures) {
+      const where = e.where === null ? null : redactSecrets(e.where);
+      if (where !== e.where) {
+        e.where = where;
+        cleaned = true;
+      }
+    }
+    if (cleaned) this.save();
   }
 
   list(): SecretExposure[] {
@@ -147,7 +162,9 @@ export class SecretStore {
         known.count++;
         continue;
       }
-      this.exposures.push({ id: randomUUID(), ...hit, source, ...at, firstSeenAt: now, lastSeenAt: now, count: 1, resolvedAt: null });
+      // The command or file that showed it often holds the secret itself: `echo $TOKEN` expanded.
+      const where = at.where === null ? null : redactSecrets(at.where);
+      this.exposures.push({ id: randomUUID(), ...hit, source, ...at, where, firstSeenAt: now, lastSeenAt: now, count: 1, resolvedAt: null });
       changed = true;
     }
     if (sightings.length) this.save();
