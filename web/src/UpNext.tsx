@@ -11,6 +11,7 @@ export function showUpNext(session: SessionInfo): boolean {
 const HELD: Record<NonNullable<SessionInfo['queueHeld']>, string> = {
   typing: "Waiting: Claude's prompt has text in it. Send it or clear it, or send the next one anyway.",
   stopped: 'Paused: the last turn was stopped before it finished.',
+  blocked: 'Paused: the last lot ended without saying it was done.',
 };
 
 /**
@@ -54,7 +55,9 @@ export function UpNext({ session }: { session: SessionInfo }) {
         <div className="upnext-head">
           <ListOrdered size={13} />
           <b>Up next</b>
-          {session.queueHeld ? (
+          {session.queueHeld === 'blocked' && session.lotBlocked ? (
+            <LotHeld session={session} />
+          ) : session.queueHeld ? (
             <>
               <span className="upnext-held">{HELD[session.queueHeld]}</span>
               <button className="btn btn-secondary upnext-send" onClick={() => api.sendQueuedNow(session.id).catch(() => {})}>
@@ -78,7 +81,7 @@ export function UpNext({ session }: { session: SessionInfo }) {
           onDrop={drop(q.id)}
         >
           <span className="upnext-n">{i + 1}</span>
-          <QueuedText text={q.text} />
+          {q.lot ? <QueuedLot text={q.text} lot={q.lot} /> : <QueuedText text={q.text} />}
           {queue.length > 1 && <GripVertical size={13} className="upnext-grip" aria-hidden />}
           <button className="icon-btn" title="Remove from the queue" onClick={() => api.dequeue(session.id, q.id).catch(() => {})}>
             <X size={13} />
@@ -98,6 +101,42 @@ export function UpNext({ session }: { session: SessionInfo }) {
         </label>
       </div>
     </div>
+  );
+}
+
+/** Lot n of a split plan ended without saying it was done: the next lots wait. */
+function LotHeld({ session }: { session: SessionInfo }) {
+  const { n, total, reason } = session.lotBlocked!;
+  const dropRest = () => {
+    for (const q of session.queue) if (q.lot) api.dequeue(session.id, q.id).catch(() => {});
+  };
+  return (
+    <>
+      <span className="upnext-held">
+        Lot {n}/{total} {reason ? `blocked: ${reason}` : "ended without saying it was done"}. The next lots wait.
+      </span>
+      <button className="btn btn-ghost upnext-send" onClick={dropRest}>
+        Drop the rest
+      </button>
+      <button className="btn btn-secondary" onClick={() => api.sendQueuedNow(session.id).catch(() => {})}>
+        Resume
+      </button>
+    </>
+  );
+}
+
+/** A queued lot shows as "Lot 3/4" and its own text, without the instructions around it. */
+function QueuedLot({ text, lot }: { text: string; lot: { n: number; total: number } }) {
+  const own = text.replace(/^Continue the plan with lot d+ of d+ only, then stop: /, '').replace(/ When lot d+ is finished and checked.*$/, '');
+  return (
+    <>
+      <span className="issue-tag">
+        Lot {lot.n}/{lot.total}
+      </span>
+      <span className="upnext-text" title={text}>
+        {own}
+      </span>
+    </>
   );
 }
 

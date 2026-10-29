@@ -215,6 +215,11 @@ wait in Up next, sent one at a time as Claude finishes. Approving in the termina
 approves the whole plan, as usual. The plan is cut along its own structure, without a
 model call.
 
+Each lot asks Claude to commit its work and end with `LOT n DONE`, or `LOT n BLOCKED:` and
+the reason. The next lot only goes after `LOT n DONE`: when a lot fails, ends on a question
+or says neither, the rest waits and Up next says why, with **Resume** and **Drop the rest**.
+So you can start a plan and walk away without coming back to lots piled on a broken one.
+
 Between two Up next prompts, when the conversation fills more than 60% of the context,
 Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
 task. Turn it off in Settings, under **Compact between tasks**.

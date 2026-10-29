@@ -129,3 +129,25 @@ notifications and theme. Next, in this order:
   shows "Paused".
 - **Suggest a fresh start** (only if the need shows up): when a prompt looks unrelated
   to the session, offer to send it to a new session. Never clears on its own.
+
+## Lots that run on their own (agreed 2026-10-28)
+
+Goal: start a plan in lots and walk away (lunch) without coming back to an unfinished lot
+with the next ones piled on top. Builds on "Plan to Up next" and "Compact between tasks".
+Permissions are not auto-approved: a lot waiting on one is safe, and it can be answered
+from the phone (Orchia Cloud, "Needs you on your phone").
+
+1. ~~**A lot only goes when the previous one is done.**~~ built (`lotNotDone` in server/planLots.ts, smoke-tested). Today the queue sends the next lot on
+   any clean Stop, even when the lot failed or ended on a question. Each lot prompt now asks
+   Claude to commit and end with `LOT n DONE`, or `LOT n BLOCKED: <reason>`. Without
+   `DONE`, the rest of the queue holds and Up next says why, with **Resume** and **Drop the
+   rest**. A later turn that ends with `LOT n DONE` (the user helped by hand) lifts the hold.
+2. **Lots outside plan mode.** The same bar when an ordinary answer is a plan in lots
+   ("Lot N", "Phase N", "Step N" headings only, not any numbered list, so a summary doesn't
+   trigger it). "Run as a sequence" types lot 1 and queues the rest.
+3. **Compact or clear between lots.** An option in the lot editor: compact when needed
+   (default) or clear. With clear, each lot prompt carries the whole plan and "lots 1..n-1
+   are done and committed, see `git log`", with no 600-character cut. A "Commit after each
+   lot, stop if one fails" box, on by default (clear depends on it).
+4. **Follow the run.** "Lot 2/4" in Up next; a notification (desktop and phone) when the
+   last lot is done or one blocks.

@@ -5,7 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { lotPrompt } from './planLots.ts';
+import { lotNotDone, lotPrompt } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -54,7 +54,9 @@ export interface SessionInfo {
    * Why the queue waits although Claude is idle: `typing`, there is text in Claude's
    * prompt; `stopped`, the last turn was interrupted or failed. Null otherwise.
    */
-  queueHeld: 'typing' | 'stopped' | null;
+  queueHeld: 'typing' | 'stopped' | 'blocked' | null;
+  /** A lot of a split plan that ended without `LOT n DONE`: the next lots wait for the user. */
+  lotBlocked: LotBlocked | null;
   /** Set when the session works in its own copy of the repository; `cwd` is then the copy. */
   copy: SessionCopy | null;
 }
@@ -62,6 +64,15 @@ export interface SessionInfo {
 export interface QueuedPrompt {
   id: string;
   text: string;
+  /** Set on the lots of a split plan: they only go once the previous lot says it is done. */
+  lot?: { n: number; total: number };
+}
+
+export interface LotBlocked {
+  n: number;
+  total: number;
+  /** Claude's reason after `LOT n BLOCKED:`; '' when it ended without saying either way. */
+  reason: string;
 }
 
 export interface LaunchChoices {
@@ -160,6 +171,9 @@ export class Session extends EventEmitter {
   queue: QueuedPrompt[];
   /** The last turn ended normally (Stop), so the next queued prompt may go. */
   private cleanStop = false;
+  /** The lot of a split plan Claude is working on, checked for `LOT n DONE` when the turn ends. */
+  private runningLot: { n: number; total: number } | null = null;
+  lotBlocked: LotBlocked | null = null;
   /** Last keystroke from the user, and roughly how much they typed into Claude's prompt since Enter. */
   private lastInputAt = 0;
   private draftLength = 0;
@@ -398,6 +412,7 @@ export class Session extends EventEmitter {
       this.scheduleSend();
     }
     if (event === 'Stop') {
+      this.checkLot(payload.last_assistant_message);
       this.cleanStop = true;
       this.scheduleSend();
     }
@@ -487,7 +502,10 @@ export class Session extends EventEmitter {
     this.planOffer = null;
     offer.reply(lots);
     // Ahead of what was already queued: the plan's lots finish this task before the next one starts.
-    this.queue.unshift(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, lots.length) })));
+    const total = lots.length;
+    this.queue.unshift(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, total), lot: { n: i + 2, total } })));
+    this.runningLot = { n: 1, total };
+    this.lotBlocked = null;
     this.activity = 'working';
     this.detail = null;
     this.unseen = false;
@@ -568,6 +586,7 @@ export class Session extends EventEmitter {
 
   dequeue(id: string) {
     this.queue = this.queue.filter((q) => q.id !== id);
+    if (!this.queue.some((q) => q.lot)) this.lotBlocked = null;
     this.emit('change');
   }
 
@@ -602,6 +621,7 @@ export class Session extends EventEmitter {
 
   private queueHeld(): SessionInfo['queueHeld'] {
     if (!this.queue.length || !this.canSend()) return null;
+    if (this.lotBlocked) return 'blocked';
     if (!this.cleanStop) return 'stopped';
     return this.draftLength > 0 ? 'typing' : null;
   }
@@ -617,6 +637,7 @@ export class Session extends EventEmitter {
     this.sendTimer = setTimeout(() => {
       this.sendTimer = null;
       if (!this.canSend() || !this.cleanStop) return;
+      if (this.lotBlocked) return this.emit('change'); // Shows why, with Resume.
       if (this.draftLength > 0) return this.emit('change'); // Shows "waiting for your draft".
       const quiet = Date.now() - this.lastInputAt;
       if (quiet < TYPING_PAUSE_MS) return this.scheduleSend(TYPING_PAUSE_MS - quiet);
@@ -638,6 +659,21 @@ export class Session extends EventEmitter {
       this.draftLength === 0 &&
       Date.now() - this.lastInputAt > TYPING_PAUSE_MS
     );
+  }
+
+  /**
+   * A turn on a lot ended: without `LOT n DONE`, the next lots wait. A later turn that ends
+   * with it (the user helped Claude finish by hand) lets them go again.
+   */
+  private checkLot(reply: unknown) {
+    const lot = this.runningLot;
+    this.runningLot = null;
+    if (lot) {
+      const reason = lotNotDone(reply, lot.n);
+      if (reason !== null) this.lotBlocked = { ...lot, reason };
+    } else if (this.lotBlocked && lotNotDone(reply, this.lotBlocked.n) === null) {
+      this.lotBlocked = null;
+    }
   }
 
   /** Between two queued tasks, a well-filled context is compacted now rather than by Claude Code mid-task. */
@@ -663,6 +699,8 @@ export class Session extends EventEmitter {
   private sendNext() {
     const next = this.queue.shift();
     if (!next) return;
+    this.runningLot = next.lot ?? null;
+    this.lotBlocked = null;
     this.cleanStop = false;
     this.draftLength = 0;
     this.typeLine(next.text);
@@ -724,6 +762,7 @@ export class Session extends EventEmitter {
       summary: this.summary,
       queue: this.queue,
       queueHeld: this.queueHeld(),
+      lotBlocked: this.lotBlocked,
       copy: this.copy,
     };
   }

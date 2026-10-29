@@ -50,6 +50,7 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   let planned = false;
   let compacted = false;
+  let lot2 = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -59,11 +60,18 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       await hook({ hook_event_name: 'PostCompact', trigger: 'manual' });
       return;
     }
+    if (compacted && !lot2 && /Continue the plan with lot 2[^\\r]*\\r/.test(typed)) {
+      // Lot 2 fails: Orchia should hold lot 3.
+      lot2 = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'lot 2' });
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'Two tests fail.\\n\\nLOT 2 BLOCKED: tests fail' });
+      return;
+    }
     if (planned || !typed.includes('\\r')) return;
     // The next turn: a plan in two steps, held for "Split into Up next".
     planned = true;
     await hook({ hook_event_name: 'UserPromptSubmit', prompt: typed });
-    const plan = ['# Plan', '', '## Steps', '1. Add the parser.', '2. Wire the queue.'].join('\\n');
+    const plan = ['# Plan', '', '## Steps', '1. Add the parser.', '2. Wire the queue.', '3. Show the lots.'].join('\\n');
     await hook({ hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: { plan } });
     const approval = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'ExitPlanMode', tool_input: { plan } });
     out.plan = approval.status === 200 ? await approval.json() : approval.status;
@@ -71,7 +79,7 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
     // Lot 1 done, with the context 70% full: Orchia should compact before lot 2.
     const context = { context_window_size: 200000, current_usage: { input_tokens: 140000 } };
     execSync(settings.statusLine.command, { input: JSON.stringify({ session_id: 'smoke-session', context_window: context }) });
-    await hook({ hook_event_name: 'Stop', last_assistant_message: 'Lot 1 done.' });
+    await hook({ hook_event_name: 'Stop', last_assistant_message: 'Parser added.\\n\\nLOT 1 DONE' });
   });
   setInterval(() => {}, 1000);
 })().catch((err) => { writeFileSync(${JSON.stringify(result)}, JSON.stringify({ error: String(err) })); });
@@ -152,13 +160,13 @@ try {
   step('lists code blocks, Run types the command');
 
   const planning = await until('the plan lots', async () => (await session(id))?.planLots);
-  if (planning.length !== 2) throw new Error(`Unexpected lots: ${JSON.stringify(planning)}`);
+  if (planning.length !== 3) throw new Error(`Unexpected lots: ${JSON.stringify(planning)}`);
   await api('POST', `/api/sessions/${id}/plan`, { lots: planning });
   const approved = await until("Claude's plan answer", async () => JSON.parse(readFileSync(result, 'utf8')).plan);
   const firstLot = approved?.hookSpecificOutput?.decision?.updatedInput?.plan ?? '';
-  if (!firstLot.includes('Do lot 1 only') || !firstLot.endsWith('1. Add the parser.')) throw new Error(`Unexpected approval: ${JSON.stringify(approved)}`);
+  if (!firstLot.includes('Do lot 1 only') || !firstLot.includes('1. Add the parser.') || !firstLot.includes('"LOT 1 DONE"')) throw new Error(`Unexpected approval: ${JSON.stringify(approved)}`);
   const queued = (await session(id)).queue.map((q) => q.text);
-  if (queued.length !== 1 || !queued[0].includes('lot 2 of 2') || !queued[0].includes('Wire the queue')) throw new Error(`Unexpected queue: ${JSON.stringify(queued)}`);
+  if (queued.length !== 2 || !queued[0].includes('lot 2 of 3') || !queued[0].includes('Wire the queue')) throw new Error(`Unexpected queue: ${JSON.stringify(queued)}`);
   step('splits a plan: lot 1 approved, lot 2 in Up next');
 
   const typedAll = await until('lot 2 sent after a /compact', async () => {
@@ -168,6 +176,17 @@ try {
   const compactAt = typedAll.indexOf('/compact');
   if (compactAt < 0 || compactAt > typedAll.indexOf('Continue the plan with lot 2')) throw new Error(`No /compact before lot 2: ${JSON.stringify(typedAll)}`);
   step('compacts a full context before the next lot');
+
+  const blocked = await until('lot 2 blocked', async () => (await session(id))?.lotBlocked);
+  if (blocked.n !== 2 || blocked.reason !== 'tests fail') throw new Error(`Unexpected block: ${JSON.stringify(blocked)}`);
+  await new Promise((r) => setTimeout(r, 2500));
+  if (readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 3')) throw new Error('Lot 3 went although lot 2 was blocked');
+  step('holds the next lots when one is blocked');
+
+  await api('POST', `/api/sessions/${id}/queue/send`);
+  await until('lot 3 sent on Resume', async () => readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 3'), 5000);
+  if ((await session(id)).lotBlocked) throw new Error('Still blocked after Resume');
+  step('Resume sends the next lot');
 
   console.log('\nSmoke test passed');
 } catch (err) {

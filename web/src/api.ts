@@ -55,9 +55,11 @@ export interface SessionInfo {
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;
   /** Prompts sent one at a time when Claude finishes a turn. */
-  queue: { id: string; text: string }[];
-  /** Why the queue waits although Claude is idle: text in Claude's prompt, or a stopped turn. */
-  queueHeld: 'typing' | 'stopped' | null;
+  queue: { id: string; text: string; lot?: { n: number; total: number } }[];
+  /** Why the queue waits although Claude is idle: text in Claude's prompt, a stopped turn, or a lot not done. */
+  queueHeld: 'typing' | 'stopped' | 'blocked' | null;
+  /** A lot of a split plan that ended without `LOT n DONE`; `reason` is '' when Claude said neither. */
+  lotBlocked: { n: number; total: number; reason: string } | null;
   /** Set when the session works in its own copy; `cwd` is then the copy. */
   copy: SessionCopy | null;
 }
