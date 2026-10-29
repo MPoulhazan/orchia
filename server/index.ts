@@ -18,6 +18,7 @@ import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, redactSecrets, secretsInHook } from './secrets.ts';
 import { configRisks, denyEnvReads } from './configRisks.ts';
+import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -55,6 +56,7 @@ const sessions = new Map<string, Session>();
 const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
+const triage = new TriageStore();
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
 const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer });
@@ -105,7 +107,7 @@ function remoteSecurity(): RemoteFinding[] | null {
   };
 
   const secretFindings = secrets.open().map((e): RemoteFinding => ({
-    id: `secret:${e.fingerprint}`,
+    id: secretKey(e.fingerprint),
     category: 'secret',
     severity: e.severity,
     title: `${e.label} reached the model`,
@@ -117,7 +119,7 @@ function remoteSecurity(): RemoteFinding[] | null {
   }));
 
   const configFindings = configNeeded().map(({ projectId, sessionId, risk }): RemoteFinding => {
-    const id = `config:${risk.shared ? '' : `${projectId}:`}${risk.id}`;
+    const id = configKey(projectId, risk.id, risk.shared);
     return {
       id,
       category: 'config',
@@ -138,7 +140,7 @@ function remoteSecurity(): RemoteFinding[] | null {
       const note = connectorNote(c);
       if (!note || note.level === 'check') return [];
       const shared = c.source !== 'local' && c.source !== 'project';
-      const id = `cve:${shared ? '' : `${s.projectId}:`}${c.name}:${note.ids.join(',')}`;
+      const id = cveKey(s.projectId, c.name, note.ids, shared);
       if (cveSeen.has(id)) return [];
       cveSeen.add(id);
       return [
@@ -201,7 +203,7 @@ function state() {
     cloud: cloud.get(),
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
-    secretsExposed: secrets.open(),
+    secretsExposed: secrets.open().map((e) => ({ ...e, key: secretKey(e.fingerprint), triage: triage.get(secretKey(e.fingerprint)) })),
     configNeeded: configNeeded(),
   };
 }
@@ -270,7 +272,8 @@ function securityNeeded() {
       const isShared = c.source !== 'local' && c.source !== 'project';
       if (isShared && shared.has(c.name)) return [];
       shared.add(c.name);
-      return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note }];
+      const key = cveKey(s.projectId, c.name, note.ids, isShared);
+      return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note, key, triage: triage.get(key) }];
     }),
   );
 }
@@ -295,7 +298,10 @@ function configNeeded() {
   return latestSessions(true).flatMap((s) =>
     configRisks(s.cwd)
       .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
-      .map((risk) => ({ sessionId: s.id, projectId: s.projectId, risk })),
+      .map((risk) => {
+        const key = configKey(s.projectId, risk.id, risk.shared);
+        return { sessionId: s.id, projectId: s.projectId, risk, key, triage: triage.get(key) };
+      }),
   );
 }
 
@@ -503,6 +509,39 @@ type Handler = (req: http.IncomingMessage, url: URL, params: string[]) => Promis
 
 const routes: [string, RegExp, Handler][] = [
   ['GET', /^\/api\/state$/, () => state()],
+
+  // Decides about a security alert: `fixed` (a secret was revoked; a CVE or a setting fixes itself
+  // once the problem is gone), `accepted` (with a note, for 90 days), `false-positive`, or `open` again.
+  ['POST', /^\/api\/findings\/triage$/, async (req) => {
+    const body = await readJson(req);
+    const key = typeof body.key === 'string' && body.key.length <= 500 && /^(secret|config|cve):/.test(body.key) ? body.key : null;
+    if (!key) throw new HttpError(400, 'Expected { key, status }');
+    const note = typeof body.note === 'string' ? body.note : '';
+    const fingerprint = key.startsWith('secret:') ? key.slice('secret:'.length) : null;
+    try {
+      switch (body.status) {
+        case 'fixed':
+          if (!fingerprint) throw new Error('This one is fixed once the problem is gone: Orchia sees it on its own.');
+          triage.clear(key);
+          secrets.setResolved(fingerprint, true);
+          break;
+        case 'accepted':
+        case 'false-positive':
+          triage.set(key, body.status, note);
+          break;
+        case 'open':
+          triage.clear(key);
+          if (fingerprint) secrets.setResolved(fingerprint, false);
+          break;
+        default:
+          throw new Error('status must be fixed, accepted, false-positive or open');
+      }
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    broadcast();
+    return { ok: true };
+  }],
 
   ['POST', /^\/api\/secrets\/([\w-]+)\/resolve$/, (_req, _url, [id]) => {
     try {

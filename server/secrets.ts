@@ -178,6 +178,14 @@ export class SecretStore {
     this.save();
   }
 
+  /** Revoked (fixed) or open again, by the secret's fingerprint, as triage knows it. */
+  setResolved(fingerprint: string, resolved: boolean) {
+    const exposure = this.exposures.find((e) => e.fingerprint === fingerprint);
+    if (!exposure) throw new Error('Unknown secret');
+    exposure.resolvedAt = resolved ? Date.now() : null;
+    this.save();
+  }
+
   private save() {
     const cutoff = Date.now() - KEEP_RESOLVED_MS;
     this.exposures = this.exposures.filter((e) => !e.resolvedAt || e.resolvedAt > cutoff);
