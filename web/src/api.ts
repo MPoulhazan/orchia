@@ -116,6 +116,24 @@ export interface SecretExposure {
   count: number;
 }
 
+/** A permission setting that lets Claude do more than expected, in a project with a running session. */
+export interface ConfigNeeded {
+  sessionId: string;
+  projectId: string;
+  risk: {
+    id: string;
+    severity: 'moderate' | 'high';
+    title: string;
+    detail: string;
+    file: string;
+    /** In the user's settings: every project. */
+    shared: boolean;
+    /** One click in the project's local settings; null: edit the file. */
+    fix: 'remove-allow' | 'deny-env' | null;
+    rule?: string;
+  };
+}
+
 export interface SignInNeeded {
   sessionId: string;
   projectId: string;
@@ -375,6 +393,7 @@ export const api = {
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
   removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
   resolveSecret: (id: string) => request(`/api/secrets/${id}/resolve`, 'POST'),
+  fixConfigRisk: (sessionId: string, riskId: string) => request(`/api/sessions/${sessionId}/config-risks/fix`, 'POST', { id: riskId }),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),

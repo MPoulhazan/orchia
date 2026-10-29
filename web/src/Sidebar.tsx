@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
-import { api, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
+import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
 import { secretText, securityText } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
@@ -33,11 +33,16 @@ interface Props {
   signInNeeded: SignInNeeded[];
   securityNeeded: SecurityNeeded[];
   secretsExposed: SecretExposure[];
+  configNeeded: ConfigNeeded[];
 }
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
 const DISMISSED_KEY = 'orchia.dismissedSignIns';
 const DISMISSED_SECURITY_KEY = 'orchia.dismissedSecurity';
+const DISMISSED_CONFIG_KEY = 'orchia.dismissedConfigRisks';
+
+/** A risk in the user's settings is dismissed everywhere; a project's own, in that project only. */
+const configKey = (c: ConfigNeeded) => (c.risk.shared ? c.risk.id : `${c.projectId}:${c.risk.id}`);
 
 /** Dismissed until a new advisory appears for it. */
 const securityKey = (c: SecurityNeeded) => `${c.shared ? c.name : `${c.projectId}:${c.name}`}:${c.note.ids.join(',')}`;
@@ -83,7 +88,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} config={props.configNeeded} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -178,6 +183,7 @@ function Attention(props: {
   signIns: SignInNeeded[];
   security: SecurityNeeded[];
   secrets: SecretExposure[];
+  config: ConfigNeeded[];
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
@@ -199,14 +205,21 @@ function Attention(props: {
     storage.set(DISMISSED_SECURITY_KEY, JSON.stringify(next));
   };
   const secrets = props.secrets;
-  if (!list.length && !signIns.length && !security.length && !secrets.length) return null;
+  const [dismissedConfig, setDismissedConfig] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_CONFIG_KEY) ?? '[]'));
+  const config = props.config.filter((c) => !dismissedConfig.includes(configKey(c)));
+  const dismissConfig = (c: ConfigNeeded) => {
+    const next = [...dismissedConfig, configKey(c)];
+    setDismissedConfig(next);
+    storage.set(DISMISSED_CONFIG_KEY, JSON.stringify(next));
+  };
+  if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + signIns.length + security.length + secrets.length}</span>
+        <span className="section-count">{list.length + signIns.length + security.length + secrets.length + config.length}</span>
       </div>
       <div className="attention">
         {list.map((s) => (
@@ -261,6 +274,38 @@ function Attention(props: {
               )}
               <button className="btn btn-secondary" title="It is revoked, or it doesn't matter" onClick={() => api.resolveSecret(e.id)}>
                 Done
+              </button>
+            </span>
+          </div>
+        ))}
+        {config.map((c) => (
+          <div key={configKey(c)} className="attention-row" data-selected={c.sessionId === props.selectedId}>
+            <button
+              className="attention-open"
+              onClick={() => {
+                const session = props.sessions.find((s) => s.id === c.sessionId);
+                if (session) props.onSelect(session);
+              }}
+            >
+              <span className="attention-title">
+                <span className="mark" data-tone={c.risk.severity === 'high' ? 'danger' : undefined}>Config</span>
+                <b>{c.risk.title}</b>
+                <span className="attention-project">· {c.risk.shared ? 'All projects' : projectName(c.projectId)}</span>
+              </span>
+              <span className="attention-detail">{c.risk.detail}</span>
+            </button>
+            <span className="perm-acts" data-small>
+              {c.risk.fix && (
+                <button
+                  className="btn btn-secondary"
+                  title={c.risk.fix === 'deny-env' ? 'Adds Read(./.env) and Read(./.env.*) to the deny rules in .claude/settings.local.json' : `Removes ${c.risk.rule} from .claude/settings.local.json`}
+                  onClick={() => api.fixConfigRisk(c.sessionId, c.risk.id)}
+                >
+                  {c.risk.fix === 'deny-env' ? 'Block reads' : 'Remove rule'}
+                </button>
+              )}
+              <button className="icon-btn" title="Dismiss" onClick={() => dismissConfig(c)}>
+                <X size={13} />
               </button>
             </span>
           </div>

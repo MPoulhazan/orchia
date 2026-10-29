@@ -293,6 +293,17 @@ Google API keys and private keys), so an alert is almost always real. It shows i
 Orchia keeps only the kind of secret, its first and last characters (`ghp_…a41f`) and a
 hash to recognize it again, in `~/.orchia/secrets.json`; never the secret itself.
 
+Permission settings that let Claude do more than you may think show in **Needs you** too,
+for projects with a running session:
+
+- an allow rule for every shell command (`Bash`, `Bash(*)`), with **Remove rule** when it
+  is in the project's `.claude/settings.local.json`;
+- `defaultMode: bypassPermissions`, which skips every prompt;
+- `.env` files in the project folder with no deny rule: **Block reads** adds `Read(./.env)`
+  and `Read(./.env.*)` to the deny rules of `.claude/settings.local.json`. This stops
+  Claude's Read tool, not a shell command such as `cat .env`, which the secret alert above
+  still catches.
+
 ## Environment
 
 | Variable        | Default      | Purpose                         |

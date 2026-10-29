@@ -17,6 +17,7 @@ import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, secretsInHook } from './secrets.ts';
+import { configRisks, denyEnvReads } from './configRisks.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -120,6 +121,7 @@ function state() {
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
     secretsExposed: secrets.open(),
+    configNeeded: configNeeded(),
   };
 }
 
@@ -189,6 +191,25 @@ function securityNeeded() {
       shared.add(c.name);
       return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note }];
     }),
+  );
+}
+
+/**
+ * Permission settings that let Claude do more than expected (any shell command, no prompts,
+ * readable .env files), for "Needs you". One row per project, and once for the user's settings.
+ */
+function configNeeded() {
+  const latest = new Map<string, Session>();
+  for (const s of sessions.values()) {
+    if (s.status !== 'running') continue;
+    const seen = latest.get(s.projectId);
+    if (!seen || s.createdAt > seen.createdAt) latest.set(s.projectId, s);
+  }
+  const shared = new Set<string>();
+  return [...latest.values()].flatMap((s) =>
+    configRisks(s.cwd)
+      .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
+      .map((risk) => ({ sessionId: s.id, projectId: s.projectId, risk })),
   );
 }
 
@@ -774,6 +795,20 @@ const routes: [string, RegExp, Handler][] = [
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/config-risks\/fix$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    const cwd = findSession(id).cwd;
+    const risk = configRisks(cwd).find((r) => r.id === body.id);
+    if (!risk?.fix) throw new HttpError(404, 'Nothing to fix here');
+    try {
+      if (risk.fix === 'deny-env') denyEnvReads(cwd);
+      else if (risk.rule) removeAllowRule(cwd, risk.rule);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    broadcast();
     return { ok: true };
   }],
   ['DELETE', /^\/api\/sessions\/([\w-]+)$/, (_req, _url, [id]) => {

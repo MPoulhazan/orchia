@@ -305,6 +305,7 @@ export function App() {
           signInNeeded={state?.signInNeeded ?? []}
           securityNeeded={state?.securityNeeded ?? []}
           secretsExposed={state?.secretsExposed ?? []}
+          configNeeded={state?.configNeeded ?? []}
         />
       ) : (
         <Rail
