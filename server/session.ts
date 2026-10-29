@@ -5,7 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
+import { DEFAULT_LOT_OPTIONS, LOT_FORMAT_INSTRUCTION, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -269,7 +269,9 @@ export class Session extends EventEmitter {
       ...(this.modelChoice ? ['--model', this.modelChoice] : []),
       ...(this.effortChoice ? ['--effort', this.effortChoice] : []),
       ...(this.permissionMode ? ['--permission-mode', this.permissionMode] : []),
-      ...(this.copy ? ['--append-system-prompt', copyInstructions(this.copy)] : []),
+      // One flag for both: the lot format always, the copy's rules when it works in a copy.
+      '--append-system-prompt',
+      [LOT_FORMAT_INSTRUCTION, ...(this.copy ? [copyInstructions(this.copy)] : [])].join(' '),
     ]);
     const proc = pty.spawn(file, args, {
       name: 'xterm-256color',
