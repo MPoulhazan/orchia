@@ -221,8 +221,9 @@ or says neither, the rest waits and Up next says why, with **Resume** and **Drop
 So you can start a plan and walk away without coming back to lots piled on a broken one.
 
 Outside plan mode too: when one of Claude's answers is a plan with titled lots ("Lot 1",
-"Phase 2", "Step 3" as headings or bold lines), the same bar offers **Run as a sequence**.
-A plain numbered list doesn't count, so a summary of what was done doesn't trigger it.
+"Phase 2", "Task 3", or codes like "T1, T2, T3" in order, as headings or bold lines), the
+same bar offers **Run as a sequence**. A plain numbered list doesn't count, so a summary of
+what was done doesn't trigger it.
 
 Before starting, pick what happens **Between lots**: **Compact when needed** (the default,
 see below) keeps the conversation, **Clear** gives each lot a fresh one. With Clear, Orchia

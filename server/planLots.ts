@@ -20,7 +20,27 @@ export function splitPlan(plan: unknown): string[] | null {
 }
 
 /** A heading or a bold line that starts with "Lot 2", "Phase 2", "Step 2"…: a lot title in an ordinary answer. */
-const ANSWER_LOT = /^(?:#{2,4}\s+|\*\*)(?:lot|phase|step|stage|étape)\s*\d+\b/i;
+const ANSWER_LOT = /^(?:#{2,4}\s+|\*\*)(?:lot|phase|step|stage|étape|task|tâche|part|partie|milestone|sprint)\s*\d+\b/i;
+/** A short code as a lot title, "**T1 — Schema**" or "### L2: API": one capital letter, a number, then a separator. */
+const ANSWER_CODE = /^(?:#{2,4}\s+|\*\*)([A-Z])(\d{1,2})\b\s*\**\s*[—–:.\-]/;
+
+/** Lines that open a lot: titled with a word ("Lot 2"), else with codes of one letter numbered 1, 2, 3… in order. */
+function answerLotStarts(lines: string[]): number[] {
+  const worded = lines.flatMap((l, i) => (ANSWER_LOT.test(l.trim()) ? [i] : []));
+  if (worded.length >= 2) return worded;
+  const codes = lines.flatMap((l, i) => {
+    const m = l.trim().match(ANSWER_CODE);
+    return m ? [{ i, letter: m[1], n: Number(m[2]) }] : [];
+  });
+  // The longest run T1, T2, T3… of one letter; codes out of order or mixed letters don't count.
+  let best: number[] = [];
+  for (const letter of new Set(codes.map((c) => c.letter))) {
+    const run: number[] = [];
+    for (const c of codes) if (c.letter === letter && c.n === run.length + 1) run.push(c.i);
+    if (run.length > best.length) best = run;
+  }
+  return best;
+}
 
 /**
  * The lots of an ordinary answer (not a plan Claude presents for review), or null. Stricter
@@ -30,16 +50,20 @@ const ANSWER_LOT = /^(?:#{2,4}\s+|\*\*)(?:lot|phase|step|stage|étape)\s*\d+\b/i
 export function splitAnswer(answer: unknown): string[] | null {
   if (typeof answer !== 'string') return null;
   const lines = answer.replace(/\r\n/g, '\n').split('\n');
-  const starts = lines.flatMap((l, i) => (ANSWER_LOT.test(l.trim()) ? [i] : []));
+  const starts = answerLotStarts(lines);
   if (starts.length < 2 || starts.length > MAX_LOTS) return null;
   return starts.map((start, n) => {
     let end = n + 1 < starts.length ? starts[n + 1] : lines.length;
-    // The last lot stops at a rule or a heading of its level or above, before any closing remarks.
+    // The last lot stops before the closing remarks: a rule, a heading of its level or above, or
+    // a plain paragraph after a blank line once the lot has some content ("Want me to start?").
     if (n + 1 === starts.length) {
       const level = lines[start].trim().match(/^#+/)?.[0].length ?? 6;
+      let body = false;
       for (let i = start + 1; i < lines.length; i++) {
         const heading = lines[i].match(/^(#{1,6})\s/);
-        if (/^---\s*$/.test(lines[i]) || (heading && heading[1].length <= level)) {
+        const remark = body && !lines[i - 1].trim() && /^\S/.test(lines[i]) && !/^([-*+]|\d+[.)])\s/.test(lines[i]);
+        if (lines[i].trim()) body = true;
+        if (/^---\s*$/.test(lines[i]) || (heading && heading[1].length <= level) || remark) {
           end = i;
           break;
         }
