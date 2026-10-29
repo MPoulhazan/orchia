@@ -16,6 +16,7 @@ import { CloudLink, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
+import { SecretStore, secretsInHook } from './secrets.ts';
 import type { LaunchChoices } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -52,6 +53,7 @@ const hookSettings = writeHookSettings(CONFIG_DIR, PORT);
 const sessions = new Map<string, Session>();
 const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
+const secrets = new SecretStore();
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
 const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, answer: remoteAnswer });
@@ -117,6 +119,7 @@ function state() {
     cloud: cloud.get(),
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
+    secretsExposed: secrets.open(),
   };
 }
 
@@ -393,6 +396,16 @@ type Handler = (req: http.IncomingMessage, url: URL, params: string[]) => Promis
 
 const routes: [string, RegExp, Handler][] = [
   ['GET', /^\/api\/state$/, () => state()],
+
+  ['POST', /^\/api\/secrets\/([\w-]+)\/resolve$/, (_req, _url, [id]) => {
+    try {
+      secrets.resolve(id);
+    } catch (err) {
+      throw new HttpError(404, (err as Error).message);
+    }
+    broadcast();
+    return { ok: true };
+  }],
 
   ['POST', /^\/api\/projects$/, async (req) => {
     const body = await readJson(req);
@@ -809,6 +822,7 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   watchTitle(payload, (title) => session.trackTitle(title));
   const update = activityFromHook(payload);
   if (update) session.applyActivity(update);
+  watchSecrets(session, payload);
 
   if (payload?.hook_event_name === 'PermissionRequest' && payload.tool_name === 'ExitPlanMode') return holdPlan(session, payload, res);
   const ask = payload?.hook_event_name === 'PermissionRequest' ? permissionAsk(payload, session.cwd) : null;
@@ -825,6 +839,15 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   timer = setTimeout(() => session.releasePermissions((p) => p.id === id), (PERMISSION_WAIT_S - 5) * 1000);
   // Claude Code drops the request once its own prompt is answered.
   res.on('close', () => session.releasePermissions((p) => p.id === id));
+}
+
+/** A secret in the prompt or in a tool call reached the model: show it in "Needs you". */
+function watchSecrets(session: Session, payload: any) {
+  const sightings = secretsInHook(payload);
+  if (!sightings.length) return;
+  const ask = payload.hook_event_name === 'PostToolUse' ? permissionAsk(payload, session.cwd) : null;
+  const where = ask ? `${ask.verb} ${ask.target}`.slice(0, 200) : null;
+  if (secrets.record(sightings, { projectId: session.projectId, sessionId: session.id, sessionName: session.name, where })) broadcast();
 }
 
 /**

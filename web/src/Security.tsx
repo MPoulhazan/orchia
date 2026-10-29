@@ -1,5 +1,13 @@
 import { ShieldAlert } from 'lucide-react';
-import type { SecurityNote } from './api';
+import type { SecretExposure, SecurityNote } from './api';
+
+/** "ghp_…a41f in the output of Run cat .env.local, in Fix auth. It reached the model: revoke it." */
+export function secretText(e: SecretExposure): string {
+  const where =
+    e.source === 'prompt' ? 'in a prompt' : e.source === 'tool-output' ? `in the output of ${e.where ?? 'a tool'}` : `in ${e.where ?? 'a tool call'}`;
+  const again = e.count > 1 ? ` Seen ${e.count} times.` : '';
+  return `${e.masked} ${where}, in ${e.sessionName}. It reached the model and stays in the transcript: revoke it.${again}`;
+}
 
 /** "High security issue in Serena: …. Fixed in 2.0.0." */
 export function securityText(note: SecurityNote): string {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
-import { api, type Project, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
-import { securityText } from './Security';
+import { api, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
+import { secretText, securityText } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -32,6 +32,7 @@ interface Props {
   limits: RateLimits | null;
   signInNeeded: SignInNeeded[];
   securityNeeded: SecurityNeeded[];
+  secretsExposed: SecretExposure[];
 }
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
@@ -82,7 +83,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -176,6 +177,7 @@ function Attention(props: {
   sessions: SessionInfo[];
   signIns: SignInNeeded[];
   security: SecurityNeeded[];
+  secrets: SecretExposure[];
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
@@ -196,14 +198,15 @@ function Attention(props: {
     setDismissedSecurity(next);
     storage.set(DISMISSED_SECURITY_KEY, JSON.stringify(next));
   };
-  if (!list.length && !signIns.length && !security.length) return null;
+  const secrets = props.secrets;
+  if (!list.length && !signIns.length && !security.length && !secrets.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + signIns.length + security.length}</span>
+        <span className="section-count">{list.length + signIns.length + security.length + secrets.length}</span>
       </div>
       <div className="attention">
         {list.map((s) => (
@@ -232,6 +235,34 @@ function Attention(props: {
               </span>
             </button>
             <PermissionButtons session={s} small />
+          </div>
+        ))}
+        {secrets.map((e) => (
+          <div key={e.id} className="attention-row" data-selected={e.sessionId === props.selectedId}>
+            <button
+              className="attention-open"
+              onClick={() => {
+                const session = props.sessions.find((s) => s.id === e.sessionId);
+                if (session) props.onSelect(session);
+              }}
+            >
+              <span className="attention-title">
+                <span className="mark" data-tone="danger">Secret</span>
+                <b>{e.label}</b>
+                <span className="attention-project">· {projectName(e.projectId)}</span>
+              </span>
+              <span className="attention-detail">{secretText(e)}</span>
+            </button>
+            <span className="perm-acts" data-small>
+              {e.rotateUrl && (
+                <a className="btn btn-secondary" href={e.rotateUrl} target="_blank" rel="noreferrer" title="Revoke it, then put a new one where it is used">
+                  Revoke
+                </a>
+              )}
+              <button className="btn btn-secondary" title="It is revoked, or it doesn't matter" onClick={() => api.resolveSecret(e.id)}>
+                Done
+              </button>
+            </span>
           </div>
         ))}
         {security.map((c) => (

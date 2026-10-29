@@ -94,6 +94,26 @@ export interface SecurityNeeded {
   note: SecurityNote;
 }
 
+/** A secret that reached the model (in a prompt or a tool call). Only its start and end are known here. */
+export interface SecretExposure {
+  id: string;
+  kind: string;
+  /** "GitHub token" */
+  label: string;
+  severity: 'high' | 'critical';
+  /** "ghp_…a41f" */
+  masked: string;
+  rotateUrl: string | null;
+  source: 'prompt' | 'tool-input' | 'tool-output';
+  /** "Run cat .env.local"; null for a prompt. */
+  where: string | null;
+  projectId: string;
+  sessionId: string;
+  sessionName: string;
+  firstSeenAt: number;
+  count: number;
+}
+
 export interface SignInNeeded {
   sessionId: string;
   projectId: string;
@@ -352,6 +372,7 @@ export const api = {
     request(`/api/sessions/${id}/permission`, 'POST', { id: permissionId, allow, always }),
   inspect: (id: string) => request<Inspection>(`/api/sessions/${id}/inspect`),
   removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
+  resolveSecret: (id: string) => request(`/api/secrets/${id}/resolve`, 'POST'),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),

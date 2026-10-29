@@ -304,6 +304,7 @@ export function App() {
           limits={limits}
           signInNeeded={state?.signInNeeded ?? []}
           securityNeeded={state?.securityNeeded ?? []}
+          secretsExposed={state?.secretsExposed ?? []}
         />
       ) : (
         <Rail

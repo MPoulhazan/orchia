@@ -281,6 +281,14 @@ can't see, so you can check yours. High and critical issues that apply also show
 **Needs you**. `npx package` and hosted servers run the latest release, so only issues
 with no fix yet concern them.
 
+Orchia also watches for secrets that reach the model: a token in your prompt, or in a
+tool call's input or output (`cat .env` printing an API key). Only formats with a fixed
+prefix are recognized (GitHub, Anthropic, OpenAI, AWS, Stripe live, GitLab, Slack, npm,
+Google API keys and private keys), so an alert is almost always real. It shows in
+**Needs you** with a link to revoke the secret, and goes away when you click **Done**.
+Orchia keeps only the kind of secret, its first and last characters (`ghp_…a41f`) and a
+hash to recognize it again, in `~/.orchia/secrets.json`; never the secret itself.
+
 ## Environment
 
 | Variable        | Default      | Purpose                         |
