@@ -769,7 +769,10 @@ const routes: [string, RegExp, Handler][] = [
     const body = await readJson(req);
     const lots = Array.isArray(body.lots) ? body.lots.map((l: unknown) => String(l).trim()).filter(Boolean) : [];
     if (!lots.length) throw new HttpError(400, 'Expected { lots }');
-    if (!findSession(id).answerPlan(lots)) throw new HttpError(409, 'The plan was already answered');
+    // Clearing between lots relies on each lot being committed.
+    const clear = body.between === 'clear';
+    const options = { clear, commit: clear || body.commit !== false };
+    if (!findSession(id).answerPlan(lots, options)) throw new HttpError(409, 'The plan was already answered');
     return { ok: true };
   }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/run$/, async (req, _url, [id]) => {
@@ -895,14 +898,14 @@ function holdPlan(session: Session, payload: any, res: http.ServerResponse) {
   const lots = splitPlan(plan);
   if (!lots || session.status !== 'running') return res.writeHead(204).end();
   let timer: NodeJS.Timeout;
-  const id = session.holdPlan(lots, (chosen) => {
+  const id = session.holdPlan(lots, (chosen, options) => {
     clearTimeout(timer);
     if (res.writableEnded || res.destroyed) return;
     if (!chosen) return res.writeHead(204).end();
     sendJson(res, 200, {
       hookSpecificOutput: {
         hookEventName: 'PermissionRequest',
-        decision: { behavior: 'allow', updatedInput: { ...payload.tool_input, plan: firstLotPlan(plan, chosen) } },
+        decision: { behavior: 'allow', updatedInput: { ...payload.tool_input, plan: firstLotPlan(plan, chosen, options) } },
       },
     });
   });

@@ -66,6 +66,8 @@ export function writeHookSettings(dir: string, port: number): string {
       PostModelSwitch: on(),
       PreCompact: on(),
       PostCompact: on(),
+      // Tells when a /clear typed before a lot is done.
+      SessionStart: on('clear'),
     },
     statusLine: { type: 'command', command: `node "${STATUS_LINE_SCRIPT}" ${port}` },
   };

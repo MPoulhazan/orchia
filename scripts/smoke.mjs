@@ -53,6 +53,8 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let lot2 = false;
   let lot3 = false;
   let answered = false;
+  let answerLot1 = false;
+  let cleared = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -81,6 +83,18 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'Plan the export' });
       const answer = ['Here is the plan.', '', '**Lot 1: CSV writer**', 'Write rows.', '', '**Lot 2: Download button**', 'Wire it.'].join('\\n');
       await hook({ hook_event_name: 'Stop', last_assistant_message: answer });
+      return;
+    }
+    if (answered && !answerLot1 && /Continue the plan with lot 1 of 2[^\\r]*\\r/.test(typed)) {
+      answerLot1 = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'answer lot 1' });
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'CSV writer done.\\n\\nLOT 1 DONE' });
+      return;
+    }
+    if (answerLot1 && !cleared && typed.endsWith('/clear\\r')) {
+      // Clear mode: Claude Code starts a new conversation, then Orchia sends lot 2.
+      cleared = true;
+      await hook({ hook_event_name: 'SessionStart', source: 'clear' });
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -207,11 +221,21 @@ try {
   await api('POST', `/api/sessions/${id}/queue`, { text: 'Plan the export' });
   const answerLots = await until('the lots of an ordinary answer', async () => (await session(id))?.answerLots);
   if (answerLots.length !== 2 || !answerLots[1].includes('Download button')) throw new Error(`Unexpected answer lots: ${JSON.stringify(answerLots)}`);
-  await api('POST', `/api/sessions/${id}/plan`, { lots: answerLots });
+  await api('POST', `/api/sessions/${id}/plan`, { lots: answerLots, between: 'clear' });
   await until('lot 1 of the answer typed', async () => readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 1 of 2 only, then stop: Lot 1: CSV writer'), 5000);
-  const left = (await session(id)).queue;
-  if (left.length !== 1 || left[0].lot?.n !== 2 || (await session(id)).answerLots) throw new Error(`Unexpected queue after Run as a sequence: ${JSON.stringify(left)}`);
+  if ((await session(id)).answerLots) throw new Error('The answer lots are still offered after Run as a sequence');
   step('runs an ordinary answer in lots as a sequence');
+
+  const afterClear = await until('lot 2 sent after a /clear', async () => {
+    const typed = readFileSync(typedFile, 'utf8');
+    return typed.includes('Lot 1 is done and committed') ? typed : null;
+  }, 10000);
+  const lot1At = afterClear.indexOf('Continue the plan with lot 1 of 2');
+  const clearAt = afterClear.indexOf('/clear', lot1At);
+  const lot2At = afterClear.indexOf('Lot 1 is done and committed');
+  if (clearAt < 0 || clearAt > lot2At) throw new Error(`No /clear between the lots: ${JSON.stringify(afterClear.slice(lot1At))}`);
+  if (!afterClear.slice(lot2At).includes('The whole plan: Lot 1: CSV writer')) throw new Error('The lot after /clear lacks the whole plan');
+  step('clears between lots, with the whole plan in the next prompt');
 
   console.log('\nSmoke test passed');
 } catch (err) {

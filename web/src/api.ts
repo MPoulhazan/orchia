@@ -57,7 +57,7 @@ export interface SessionInfo {
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: { text: string; files: number; at: number } | null;
   /** Prompts sent one at a time when Claude finishes a turn. */
-  queue: { id: string; text: string; lot?: { n: number; total: number } }[];
+  queue: { id: string; text: string; lot?: { n: number; total: number; clear?: boolean } }[];
   /** Why the queue waits although Claude is idle: text in Claude's prompt, a stopped turn, or a lot not done. */
   queueHeld: 'typing' | 'stopped' | 'blocked' | null;
   /** A lot of a split plan that ended without `LOT n DONE`; `reason` is '' when Claude said neither. */
@@ -405,7 +405,8 @@ export const api = {
   /** For good; GitHub lets only repository admins do it. */
   deleteIssue: (id: string, n: number) => request(`/api/sessions/${id}/issues/${n}`, 'DELETE'),
   runCommand: (id: string, command: string) => request(`/api/sessions/${id}/run`, 'POST', { command }),
-  splitPlan: (id: string, lots: string[]) => request(`/api/sessions/${id}/plan`, 'POST', { lots }),
+  splitPlan: (id: string, lots: string[], options: { between: 'compact' | 'clear'; commit: boolean }) =>
+    request(`/api/sessions/${id}/plan`, 'POST', { lots, ...options }),
   skills: (id: string) => request<{ skills: Skill[]; lastUsed: { name: string; at: number } | null; suggested: number }>(`/api/sessions/${id}/skills`),
   availableSkills: (id: string) => request<AvailableSkills>(`/api/sessions/${id}/skills/available`),
   /** The skills in a pasted GitHub link. Slow the first time: the repository is fetched. */

@@ -3443,6 +3443,29 @@ a.conn-state:hover {
   font-size: 12.5px;
 }
 
+.planlots-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-right: auto;
+}
+
+.planlots-label {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.planlots-between button {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.planlots-options .remember {
+  margin-right: 0;
+}
+
 /* ---- Security notes from awesome-vetted-claude-code ------------------------ */
 
 .security-badge {

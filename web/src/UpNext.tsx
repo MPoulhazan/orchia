@@ -126,13 +126,21 @@ function LotHeld({ session }: { session: SessionInfo }) {
 }
 
 /** A queued lot shows as "Lot 3/4" and its own text, without the instructions around it. */
-function QueuedLot({ text, lot }: { text: string; lot: { n: number; total: number } }) {
-  const own = text.replace(/^Continue the plan with lot d+ of d+ only, then stop: /, '').replace(/ When lot d+ is finished and checked.*$/, '');
+function QueuedLot({ text, lot }: { text: string; lot: { n: number; total: number; clear?: boolean } }) {
+  // A cleared lot's prompt carries the whole plan first: show only "Lot n is: …".
+  const own =
+    text.match(/ Lot \d+ is: (.*?) When lot \d+ is finished and checked/)?.[1] ??
+    text.replace(/^Continue the plan with lot \d+ of \d+ only, then stop: /, '').replace(/ When lot \d+ is finished and checked.*$/, '');
   return (
     <>
       <span className="issue-tag">
         Lot {lot.n}/{lot.total}
       </span>
+      {lot.clear && (
+        <span className="issue-tag" title="Starts with /clear: a fresh conversation with the whole plan">
+          clear
+        </span>
+      )}
       <span className="upnext-text" title={text}>
         {own}
       </span>

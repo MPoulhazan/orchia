@@ -87,26 +87,59 @@ function byNumberedItems(lines: string[]): string[] | null {
   return best.length >= 2 ? best.map((item) => item.trim()) : null;
 }
 
+/**
+ * How a run of lots goes. `clear`: a fresh conversation for each lot after the first, which
+ * then gets the whole plan in its prompt; it needs `commit`, so the work done is in git.
+ */
+export interface LotOptions {
+  clear: boolean;
+  commit: boolean;
+}
+
+export const DEFAULT_LOT_OPTIONS: LotOptions = { clear: false, commit: true };
+
+/** A cleared lot's prompt carries the whole plan, cut past this many characters. */
+const MAX_PLAN_CHARS = 6000;
+
 /** What Claude gets approved instead of the whole plan: the plan, then the instruction to do lot 1 only. */
-export function firstLotPlan(plan: string, lots: string[]): string {
+export function firstLotPlan(plan: string, lots: string[], options = DEFAULT_LOT_OPTIONS): string {
   return (
     `${plan.trimEnd()}\n\n---\n\n` +
     `The user split this plan into ${lots.length} lots and will send the next ones one at a time. ` +
-    `Do lot 1 only now, then stop and wait:\n\n${lots[0]}\n\n${lotRules(1)}`
+    `Do lot 1 only now, then stop and wait:\n\n${lots[0]}\n\n${lotRules(1, options.commit)}`
   );
 }
 
-/** The Up next prompt for a later lot, on one line (Claude Code submits at a line break). */
-export function lotPrompt(lot: string, n: number, total: number): string {
-  let text = lot.replace(/^#+\s+/gm, '').replace(/\*\*/g, '').replace(/\s*\n\s*/g, ' ').trim();
-  if (text.length > MAX_LOT_CHARS) text = `${text.slice(0, MAX_LOT_CHARS - 1).replace(/\s+\S*$/, '')}…`;
-  return `Continue the plan with lot ${n} of ${total} only, then stop: ${text} ${lotRules(n)}`;
+/**
+ * The Up next prompt for a lot, on one line (Claude Code submits at a line break). After a
+ * /clear, Claude has forgotten the plan: the prompt then carries all of it, uncut.
+ */
+export function lotPrompt(lot: string, n: number, lots: string[], options = DEFAULT_LOT_OPTIONS): string {
+  const total = lots.length;
+  const rules = lotRules(n, options.commit);
+  if (options.clear && n > 1) {
+    const done = n === 2 ? 'Lot 1 is done' : `Lots 1 to ${n - 1} are done`;
+    return (
+      `You are running a plan in ${total} lots, one at a time. ${done} and committed: see git log for what changed. ` +
+      `Do lot ${n} only, then stop. The whole plan: ${cut(oneLine(lots.join('\n')), MAX_PLAN_CHARS)} Lot ${n} is: ${oneLine(lot)} ${rules}`
+    );
+  }
+  return `Continue the plan with lot ${n} of ${total} only, then stop: ${cut(oneLine(lot), MAX_LOT_CHARS)} ${rules}`;
+}
+
+function oneLine(markdown: string): string {
+  return markdown.replace(/^#+\s+/gm, '').replace(/\*\*/g, '').replace(/\s*\n\s*/g, ' ').trim();
+}
+
+function cut(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1).replace(/\s+\S*$/, '')}…` : text;
 }
 
 /** How a lot must end, so the next one only goes when this one is really done. One line. */
-function lotRules(n: number): string {
+function lotRules(n: number, commit: boolean): string {
+  const then = commit ? 'commit it if this is a git repository, then end' : 'end';
   return (
-    `When lot ${n} is finished and checked, commit it if this is a git repository, then end your reply with the line "LOT ${n} DONE". ` +
+    `When lot ${n} is finished and checked, ${then} your reply with the line "LOT ${n} DONE". ` +
     `If you can't finish it, a check fails or you need a decision from the user, stop and end with "LOT ${n} BLOCKED: <reason>".`
   );
 }

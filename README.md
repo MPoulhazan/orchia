@@ -224,6 +224,12 @@ Outside plan mode too: when one of Claude's answers is a plan with titled lots (
 "Phase 2", "Step 3" as headings or bold lines), the same bar offers **Run as a sequence**.
 A plain numbered list doesn't count, so a summary of what was done doesn't trigger it.
 
+Before starting, pick what happens **Between lots**: **Compact when needed** (the default,
+see below) keeps the conversation, **Clear** gives each lot a fresh one. With Clear, Orchia
+types `/clear` before each lot after the first, and that lot's prompt carries the whole plan
+and points Claude to `git log` for what is done, so Clear always commits after each lot.
+**Commit after each lot** can be turned off otherwise.
+
 Between two Up next prompts, when the conversation fills more than 60% of the context,
 Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
 task. Turn it off in Settings, under **Compact between tasks**.

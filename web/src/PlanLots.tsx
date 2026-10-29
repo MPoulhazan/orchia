@@ -20,6 +20,8 @@ export function PlanLots({ session }: { session: SessionInfo }) {
   const [lots, setLots] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [between, setBetween] = useState<'compact' | 'clear'>('compact');
+  const [commit, setCommit] = useState(true);
   // A new plan (Claude revised it) starts over.
   useEffect(() => {
     setLots(null);
@@ -51,7 +53,7 @@ export function PlanLots({ session }: { session: SessionInfo }) {
     setSending(true);
     setError(null);
     api
-      .splitPlan(session.id, chosen)
+      .splitPlan(session.id, chosen, { between, commit: between === 'clear' || commit })
       .catch((err) => setError((err as Error).message))
       .finally(() => setSending(false));
   };
@@ -84,6 +86,36 @@ export function PlanLots({ session }: { session: SessionInfo }) {
       </div>
       {error && <p className="skill-error">{error}</p>}
       <div className="planlots-actions">
+        <div className="planlots-options">
+          <span className="planlots-label">Between lots</span>
+          <div className="segmented planlots-between" role="radiogroup" aria-label="Between lots">
+            <button
+              role="radio"
+              aria-checked={between === 'compact'}
+              title="Keep the conversation; compact it when the context is over the limit set in Settings"
+              onClick={() => setBetween('compact')}
+            >
+              Compact when needed
+            </button>
+            <button
+              role="radio"
+              aria-checked={between === 'clear'}
+              title="Each lot starts a fresh conversation with the whole plan in its prompt, and reads git log for what was done"
+              onClick={() => setBetween('clear')}
+            >
+              Clear
+            </button>
+          </div>
+          <label className="remember" title={between === 'clear' ? 'Clear needs each lot committed, so the next one finds the work in git' : undefined}>
+            <input
+              type="checkbox"
+              checked={between === 'clear' || commit}
+              disabled={between === 'clear'}
+              onChange={(e) => setCommit(e.target.checked)}
+            />
+            Commit after each lot
+          </label>
+        </div>
         <button className="btn btn-ghost" onClick={() => setLots(null)}>
           Cancel
         </button>

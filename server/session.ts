@@ -5,7 +5,7 @@ import type { IPty } from '@lydell/node-pty';
 import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
-import { lotNotDone, lotPrompt, splitAnswer } from './planLots.ts';
+import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
@@ -67,7 +67,7 @@ export interface QueuedPrompt {
   id: string;
   text: string;
   /** Set on the lots of a split plan: they only go once the previous lot says it is done. */
-  lot?: { n: number; total: number };
+  lot?: { n: number; total: number; clear?: boolean };
 }
 
 export interface LotBlocked {
@@ -193,7 +193,9 @@ export class Session extends EventEmitter {
 
   private held: HeldPermission[] = [];
   /** A plan waiting for review that splits into lots; answering it approves lot 1 only. */
-  private planOffer: { id: string; lots: string[]; reply: (lots: string[] | null) => void } | null = null;
+  private planOffer: { id: string; lots: string[]; reply: PlanReply } | null = null;
+  /** Orchia typed /clear before the next lot, and waits for the new conversation (SessionStart). */
+  private clearing: NodeJS.Timeout | null = null;
   private readonly hookSettings: string | null;
   private cols: number;
   private rows: number;
@@ -408,6 +410,11 @@ export class Session extends EventEmitter {
       this.draftLength = 0;
     }
     if (event === 'StopFailure') this.cleanStop = false;
+    if (event === 'SessionStart' && payload.source === 'clear' && this.clearing) {
+      clearTimeout(this.clearing);
+      this.clearing = null;
+      this.sendNext();
+    }
     if (event === 'PostCompact' && payload.trigger === 'manual' && this.compacting) {
       clearTimeout(this.compacting);
       this.compacting = null;
@@ -486,7 +493,7 @@ export class Session extends EventEmitter {
   }
 
   /** Keeps the ExitPlanMode PermissionRequest open while the user may split the plan here. */
-  holdPlan(lots: string[], reply: (lots: string[] | null) => void): string {
+  holdPlan(lots: string[], reply: PlanReply): string {
     this.releasePlan();
     const id = randomUUID();
     this.planOffer = { id, lots, reply };
@@ -504,15 +511,14 @@ export class Session extends EventEmitter {
   }
 
   /** Approves lot 1 of the plan and queues the others in Up next. False when the plan was answered elsewhere. */
-  answerPlan(lots: string[]): boolean {
+  answerPlan(lots: string[], options = DEFAULT_LOT_OPTIONS): boolean {
     const offer = this.planOffer;
-    if (!offer) return this.runAnswerLots(lots);
+    if (!offer) return this.runAnswerLots(lots, options);
     this.planOffer = null;
-    offer.reply(lots);
+    offer.reply(lots, options);
     // Ahead of what was already queued: the plan's lots finish this task before the next one starts.
-    const total = lots.length;
-    this.queue.unshift(...lots.slice(1).map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 2, total), lot: { n: i + 2, total } })));
-    this.runningLot = { n: 1, total };
+    this.queue.unshift(...queuedLots(lots, options).slice(1));
+    this.runningLot = { n: 1, total: lots.length };
     this.lotBlocked = null;
     this.activity = 'working';
     this.detail = null;
@@ -525,11 +531,10 @@ export class Session extends EventEmitter {
    * "Run as a sequence" on an ordinary answer in lots: all of them go to the front of Up next,
    * lot 1 right away. False when the offer is gone (a new turn started).
    */
-  private runAnswerLots(lots: string[]): boolean {
+  private runAnswerLots(lots: string[], options: LotOptions): boolean {
     if (!this.answerLots) return false;
     this.answerLots = null;
-    const total = lots.length;
-    this.queue.unshift(...lots.map((lot, i) => ({ id: randomUUID(), text: lotPrompt(lot, i + 1, total), lot: { n: i + 1, total } })));
+    this.queue.unshift(...queuedLots(lots, options));
     this.lotBlocked = null;
     if (!this.sendNextNow()) this.emit('change');
     return true;
@@ -663,6 +668,8 @@ export class Session extends EventEmitter {
       if (this.draftLength > 0) return this.emit('change'); // Shows "waiting for your draft".
       const quiet = Date.now() - this.lastInputAt;
       if (quiet < TYPING_PAUSE_MS) return this.scheduleSend(TYPING_PAUSE_MS - quiet);
+      // A lot that starts a fresh conversation doesn't need a compact first.
+      if (this.queue[0]?.lot?.clear) return this.clearThenSend();
       if (this.needsCompact()) return this.compact();
       this.sendNext();
     }, delay);
@@ -677,6 +684,7 @@ export class Session extends EventEmitter {
       !this.held.length &&
       !this.planOffer &&
       !this.compacting &&
+      !this.clearing &&
       !this.queue.length &&
       this.draftLength === 0 &&
       Date.now() - this.lastInputAt > TYPING_PAUSE_MS
@@ -716,6 +724,18 @@ export class Session extends EventEmitter {
       if (this.activity === 'working') this.applyActivity({ activity: 'idle' });
     }, COMPACT_TIMEOUT_MS);
     this.compacting.unref();
+  }
+
+  /** Types /clear, then the lot once Claude Code says the new conversation started (or after a short wait). */
+  private clearThenSend() {
+    this.cleanStop = false;
+    this.typeLine('/clear');
+    this.applyActivity({ activity: 'working', detail: 'Clearing before the next lot' });
+    this.clearing = setTimeout(() => {
+      this.clearing = null;
+      this.sendNext();
+    }, CLEAR_WAIT_MS);
+    this.clearing.unref();
   }
 
   private sendNext() {
@@ -820,6 +840,21 @@ const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 /** The queue waits this long after the user's last keystroke. */
 const TYPING_PAUSE_MS = 3000;
 const COMPACT_TIMEOUT_MS = 3 * 60 * 1000;
+/** /clear is quick and local: without SessionStart by then, the lot goes anyway. */
+const CLEAR_WAIT_MS = 4000;
+
+/** Answers a plan held for "Split into Up next": the lots chosen, or null to let Claude Code's prompt decide. */
+type PlanReply = (lots: string[] | null, options?: LotOptions) => void;
+
+/** The lots of a run as Up next prompts; a lot after the first starts a fresh conversation in clear mode. */
+function queuedLots(lots: string[], options: LotOptions): QueuedPrompt[] {
+  const total = lots.length;
+  return lots.map((lot, i) => ({
+    id: randomUUID(),
+    text: lotPrompt(lot, i + 1, lots, options),
+    lot: { n: i + 1, total, ...(options.clear && i > 0 ? { clear: true } : {}) },
+  }));
+}
 
 function permissionKey(payload: any): string {
   return JSON.stringify([payload?.tool_name, payload?.tool_input]);

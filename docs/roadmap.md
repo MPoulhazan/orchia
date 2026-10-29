@@ -145,7 +145,7 @@ from the phone (Orchia Cloud, "Needs you on your phone").
 2. ~~**Lots outside plan mode.**~~ built (`splitAnswer`, smoke-tested; reuses POST /plan). The same bar when an ordinary answer is a plan in lots
    ("Lot N", "Phase N", "Step N" headings only, not any numbered list, so a summary doesn't
    trigger it). "Run as a sequence" types lot 1 and queues the rest.
-3. **Compact or clear between lots.** An option in the lot editor: compact when needed
+3. ~~**Compact or clear between lots.**~~ built (smoke-tested with a fake SessionStart; /clear is confirmed by the `SessionStart` hook, source `clear`, else the lot goes after 4 s). An option in the lot editor: compact when needed
    (default) or clear. With clear, each lot prompt carries the whole plan and "lots 1..n-1
    are done and committed, see `git log`", with no 600-character cut. A "Commit after each
    lot, stop if one fails" box, on by default (clear depends on it).
