@@ -59,6 +59,8 @@ export interface SessionInfo {
   queueHeld: 'typing' | 'stopped' | 'blocked' | null;
   /** A lot of a split plan that ended without `LOT n DONE`: the next lots wait for the user. */
   lotBlocked: LotBlocked | null;
+  /** Where a run of lots is: on lot n (or about to start it), held on lot n, or done with all of them. */
+  lotRun: LotRun | null;
   /** Set when the session works in its own copy of the repository; `cwd` is then the copy. */
   copy: SessionCopy | null;
 }
@@ -75,6 +77,12 @@ export interface LotBlocked {
   total: number;
   /** Claude's reason after `LOT n BLOCKED:`; '' when it ended without saying either way. */
   reason: string;
+}
+
+export interface LotRun {
+  state: 'running' | 'blocked' | 'done';
+  n: number;
+  total: number;
 }
 
 export interface LaunchChoices {
@@ -178,6 +186,8 @@ export class Session extends EventEmitter {
   /** The lots of Claude's last answer, offered as "Run as a sequence" until the next turn starts. */
   private answerLots: string[] | null = null;
   lotBlocked: LotBlocked | null = null;
+  /** The last lot that said `LOT n DONE`; kept until a turn outside the run starts. */
+  private lastLotDone: { n: number; total: number } | null = null;
   /** Last keystroke from the user, and roughly how much they typed into Claude's prompt since Enter. */
   private lastInputAt = 0;
   private draftLength = 0;
@@ -406,6 +416,8 @@ export class Session extends EventEmitter {
       this.blocks = [];
       this.turnFiles.clear();
       this.answerLots = null;
+      // A prompt that isn't one of the run's lots ends the "all lots done" state.
+      if (!this.runningLot) this.lastLotDone = null;
       this.cleanStop = false;
       this.draftLength = 0;
     }
@@ -520,6 +532,7 @@ export class Session extends EventEmitter {
     this.queue.unshift(...queuedLots(lots, options).slice(1));
     this.runningLot = { n: 1, total: lots.length };
     this.lotBlocked = null;
+    this.lastLotDone = null;
     this.activity = 'working';
     this.detail = null;
     this.unseen = false;
@@ -536,6 +549,7 @@ export class Session extends EventEmitter {
     this.answerLots = null;
     this.queue.unshift(...queuedLots(lots, options));
     this.lotBlocked = null;
+    this.lastLotDone = null;
     if (!this.sendNextNow()) this.emit('change');
     return true;
   }
@@ -701,9 +715,19 @@ export class Session extends EventEmitter {
     if (lot) {
       const reason = lotNotDone(reply, lot.n);
       if (reason !== null) this.lotBlocked = { ...lot, reason };
+      else this.lastLotDone = lot;
     } else if (this.lotBlocked && lotNotDone(reply, this.lotBlocked.n) === null) {
+      this.lastLotDone = { n: this.lotBlocked.n, total: this.lotBlocked.total };
       this.lotBlocked = null;
     }
+  }
+
+  private lotRun(): LotRun | null {
+    if (this.lotBlocked) return { state: 'blocked', n: this.lotBlocked.n, total: this.lotBlocked.total };
+    const lot = this.runningLot ?? this.queue.find((q) => q.lot)?.lot;
+    if (lot) return { state: 'running', n: lot.n, total: lot.total };
+    const last = this.lastLotDone;
+    return last && last.n === last.total ? { state: 'done', ...last } : null;
   }
 
   /** Between two queued tasks, a well-filled context is compacted now rather than by Claude Code mid-task. */
@@ -806,6 +830,7 @@ export class Session extends EventEmitter {
       queue: this.queue,
       queueHeld: this.queueHeld(),
       lotBlocked: this.lotBlocked,
+      lotRun: this.lotRun(),
       copy: this.copy,
     };
   }

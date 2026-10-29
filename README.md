@@ -230,6 +230,10 @@ types `/clear` before each lot after the first, and that lot's prompt carries th
 and points Claude to `git log` for what is done, so Clear always commits after each lot.
 **Commit after each lot** can be turned off otherwise.
 
+While the lots run, Up next shows which one Claude is on ("Lot 2/4"). Desktop notifications
+and "Needs you on your phone" stay quiet between lots: you hear about the plan once, when
+all its lots are done or when one is held.
+
 Between two Up next prompts, when the conversation fills more than 60% of the context,
 Orchia types `/compact` first, so Claude Code doesn't compact in the middle of the next
 task. Turn it off in Settings, under **Compact between tasks**.

@@ -18,7 +18,7 @@ import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, secretsInHook } from './secrets.ts';
 import { configRisks, denyEnvReads } from './configRisks.ts';
-import type { LaunchChoices } from './session.ts';
+import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
@@ -73,19 +73,30 @@ function remoteNeeds(): RemoteNeed[] | null {
     if (info.status !== 'running') return [];
     const ask = info.permission;
     const kind = ask ? 'permission' : info.activity === 'waiting' ? 'waiting' : info.activity === 'idle' && info.summary && info.unseen ? 'done' : null;
-    if (!kind) return [];
+    // A lot that ended well with more to come is not worth a phone alert: only the end of the plan, or a held lot.
+    if (!kind || (kind === 'done' && info.lotRun?.state === 'running')) return [];
+    const detail = (kind === 'done' && lotRunText(info)) || info.detail;
     return [
       {
         sessionId: info.id,
         session: clip(info.name, 80),
         project: clip(projectNames.get(info.projectId) ?? '', 80),
         kind,
-        detail: info.detail ? clip(info.detail, 200) : null,
+        detail: detail ? clip(detail, 200) : null,
         permission: ask ? { id: ask.id, tool: clip(ask.tool, 80), verb: ask.verb, target: clip(ask.target, 300) } : null,
         summary: kind === 'done' ? clip(info.summary!.text, 600) : null,
       },
     ];
   });
+}
+
+/** "All 4 lots done", "Lot 2/4 blocked: tests fail"; null outside a run of lots. Same words as the desktop notification. */
+function lotRunText(info: SessionInfo): string | null {
+  const run = info.lotRun;
+  if (run?.state === 'done') return `All ${run.total} lots done`;
+  if (run?.state !== 'blocked') return null;
+  const reason = info.lotBlocked?.reason;
+  return `Lot ${run.n}/${run.total} ${reason ? `blocked: ${reason}` : 'ended without saying it was done'}`;
 }
 
 /** An Allow or Deny from the phone, for the request it was shown: the oldest one of the session. */

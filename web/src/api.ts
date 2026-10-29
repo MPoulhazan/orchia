@@ -62,6 +62,8 @@ export interface SessionInfo {
   queueHeld: 'typing' | 'stopped' | 'blocked' | null;
   /** A lot of a split plan that ended without `LOT n DONE`; `reason` is '' when Claude said neither. */
   lotBlocked: { n: number; total: number; reason: string } | null;
+  /** Where a run of lots is: on lot n (or about to start it), held on lot n, or done with all of them. */
+  lotRun: { state: 'running' | 'blocked' | 'done'; n: number; total: number } | null;
   /** Set when the session works in its own copy; `cwd` is then the copy. */
   copy: SessionCopy | null;
 }

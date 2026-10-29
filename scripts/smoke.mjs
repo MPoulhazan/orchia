@@ -209,6 +209,8 @@ try {
 
   const blocked = await until('lot 2 blocked', async () => (await session(id))?.lotBlocked);
   if (blocked.n !== 2 || blocked.reason !== 'tests fail') throw new Error(`Unexpected block: ${JSON.stringify(blocked)}`);
+  const heldRun = (await session(id)).lotRun;
+  if (heldRun?.state !== 'blocked' || heldRun.n !== 2 || heldRun.total !== 3) throw new Error(`Unexpected run while blocked: ${JSON.stringify(heldRun)}`);
   await new Promise((r) => setTimeout(r, 2500));
   if (readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 3')) throw new Error('Lot 3 went although lot 2 was blocked');
   step('holds the next lots when one is blocked');
@@ -217,6 +219,13 @@ try {
   await until('lot 3 sent on Resume', async () => readFileSync(typedFile, 'utf8').includes('Continue the plan with lot 3'), 5000);
   if ((await session(id)).lotBlocked) throw new Error('Still blocked after Resume');
   step('Resume sends the next lot');
+
+  const doneRun = await until('the run of lots done', async () => {
+    const run = (await session(id))?.lotRun;
+    return run?.state === 'done' ? run : null;
+  });
+  if (doneRun.n !== 3 || doneRun.total !== 3) throw new Error(`Unexpected finished run: ${JSON.stringify(doneRun)}`);
+  step('reports the run of lots as done after the last one');
 
   await api('POST', `/api/sessions/${id}/queue`, { text: 'Plan the export' });
   const answerLots = await until('the lots of an ordinary answer', async () => (await session(id))?.answerLots);

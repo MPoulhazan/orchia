@@ -23,6 +23,7 @@ export function UpNext({ session }: { session: SessionInfo }) {
   const [draft, setDraft] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const queue = session.queue;
+  const run = session.lotRun;
 
   const add = () => {
     const text = draft.trim();
@@ -51,11 +52,18 @@ export function UpNext({ session }: { session: SessionInfo }) {
 
   return (
     <div className="upnext" aria-label="Up next">
-      {queue.length > 0 && (
+      {(queue.length > 0 || run?.state === 'running') && (
         <div className="upnext-head">
           <ListOrdered size={13} />
           <b>Up next</b>
-          {session.queueHeld === 'blocked' && session.lotBlocked ? (
+          {run?.state === 'running' && (
+            <span className="issue-tag" title={`Running a plan in ${run.total} lots`}>
+              Lot {run.n}/{run.total}
+            </span>
+          )}
+          {!queue.length ? (
+            <span className="upnext-hint">last lot of the plan</span>
+          ) : session.queueHeld === 'blocked' && session.lotBlocked ? (
             <LotHeld session={session} />
           ) : session.queueHeld ? (
             <>

@@ -2,8 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { Project, SessionInfo } from './api';
 import { filesChanged, statusOf, type Status } from './status';
 
-/** "Pins cluster above 40 markers. (3 files changed)" */
+/** "Pins cluster above 40 markers. (3 files changed)"; at the end of a run of lots, how it went. */
 function doneText(s: SessionInfo): string {
+  const run = s.lotRun;
+  if (run?.state === 'done') return `All ${run.total} lots done`;
+  if (run?.state === 'blocked') {
+    const reason = s.lotBlocked?.reason;
+    return `Lot ${run.n}/${run.total} ${reason ? `blocked: ${reason}` : 'ended without saying it was done'}`;
+  }
   if (!s.summary) return 'Finished';
   const files = filesChanged(s.summary.files);
   return files ? `${s.summary.text} (${files})` : s.summary.text;
@@ -57,10 +63,12 @@ export function useNotifications(sessions: SessionInfo[], projects: Project[], o
       // `before` is unknown on first load, so reopening the page does not replay old events.
       if (state !== 'on' || !before || before === status || pageActive()) continue;
       if (status !== 'waiting' && status !== 'done') continue;
+      // A lot that ended well with more to come: one notification for the whole plan, at its end.
+      if (status === 'done' && s.lotRun?.state === 'running') continue;
 
       const project = projects.find((p) => p.id === s.projectId)?.name ?? '';
       const notification = new Notification(`${project} / ${s.name}`, {
-        body: status === 'waiting' ? (s.detail ?? 'Needs your input') : (s.detail ?? doneText(s)),
+        body: status === 'waiting' ? (s.detail ?? 'Needs your input') : s.lotRun ? doneText(s) : (s.detail ?? doneText(s)),
         tag: s.id,
       });
       notification.onclick = () => {

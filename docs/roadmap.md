@@ -149,5 +149,5 @@ from the phone (Orchia Cloud, "Needs you on your phone").
    (default) or clear. With clear, each lot prompt carries the whole plan and "lots 1..n-1
    are done and committed, see `git log`", with no 600-character cut. A "Commit after each
    lot, stop if one fails" box, on by default (clear depends on it).
-4. **Follow the run.** "Lot 2/4" in Up next; a notification (desktop and phone) when the
+4. ~~**Follow the run.**~~ built (`lotRun` in SessionInfo; desktop notifications and phone needs skip the "done" of a lot with more to come). "Lot 2/4" in Up next; a notification (desktop and phone) when the
    last lot is done or one blocks.
