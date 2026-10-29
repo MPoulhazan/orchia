@@ -6,7 +6,8 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 
 ```sh
 npm install
-npm run dev        # server with reload + UI with hot reload on http://localhost:5173
+npm run dev        # UI with hot reload on http://localhost:5173; restart it to load server changes
+npm run dev:watch  # same, and the server restarts on each change: it cuts the turns of the sessions it hosts
 npm run typecheck  # must pass before a pull request
 npm run smoke      # starts the server with a fake claude and walks a session through a turn
 ```
