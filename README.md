@@ -338,7 +338,11 @@ once a day:
 - a secret written in clear in a tracked file, with the same fixed-prefix rules as above
   (AWS's documented `…EXAMPLE` keys are skipped);
 - a `.env` file git doesn't ignore, one `git add -A` away from a commit: **Add to
-  .gitignore** adds it.
+  .gitignore** adds it;
+- GitHub's secret scanning or push protection turned off on a public repository you
+  administer, where both are free: **Turn on** enables them with your `gh` login. They are
+  a second guard, for commits made outside Claude too. Private repositories need GitHub's
+  paid Secret Protection, so Orchia says nothing there.
 
 A security alert has no plain dismiss: it stays in **Needs you** until it is decided, so
 alerts don't pile up unread.

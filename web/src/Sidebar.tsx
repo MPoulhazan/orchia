@@ -171,13 +171,19 @@ export function Sidebar(props: Props) {
 /** Sessions waiting on the user or finished unseen, above the project tree. */
 type Fix = NonNullable<ConfigNeeded['risk']['fix']>;
 
-const FIX_LABEL: Record<Fix, string> = { 'deny-env': 'Block reads', 'remove-allow': 'Remove rule', 'ignore-env': 'Add to .gitignore' };
+const FIX_LABEL: Record<Fix, string> = {
+  'deny-env': 'Block reads',
+  'remove-allow': 'Remove rule',
+  'ignore-env': 'Add to .gitignore',
+  'github-secret-scanning': 'Turn on',
+};
 
 const FIX_TITLE: Record<Fix, (risk: ConfigNeeded['risk']) => string> = {
   'deny-env': () =>
     'Adds Read(**/.env) and Read(**/.env.*) to the deny rules in .claude/settings.local.json; Orchia then also refuses shell commands that print a .env file',
   'remove-allow': (risk) => `Removes ${risk.rule} from .claude/settings.local.json`,
   'ignore-env': (risk) => `Adds ${risk.files?.join(', ') ?? 'the .env files'} to the project's .gitignore`,
+  'github-secret-scanning': () => 'Turns on secret scanning and push protection in the repository settings on GitHub, with your gh login',
 };
 
 function Attention(props: {

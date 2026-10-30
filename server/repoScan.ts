@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { holdsSecrets, isEnvFile, type ConfigRisk } from './configRisks.ts';
 import { findSecrets } from './secrets.ts';
+import { githubSecretScanningRisk } from './githubSecurity.ts';
 
 /**
  * What a project already has in git that it shouldn't: `.env` files and private keys that
@@ -161,6 +162,9 @@ export async function scanRepo(cwd: string): Promise<ConfigRisk[]> {
       files: loose,
     });
   }
+
+  const github = await githubSecretScanningRisk(cwd);
+  if (github) risks.push(github);
   return risks;
 }
 

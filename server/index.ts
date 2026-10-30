@@ -20,6 +20,7 @@ import { SecretStore, exposureText, redactSecrets, secretsInHook } from './secre
 import { blockedReason, secretsInGitCommand } from './commitGuard.ts';
 import { configRisks, denyEnvReads, envReadsBlocked, printedEnvFile } from './configRisks.ts';
 import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
+import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
@@ -942,8 +943,9 @@ const routes: [string, RegExp, Handler][] = [
     if (!risk?.fix) throw new HttpError(404, 'Nothing to fix here');
     try {
       if (risk.fix === 'deny-env') denyEnvReads(cwd);
-      else if (risk.fix === 'ignore-env') {
-        await ignoreEnvFiles(cwd, risk.files ?? []);
+      else if (risk.fix === 'ignore-env' || risk.fix === 'github-secret-scanning') {
+        if (risk.fix === 'ignore-env') await ignoreEnvFiles(cwd, risk.files ?? []);
+        else await enableGitHubSecretScanning(cwd);
         repoScanner.rescan(cwd);
       } else if (risk.rule) removeAllowRule(cwd, risk.rule);
     } catch (err) {

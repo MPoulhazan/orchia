@@ -148,7 +148,7 @@ export interface ConfigNeeded {
     /** In the user's settings: every project. */
     shared: boolean;
     /** One click in the project's local settings or .gitignore; null: edit the file. */
-    fix: 'remove-allow' | 'deny-env' | 'ignore-env' | null;
+    fix: 'remove-allow' | 'deny-env' | 'ignore-env' | 'github-secret-scanning' | null;
     rule?: string;
     /** The files `ignore-env` adds to .gitignore. */
     files?: string[];
