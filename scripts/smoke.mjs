@@ -58,6 +58,7 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let clearedLot2 = false;
   let lotsAsked = false;
   let committed = false;
+  let envShown = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -121,6 +122,18 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       out.guard = guard.status === 200 ? await guard.json() : guard.status;
       writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
       await hook({ hook_event_name: 'Stop', last_assistant_message: 'The commit was refused.' });
+      return;
+    }
+    if (committed && !envShown && typed.endsWith('Show the env\\r')) {
+      // The project blocks .env reads: printing one from the shell is refused too.
+      envShown = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'Show the env' });
+      const shown = await hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'cat api/.env.local | head' } });
+      out.envGuard = shown.status === 200 ? await shown.json() : shown.status;
+      const loaded = await hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'source .env && npm run migrate' } });
+      out.envLoad = loaded.status;
+      writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'Reading it was refused.' });
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -294,6 +307,16 @@ try {
   const exposed = (await api('GET', '/api/state')).secretsExposed ?? [];
   if (!exposed.some((e) => e.source === 'commit' && e.where?.includes('config.ts'))) throw new Error(`No commit alert: ${JSON.stringify(exposed)}`);
   step('refuses a git commit that adds a secret, and raises the alert');
+
+  mkdirSync(`${project}/.claude`, { recursive: true });
+  writeFileSync(`${project}/.claude/settings.local.json`, JSON.stringify({ permissions: { deny: ['Read(**/.env)', 'Read(**/.env.*)'] } }));
+  await api('POST', `/api/sessions/${id}/queue`, { text: 'Show the env' });
+  const envGuard = await until('the .env read guard answer', async () => JSON.parse(readFileSync(result, 'utf8')).envGuard);
+  if (envGuard?.hookSpecificOutput?.permissionDecision !== 'deny' || !envGuard.hookSpecificOutput.permissionDecisionReason.includes('api/.env.local')) {
+    throw new Error(`Unexpected .env guard answer: ${JSON.stringify(envGuard)}`);
+  }
+  if (JSON.parse(readFileSync(result, 'utf8')).envLoad !== 204) throw new Error('Loading .env without printing it was refused');
+  step('refuses a shell command that prints a .env file when reads are blocked');
 
   // The repo scan runs when a project is first looked at; a fix rescans it.
   const repo = `${dir}/repo`;

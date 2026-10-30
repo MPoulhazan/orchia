@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { appendFile, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
-import type { ConfigRisk } from './configRisks.ts';
+import { holdsSecrets, isEnvFile, type ConfigRisk } from './configRisks.ts';
 import { findSecrets } from './secrets.ts';
 
 /**
@@ -15,11 +15,6 @@ import { findSecrets } from './secrets.ts';
 const run = promisify(execFile);
 
 const SCAN_EVERY_MS = 24 * 60 * 60 * 1000;
-/** A `.env` file, not one of the templates committed on purpose. */
-const ENV_FILE = /^\.env(\.[\w.-]+)?$/;
-const ENV_TEMPLATE = /\.(example|sample|template|dist|defaults)$/i;
-/** Variables bundled into the browser by design: a `.env` holding only these has no secret. */
-const PUBLIC_VAR = /^(VITE_|NEXT_PUBLIC_|PUBLIC_|REACT_APP_|EXPO_PUBLIC_|NUXT_PUBLIC_|GATSBY_)/;
 /** Files that hold a private key by their name alone. */
 const KEY_FILE = /^id_(rsa|dsa|ecdsa|ed25519)$|\.(p12|pfx|jks|keystore)$/i;
 /** Names that may hold a private key or only a certificate: their content decides. */
@@ -30,10 +25,6 @@ const SECRET_PREFIXES = 'gh[pousr]_|github_pat_|sk-ant-|T3BlbkFJ|AKIA|ASIA|[sr]k
 const EXAMPLE_VALUE = /EXAMPLE/;
 const MAX_SECRET_RISKS = 20;
 const MAX_FILE_BYTES = 1_000_000;
-
-export function isEnvFile(name: string): boolean {
-  return ENV_FILE.test(name) && !ENV_TEMPLATE.test(name);
-}
 
 export class RepoScanner {
   private scans = new Map<string, { at: number; risks: ConfigRisk[] }>();
@@ -106,10 +97,8 @@ export async function scanRepo(cwd: string): Promise<ConfigRisk[]> {
   for (const file of tracked) {
     const name = basename(file);
     if (isEnvFile(name)) {
-      const text = (await readSmall(join(cwd, file))) ?? '';
-      const vars = text.split(/\r?\n/).map((l) => l.trim().replace(/^export\s+/, '')).filter((l) => /^[A-Za-z_][\w]*=\s*\S/.test(l));
       // Only browser-public values (VITE_…), or nothing set: no secret to leak.
-      if (!vars.length || vars.every((l) => PUBLIC_VAR.test(l))) continue;
+      if (!holdsSecrets((await readSmall(join(cwd, file))) ?? '')) continue;
       reported.add(file);
       risk({
         id: `env-tracked:${file}`,

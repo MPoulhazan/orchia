@@ -321,10 +321,13 @@ for projects with a running session:
 - an allow rule for every shell command (`Bash`, `Bash(*)`), with **Remove rule** when it
   is in the project's `.claude/settings.local.json`;
 - `defaultMode: bypassPermissions`, which skips every prompt;
-- `.env` files in the project folder with no deny rule: **Block reads** adds `Read(./.env)`
-  and `Read(./.env.*)` to the deny rules of `.claude/settings.local.json`. This stops
-  Claude's Read tool, not a shell command such as `cat .env`, which the secret alert above
-  still catches.
+- `.env` files in the project, subfolders included, with no deny rule: **Block reads** adds
+  `Read(**/.env)` and `Read(**/.env.*)` to the deny rules of `.claude/settings.local.json`.
+  Templates (`.env.example`…) and files holding only browser-public `VITE_`… values don't
+  raise the alert, but the rules can't leave templates out, so Claude can't read those
+  either. Deny rules don't see the shell, so once reads are blocked Orchia also refuses
+  commands that print a `.env` file (`cat`, `head`, `grep`, `Get-Content`…); loading one
+  without printing it (`source .env`, dotenv) still works.
 
 What a project already has in git is checked too, when the project is first opened, then
 once a day:

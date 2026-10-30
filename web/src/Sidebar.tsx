@@ -174,7 +174,8 @@ type Fix = NonNullable<ConfigNeeded['risk']['fix']>;
 const FIX_LABEL: Record<Fix, string> = { 'deny-env': 'Block reads', 'remove-allow': 'Remove rule', 'ignore-env': 'Add to .gitignore' };
 
 const FIX_TITLE: Record<Fix, (risk: ConfigNeeded['risk']) => string> = {
-  'deny-env': () => 'Adds Read(./.env) and Read(./.env.*) to the deny rules in .claude/settings.local.json',
+  'deny-env': () =>
+    'Adds Read(**/.env) and Read(**/.env.*) to the deny rules in .claude/settings.local.json; Orchia then also refuses shell commands that print a .env file',
   'remove-allow': (risk) => `Removes ${risk.rule} from .claude/settings.local.json`,
   'ignore-env': (risk) => `Adds ${risk.files?.join(', ') ?? 'the .env files'} to the project's .gitignore`,
 };

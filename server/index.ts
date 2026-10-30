@@ -18,7 +18,7 @@ import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, exposureText, redactSecrets, secretsInHook } from './secrets.ts';
 import { blockedReason, secretsInGitCommand } from './commitGuard.ts';
-import { configRisks, denyEnvReads } from './configRisks.ts';
+import { configRisks, denyEnvReads, envReadsBlocked, printedEnvFile } from './configRisks.ts';
 import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
@@ -1002,7 +1002,7 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (payload?.hook_event_name === 'PermissionRequest' && payload.tool_name === 'ExitPlanMode') return holdPlan(session, payload, res);
   if (payload?.hook_event_name === 'PreToolUse' && (payload.tool_name === 'Bash' || payload.tool_name === 'PowerShell')) {
-    return guardCommit(session, payload, res);
+    return guardShell(session, payload, res);
   }
   const ask = payload?.hook_event_name === 'PermissionRequest' ? permissionAsk(payload, session.cwd) : null;
   if (!ask || session.status !== 'running') return res.writeHead(204).end();
@@ -1029,8 +1029,22 @@ function watchSecrets(session: Session, payload: any) {
   if (secrets.record(sightings, { projectId: session.projectId, sessionId: session.id, sessionName: session.name, where })) broadcast();
 }
 
-/** Refuses a git commit or push that would add a secret, tells Claude why, and raises the alert. */
-async function guardCommit(session: Session, payload: any, res: http.ServerResponse) {
+/**
+ * A shell command Claude is about to run. Refused, with the reason for Claude: printing a
+ * `.env` file when the project blocks .env reads (the Read deny rules can't see `cat`), or a
+ * git commit or push that would add a secret, which also raises the alert.
+ */
+async function guardShell(session: Session, payload: any, res: http.ServerResponse) {
+  const deny = (reason: string) =>
+    sendJson(res, 200, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
+  const envFile = printedEnvFile(payload.tool_input?.command);
+  if (envFile && envReadsBlocked(session.cwd)) {
+    return deny(
+      `Orchia blocks reading ${envFile}: this project keeps .env files away from the model. ` +
+        `To see which variables exist, read the .env.example if there is one. To run something that needs them, load the file without printing it (dotenv, or source it). ` +
+        `If you need a value, ask the user.`,
+    );
+  }
   const blocked = await secretsInGitCommand(payload.tool_input?.command, session.cwd);
   if (!blocked) return res.writeHead(204).end();
   const files = [...new Set(blocked.secrets.map((s) => s.file))].join(', ');
@@ -1038,9 +1052,7 @@ async function guardCommit(session: Session, payload: any, res: http.ServerRespo
   const sightings = blocked.secrets.map((s) => ({ hit: s.hit, source: 'commit' as const }));
   secrets.record(sightings, { projectId: session.projectId, sessionId: session.id, sessionName: session.name, where });
   broadcast();
-  sendJson(res, 200, {
-    hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: blockedReason(blocked) },
-  });
+  deny(blockedReason(blocked));
 }
 
 /**

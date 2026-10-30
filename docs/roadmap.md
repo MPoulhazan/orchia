@@ -160,5 +160,5 @@ from the phone (Orchia Cloud, "Needs you on your phone").
    Checked with the real claude CLI: the deny holds even with `Bash(git commit:*)` allowed.
 2. ~~**Scan the project's tracked files**~~ built (server/repoScan.ts, background, cached a day per folder, rescanned after a fix): `.env` and private key files in git, `.env` missing
    from `.gitignore`, secrets in clear; on project open, then daily.
-3. **Broader .env read protection**: subfolders, `cat`, skip `*.example`.
+3. ~~**Broader .env read protection**~~ built (Read(**/.env*) rules, checked with the real claude CLI; shell commands that print a .env are refused once reads are blocked): subfolders, `cat`, skip `*.example`.
 4. **GitHub secret scanning status**: check it per repo, offer to turn it on when free.
