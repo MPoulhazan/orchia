@@ -921,10 +921,9 @@ kbd {
 }
 
 .menu-popover {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
+  /* Placed by Menu (top or bottom, right) over the whole page. */
+  position: fixed;
+  z-index: 60;
   min-width: 200px;
   padding: 4px;
   border: 1px solid var(--border-strong);

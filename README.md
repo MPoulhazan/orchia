@@ -304,7 +304,9 @@ Orchia also watches for secrets that reach the model: a token in your prompt, or
 tool call's input or output (`cat .env` printing an API key). Only formats with a fixed
 prefix are recognized (GitHub, Anthropic, OpenAI, AWS, Stripe live, GitLab, Slack, npm,
 Google API keys and private keys), so an alert is almost always real. It shows in
-**Needs you** with a link to revoke the secret; click **Revoked** once you have.
+**Needs you** as what happened ("Stripe live key sent to Claude"), where, and **Revoke on
+Stripe**; the command or file it was seen in shows on hover. AWS's documented example
+keys (`…EXAMPLE`) are not secrets and never raise an alert.
 Orchia keeps only the kind of secret, its first and last characters (`ghp_…a41f`) and a
 hash to recognize it again, in `~/.orchia/secrets.json`; never the secret itself.
 
@@ -344,14 +346,14 @@ once a day:
   a second guard, for commits made outside Claude too. Private repositories need GitHub's
   paid Secret Protection, so Orchia says nothing there.
 
-A security alert has no plain dismiss: it stays in **Needs you** until it is decided, so
-alerts don't pile up unread.
+A security alert has no plain dismiss: it stays in **Needs you** until it is decided under
+**Resolve**, so alerts don't pile up unread.
 
 - **Fixed**: on its own for a CVE or a setting, as soon as Orchia no longer sees the
-  problem; **Revoked** for a secret, which only you can do.
-- **Accept the risk…** (under the ⋯ menu) asks why, then hides the alert for 90 days. It
+  problem; **I revoked it** for a secret, which only you can do.
+- **Accept the risk…** asks why, then hides the alert for 90 days. It
   comes back once after that, to be looked at again.
-- **Not a real issue (false positive)** hides it for good: a test token, an example key.
+- **Not a real secret** (or **Not a real issue**) hides it for good: a test token, an example key.
 
 Decisions are kept in `~/.orchia/triage.json`.
 

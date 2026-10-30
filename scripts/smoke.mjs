@@ -296,14 +296,17 @@ try {
 
   const git = (args) => execFileSync('git', args, { cwd: project, stdio: 'ignore' });
   git(['init', '-q']);
-  writeFileSync(`${project}/config.ts`, 'export const key = "AKIAIOSFODNN7EXAMPLE";\n');
+  // A made-up key in AWS's format, built at run time so this file holds no key-shaped string
+  // (AWS's documented AKIA…EXAMPLE key is skipped on purpose, so it can't serve here).
+  const fakeKey = ['AKIA', 'Q7W3E9R2T5Y8U1I4'].join('');
+  writeFileSync(`${project}/config.ts`, `export const key = "${fakeKey}";\n`);
   await api('POST', `/api/sessions/${id}/queue`, { text: 'Commit the config' });
   const guard = await until('the commit guard answer', async () => JSON.parse(readFileSync(result, 'utf8')).guard);
   const decision = guard?.hookSpecificOutput;
-  if (decision?.permissionDecision !== 'deny' || !decision.permissionDecisionReason.includes('AWS access key (AKIA…MPLE) in config.ts')) {
+  if (decision?.permissionDecision !== 'deny' || !decision.permissionDecisionReason.includes('AWS access key (AKIA…U1I4) in config.ts')) {
     throw new Error(`Unexpected guard answer: ${JSON.stringify(guard)}`);
   }
-  if (decision.permissionDecisionReason.includes('AKIAIOSFODNN7EXAMPLE')) throw new Error('The reason shows the whole key');
+  if (decision.permissionDecisionReason.includes(fakeKey)) throw new Error('The reason shows the whole key');
   const exposed = (await api('GET', '/api/state')).secretsExposed ?? [];
   if (!exposed.some((e) => e.source === 'commit' && e.where?.includes('config.ts'))) throw new Error(`No commit alert: ${JSON.stringify(exposed)}`);
   step('refuses a git commit that adds a secret, and raises the alert');

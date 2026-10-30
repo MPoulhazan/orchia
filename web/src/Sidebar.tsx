@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
+import { Bell, ChevronRight, ExternalLink, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
-import { SecurityAlertRow, secretText, securityText } from './Security';
+import { SecurityAlertRow, revokeLabel, secretLine, secretText, secretTitle, securityText } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -258,16 +258,17 @@ function Attention(props: {
             alertKey={e.key}
             mark="Secret"
             danger
-            title={e.label}
+            title={secretTitle(e)}
             where={projectName(e.projectId)}
-            detail={secretText(e)}
+            detail={secretLine(e)}
+            detailTitle={secretText(e)}
             selected={e.sessionId === props.selectedId}
             onOpen={() => openSession(e.sessionId)}
             revocable
             actions={
               e.rotateUrl && (
                 <a className="btn btn-secondary" href={e.rotateUrl} target="_blank" rel="noreferrer" title="Revoke it, then put a new one where it is used">
-                  Revoke
+                  {revokeLabel(e)} <ExternalLink size={12} />
                 </a>
               )
             }

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronRight } from 'lucide-react';
 import { storage } from './storage';
 
@@ -69,38 +70,57 @@ export interface MenuItem {
   danger?: boolean;
 }
 
-/** Small dropdown anchored to its trigger. */
-export function Menu({ trigger, items, title }: { trigger: ReactNode; items: MenuItem[]; title?: string }) {
-  const [open, setOpen] = useState(false);
+/** Room a menu needs below its trigger; with less, it opens upward. */
+const MENU_ROOM = 180;
+/** The popover's min-width in styles.css. */
+const MENU_WIDTH = 200;
+
+/**
+ * Small dropdown anchored to its trigger. Drawn over the whole page (a scrolling list would
+ * clip it), and upward when the trigger is near the bottom of the window.
+ */
+export function Menu({ trigger, items, title, button }: { trigger: ReactNode; items: MenuItem[]; title?: string; button?: boolean }) {
+  const [open, setOpen] = useState<CSSProperties | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const popover = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const inside = (t: EventTarget | null) => ref.current?.contains(t as Node) || popover.current?.contains(t as Node);
+    const onDown = (e: MouseEvent) => !inside(e.target) && setOpen(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(null);
+    // Anchored once: scrolling or resizing would leave it floating away from its trigger.
+    const close = () => setOpen(null);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    document.addEventListener('scroll', close, true);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('scroll', close, true);
     };
   }, [open]);
 
+  const toggle = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (open) return setOpen(null);
+    const r = e.currentTarget.getBoundingClientRect();
+    // Lined up with the trigger's right edge, or its left one when that would run off the window.
+    const x = r.right < MENU_WIDTH + 8 ? { left: r.left } : { right: window.innerWidth - r.right };
+    const y = window.innerHeight - r.bottom < MENU_ROOM ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 };
+    setOpen({ ...x, ...y });
+  };
+
   return (
     <div className="menu" ref={ref}>
-      <button
-        className="icon-btn"
-        title={title}
-        data-open={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen(!open);
-        }}
-      >
+      <button className={button ? 'btn btn-secondary' : 'icon-btn'} title={title} data-open={!!open} onClick={toggle}>
         {trigger}
       </button>
-      {open && (
-        <div className="menu-popover" role="menu">
+      {open &&
+        createPortal(
+        <div className="menu-popover" role="menu" ref={popover} style={open}>
           {items.map((item) => (
             <button
               key={item.label}
@@ -108,15 +128,16 @@ export function Menu({ trigger, items, title }: { trigger: ReactNode; items: Men
               role="menuitem"
               onClick={(e) => {
                 e.stopPropagation();
-                setOpen(false);
+                setOpen(null);
                 item.onSelect();
               }}
             >
               {item.label}
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }

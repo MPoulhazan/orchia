@@ -35,6 +35,8 @@ const RULES: Rule[] = [
   { kind: 'google', label: 'Google API key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, severity: 'high', rotateUrl: 'https://console.cloud.google.com/apis/credentials' },
 ];
 
+const EXAMPLE_VALUE = /EXAMPLE/;
+
 /** Tool outputs can be large; a secret further in than this is not looked for. */
 const MAX_SCAN = 2_000_000;
 
@@ -54,6 +56,8 @@ export function findSecrets(text: string): SecretHit[] {
   for (const rule of RULES) {
     for (const m of scanned.matchAll(rule.pattern)) {
       const value = m[0];
+      // Documentation values (AWS's AKIAIOSFODNN7EXAMPLE) are not secrets.
+      if (EXAMPLE_VALUE.test(value)) continue;
       const fingerprint = createHash('sha256').update(value).digest('hex').slice(0, 16);
       if (hits.has(fingerprint)) continue;
       hits.set(fingerprint, { kind: rule.kind, label: rule.label, severity: rule.severity, masked: mask(rule.kind, value), fingerprint, rotateUrl: rule.rotateUrl });
