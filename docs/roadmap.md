@@ -158,7 +158,7 @@ from the phone (Orchia Cloud, "Needs you on your phone").
    staged diff (plus what `git add` / `commit -a` stage; for a push, `git log -p @{u}..HEAD`),
    same fixed-prefix rules as secrets.ts, deny with the masked reason; alert source `commit`.
    Checked with the real claude CLI: the deny holds even with `Bash(git commit:*)` allowed.
-2. **Scan the project's tracked files**: `.env` and private key files in git, `.env` missing
+2. ~~**Scan the project's tracked files**~~ built (server/repoScan.ts, background, cached a day per folder, rescanned after a fix): `.env` and private key files in git, `.env` missing
    from `.gitignore`, secrets in clear; on project open, then daily.
 3. **Broader .env read protection**: subfolders, `cat`, skip `*.example`.
 4. **GitHub secret scanning status**: check it per repo, offer to turn it on when free.

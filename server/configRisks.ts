@@ -22,9 +22,11 @@ export interface ConfigRisk {
   /** Set in the user's settings: it applies to every project. */
   shared: boolean;
   /** What Orchia can do about it in one click, in the project's local settings; null: edit the file. */
-  fix: 'remove-allow' | 'deny-env' | null;
+  fix: 'remove-allow' | 'deny-env' | 'ignore-env' | null;
   /** The allow rule to remove, for `remove-allow`. */
   rule?: string;
+  /** The files to add to .gitignore, for `ignore-env`. */
+  files?: string[];
 }
 
 const userSettingsFile = () => join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'settings.json');

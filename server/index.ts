@@ -19,6 +19,7 @@ import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, exposureText, redactSecrets, secretsInHook } from './secrets.ts';
 import { blockedReason, secretsInGitCommand } from './commitGuard.ts';
 import { configRisks, denyEnvReads } from './configRisks.ts';
+import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
@@ -300,7 +301,7 @@ function latestSessions(runningOnly: boolean): Session[] {
 function configNeeded() {
   const shared = new Set<string>();
   return latestSessions(true).flatMap((s) =>
-    configRisks(s.cwd)
+    [...configRisks(s.cwd), ...repoScanner.get(s.cwd)]
       .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
       .map((risk) => {
         const key = configKey(s.projectId, risk.id, risk.shared);
@@ -308,6 +309,11 @@ function configNeeded() {
       }),
   );
 }
+
+/** What each project has in git that it shouldn't (tracked .env files, keys, secrets); scanned in the background. */
+const repoScanner = new RepoScanner(() => broadcast());
+// A project that stays open gets its daily scan even when nothing else changes.
+setInterval(() => latestSessions(true).forEach((s) => repoScanner.get(s.cwd)), 60 * 60 * 1000).unref();
 
 // The catalog of advisories: at start, then once a day.
 refreshAdvisories().then(broadcast);
@@ -932,11 +938,14 @@ const routes: [string, RegExp, Handler][] = [
   ['POST', /^\/api\/sessions\/([\w-]+)\/config-risks\/fix$/, async (req, _url, [id]) => {
     const body = await readJson(req);
     const cwd = findSession(id).cwd;
-    const risk = configRisks(cwd).find((r) => r.id === body.id);
+    const risk = [...configRisks(cwd), ...repoScanner.get(cwd)].find((r) => r.id === body.id);
     if (!risk?.fix) throw new HttpError(404, 'Nothing to fix here');
     try {
       if (risk.fix === 'deny-env') denyEnvReads(cwd);
-      else if (risk.rule) removeAllowRule(cwd, risk.rule);
+      else if (risk.fix === 'ignore-env') {
+        await ignoreEnvFiles(cwd, risk.files ?? []);
+        repoScanner.rescan(cwd);
+      } else if (risk.rule) removeAllowRule(cwd, risk.rule);
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }

@@ -326,6 +326,17 @@ for projects with a running session:
   Claude's Read tool, not a shell command such as `cat .env`, which the secret alert above
   still catches.
 
+What a project already has in git is checked too, when the project is first opened, then
+once a day:
+
+- a `.env` file that is tracked (templates such as `.env.example`, and files holding only
+  browser-public `VITE_`/`NEXT_PUBLIC_`… values, don't count);
+- a private key that is tracked (`id_rsa`, `*.p12`, a `.pem` or `.key` holding a private key);
+- a secret written in clear in a tracked file, with the same fixed-prefix rules as above
+  (AWS's documented `…EXAMPLE` keys are skipped);
+- a `.env` file git doesn't ignore, one `git add -A` away from a commit: **Add to
+  .gitignore** adds it.
+
 A security alert has no plain dismiss: it stays in **Needs you** until it is decided, so
 alerts don't pile up unread.
 

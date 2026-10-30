@@ -169,6 +169,16 @@ export function Sidebar(props: Props) {
 }
 
 /** Sessions waiting on the user or finished unseen, above the project tree. */
+type Fix = NonNullable<ConfigNeeded['risk']['fix']>;
+
+const FIX_LABEL: Record<Fix, string> = { 'deny-env': 'Block reads', 'remove-allow': 'Remove rule', 'ignore-env': 'Add to .gitignore' };
+
+const FIX_TITLE: Record<Fix, (risk: ConfigNeeded['risk']) => string> = {
+  'deny-env': () => 'Adds Read(./.env) and Read(./.env.*) to the deny rules in .claude/settings.local.json',
+  'remove-allow': (risk) => `Removes ${risk.rule} from .claude/settings.local.json`,
+  'ignore-env': (risk) => `Adds ${risk.files?.join(', ') ?? 'the .env files'} to the project's .gitignore`,
+};
+
 function Attention(props: {
   projects: Project[];
   sessions: SessionInfo[];
@@ -271,10 +281,10 @@ function Attention(props: {
               c.risk.fix && (
                 <button
                   className="btn btn-secondary"
-                  title={c.risk.fix === 'deny-env' ? 'Adds Read(./.env) and Read(./.env.*) to the deny rules in .claude/settings.local.json' : `Removes ${c.risk.rule} from .claude/settings.local.json`}
+                  title={FIX_TITLE[c.risk.fix](c.risk)}
                   onClick={() => api.fixConfigRisk(c.sessionId, c.risk.id)}
                 >
-                  {c.risk.fix === 'deny-env' ? 'Block reads' : 'Remove rule'}
+                  {FIX_LABEL[c.risk.fix]}
                 </button>
               )
             }

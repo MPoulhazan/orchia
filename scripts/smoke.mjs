@@ -295,6 +295,26 @@ try {
   if (!exposed.some((e) => e.source === 'commit' && e.where?.includes('config.ts'))) throw new Error(`No commit alert: ${JSON.stringify(exposed)}`);
   step('refuses a git commit that adds a secret, and raises the alert');
 
+  // The repo scan runs when a project is first looked at; a fix rescans it.
+  const repo = `${dir}/repo`;
+  mkdirSync(repo);
+  execFileSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  writeFileSync(`${repo}/.env`, 'SECRET=1\n');
+  const { id: repoProject } = await api('POST', '/api/projects', { path: repo });
+  const { id: repoSession } = await api('POST', '/api/sessions', { projectId: repoProject, cols: 100, rows: 30 });
+  const loose = await until('the .env not ignored alert', async () => {
+    const state = await api('GET', '/api/state');
+    return state.configNeeded.find((c) => c.sessionId === repoSession && c.risk.id === 'env-not-ignored');
+  }, 30000);
+  if (!loose.risk.files?.includes('.env')) throw new Error(`Unexpected scan risk: ${JSON.stringify(loose.risk)}`);
+  await api('POST', `/api/sessions/${repoSession}/config-risks/fix`, { id: 'env-not-ignored' });
+  if (!readFileSync(`${repo}/.gitignore`, 'utf8').split('\n').includes('.env')) throw new Error('.env was not added to .gitignore');
+  await until('the alert gone after the fix', async () => {
+    const state = await api('GET', '/api/state');
+    return !state.configNeeded.some((c) => c.risk.id === 'env-not-ignored');
+  }, 15000);
+  step('scans the repo: a .env git would commit, fixed with Add to .gitignore');
+
   console.log('\nSmoke test passed');
 } catch (err) {
   const state = await api('GET', '/api/state').catch(() => null);
