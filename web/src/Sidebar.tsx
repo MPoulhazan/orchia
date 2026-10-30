@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Bell, ChevronRight, ExternalLink, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, Square, X } from 'lucide-react';
+import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, ShieldAlert, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
-import { SecurityAlertRow, revokeLabel, secretLine, secretText, secretTitle, securityText } from './Security';
+import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
@@ -33,6 +33,7 @@ interface Props {
   signInNeeded: SignInNeeded[];
   securityNeeded: SecurityNeeded[];
   secretsExposed: SecretExposure[];
+  secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
 }
 
@@ -155,6 +156,19 @@ export function Sidebar(props: Props) {
         })}
       </nav>
 
+      <SecurityLine
+        secrets={props.secretsExposed}
+        secretsResolved={props.secretsResolved}
+        security={props.securityNeeded}
+        config={props.configNeeded}
+        projects={projects}
+        selectedId={selectedId}
+        onOpenSession={(id) => {
+          const session = sessions.find((s) => s.id === id);
+          if (session) props.onSelect(session);
+        }}
+      />
+
       <UsageMeters limits={props.limits} />
 
       <div className="sidebar-foot">
@@ -168,24 +182,51 @@ export function Sidebar(props: Props) {
   );
 }
 
+/**
+ * "Security · 5 open" under the projects, next to Plan usage: every alert of this computer,
+ * including the ones Needs you leaves out. Hidden when there is nothing open or decided.
+ */
+function SecurityLine(props: {
+  secrets: SecretExposure[];
+  secretsResolved: SecretExposure[];
+  security: SecurityNeeded[];
+  config: ConfigNeeded[];
+  projects: Project[];
+  selectedId: string | null;
+  onOpenSession: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = [...props.secrets, ...props.security, ...props.config].filter(isOpen).length;
+  const decided = props.secretsResolved.length + [...props.secrets, ...props.security, ...props.config].filter((a) => !isOpen(a)).length;
+  if (!count && !decided && !open) return null;
+  return (
+    <>
+      <button className="usage-head security-line" onClick={() => setOpen(true)} title="Every security alert of this computer">
+        <ShieldAlert size={12} />
+        <span>Security</span>
+        <span className="usage-sum">{count ? `${count} open` : 'all clear'}</span>
+        <ChevronRight size={13} className="chevron" />
+      </button>
+      {open && (
+        <SecurityPanel
+          secrets={props.secrets}
+          secretsResolved={props.secretsResolved}
+          security={props.security}
+          config={props.config}
+          projectName={(id) => props.projects.find((p) => p.id === id)?.name ?? ''}
+          selectedId={props.selectedId}
+          onOpenSession={(id) => {
+            setOpen(false);
+            props.onOpenSession(id);
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
 /** Sessions waiting on the user or finished unseen, above the project tree. */
-type Fix = NonNullable<ConfigNeeded['risk']['fix']>;
-
-const FIX_LABEL: Record<Fix, string> = {
-  'deny-env': 'Block reads',
-  'remove-allow': 'Remove rule',
-  'ignore-env': 'Add to .gitignore',
-  'github-secret-scanning': 'Turn on',
-};
-
-const FIX_TITLE: Record<Fix, (risk: ConfigNeeded['risk']) => string> = {
-  'deny-env': () =>
-    'Adds Read(**/.env) and Read(**/.env.*) to the deny rules in .claude/settings.local.json; Orchia then also refuses shell commands that print a .env file',
-  'remove-allow': (risk) => `Removes ${risk.rule} from .claude/settings.local.json`,
-  'ignore-env': (risk) => `Adds ${risk.files?.join(', ') ?? 'the .env files'} to the project's .gitignore`,
-  'github-secret-scanning': () => 'Turns on secret scanning and push protection in the repository settings on GitHub, with your gh login',
-};
-
 function Attention(props: {
   projects: Project[];
   sessions: SessionInfo[];
@@ -206,10 +247,11 @@ function Attention(props: {
     setDismissed(next);
     storage.set(DISMISSED_KEY, JSON.stringify(next));
   };
-  // Security alerts stay until they are decided (fixed, accepted risk, false positive): no plain dismiss.
-  const security = props.security.filter((c) => !c.triage);
-  const secrets = props.secrets.filter((e) => !e.triage);
-  const config = props.config.filter((c) => !c.triage);
+  // Only what can't wait, and not put off with ✕ (Later): the rest is in the Security list.
+  const security = props.security.filter((c) => isOpen(c) && !c.later);
+  const secrets = props.secrets.filter((e) => isOpen(e) && !e.later);
+  const config = props.config.filter((c) => isOpen(c) && !c.later && isUrgent(c));
+  const later = (key: string) => api.laterFinding(key, true).catch(() => {});
   const openSession = (id: string) => {
     const session = props.sessions.find((s) => s.id === id);
     if (session) props.onSelect(session);
@@ -253,68 +295,13 @@ function Attention(props: {
           </div>
         ))}
         {secrets.map((e) => (
-          <SecurityAlertRow
-            key={e.key}
-            alertKey={e.key}
-            mark="Secret"
-            danger
-            title={secretTitle(e)}
-            where={projectName(e.projectId)}
-            detail={secretLine(e)}
-            detailTitle={secretText(e)}
-            selected={e.sessionId === props.selectedId}
-            onOpen={() => openSession(e.sessionId)}
-            revocable
-            actions={
-              e.rotateUrl && (
-                <a className="btn btn-secondary" href={e.rotateUrl} target="_blank" rel="noreferrer" title="Revoke it, then put a new one where it is used">
-                  {revokeLabel(e)} <ExternalLink size={12} />
-                </a>
-              )
-            }
-          />
+          <SecretRow key={e.key} item={e} projectName={projectName(e.projectId)} selected={e.sessionId === props.selectedId} onOpen={() => openSession(e.sessionId)} onLater={later} />
         ))}
         {config.map((c) => (
-          <SecurityAlertRow
-            key={c.key}
-            alertKey={c.key}
-            mark="Config"
-            danger={c.risk.severity === 'high'}
-            title={c.risk.title}
-            where={c.risk.shared ? 'All projects' : projectName(c.projectId)}
-            detail={c.risk.detail}
-            selected={c.sessionId === props.selectedId}
-            onOpen={() => openSession(c.sessionId)}
-            actions={
-              c.risk.fix && (
-                <button
-                  className="btn btn-secondary"
-                  title={FIX_TITLE[c.risk.fix](c.risk)}
-                  onClick={() => api.fixConfigRisk(c.sessionId, c.risk.id)}
-                >
-                  {FIX_LABEL[c.risk.fix]}
-                </button>
-              )
-            }
-          />
+          <ConfigRow key={c.key} item={c} projectName={projectName(c.projectId)} selected={c.sessionId === props.selectedId} onOpen={() => openSession(c.sessionId)} onLater={later} />
         ))}
         {security.map((c) => (
-          <SecurityAlertRow
-            key={c.key}
-            alertKey={c.key}
-            mark="Security"
-            danger
-            title={c.label}
-            where={c.shared ? 'All projects' : projectName(c.projectId)}
-            detail={securityText(c.note)}
-            selected={c.sessionId === props.selectedId}
-            onOpen={() => openSession(c.sessionId)}
-            actions={
-              <a className="btn btn-secondary" href={c.note.url} target="_blank" rel="noreferrer">
-                Details
-              </a>
-            }
-          />
+          <CveRow key={c.key} item={c} projectName={projectName(c.projectId)} selected={c.sessionId === props.selectedId} onOpen={() => openSession(c.sessionId)} onLater={later} />
         ))}
         {signIns.map((c) => (
           <SignInRow

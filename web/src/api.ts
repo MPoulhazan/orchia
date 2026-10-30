@@ -100,6 +100,8 @@ export interface SecurityNeeded {
   note: SecurityNote;
   key: string;
   triage: Triage | null;
+  /** Put off with Later: out of Needs you on this computer, no decision. */
+  later?: boolean;
 }
 
 /** What the user decided about a security alert (server/triage.ts); null while it is open. */
@@ -130,9 +132,14 @@ export interface SecretExposure {
   sessionId: string;
   sessionName: string;
   firstSeenAt: number;
+  lastSeenAt: number;
   count: number;
+  /** When the user said it was revoked; null while open. */
+  resolvedAt: number | null;
   key: string;
   triage: Triage | null;
+  /** Put off with Later: out of Needs you on this computer, no decision. */
+  later?: boolean;
 }
 
 /** A permission setting that lets Claude do more than expected, in a project with a running session. */
@@ -155,6 +162,8 @@ export interface ConfigNeeded {
   };
   key: string;
   triage: Triage | null;
+  /** Put off with Later: out of Needs you on this computer, no decision. */
+  later?: boolean;
 }
 
 export interface SignInNeeded {
@@ -418,6 +427,7 @@ export const api = {
   removeAllowRule: (id: string, rule: string) => request(`/api/sessions/${id}/allow-rules`, 'DELETE', { rule }),
   resolveSecret: (id: string) => request(`/api/secrets/${id}/resolve`, 'POST'),
   triageFinding: (key: string, status: TriageChoice, note = '') => request('/api/findings/triage', 'POST', { key, status, note }),
+  laterFinding: (key: string, later: boolean) => request('/api/findings/later', 'POST', { key, later }),
   fixConfigRisk: (sessionId: string, riskId: string) => request(`/api/sessions/${sessionId}/config-risks/fix`, 'POST', { id: riskId }),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),

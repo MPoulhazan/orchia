@@ -22,6 +22,7 @@ import { configRisks, denyEnvReads, envReadsBlocked, printedEnvFile } from './co
 import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
+import { LaterStore } from './later.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -60,6 +61,7 @@ const sessionStore = new SessionStore(CONFIG_DIR);
 const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
 const triage = new TriageStore();
+const later = new LaterStore();
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
 const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer });
@@ -209,7 +211,12 @@ function state() {
     cloud: cloud.get(),
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
-    secretsExposed: secrets.open().map((e) => ({ ...e, key: secretKey(e.fingerprint), triage: triage.get(secretKey(e.fingerprint)) })),
+    secretsExposed: secrets.open().map((e) => {
+      const key = secretKey(e.fingerprint);
+      return { ...e, key, triage: triage.get(key), later: later.isLater(key, e.lastSeenAt) };
+    }),
+    // Revoked in the last 90 days, for the Security list's history.
+    secretsResolved: secrets.list().filter((e) => e.resolvedAt).map((e) => ({ ...e, key: secretKey(e.fingerprint) })),
     configNeeded: configNeeded(),
   };
 }
@@ -279,7 +286,7 @@ function securityNeeded() {
       if (isShared && shared.has(c.name)) return [];
       shared.add(c.name);
       const key = cveKey(s.projectId, c.name, note.ids, isShared);
-      return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note, key, triage: triage.get(key) }];
+      return [{ sessionId: s.id, projectId: s.projectId, name: c.name, label: c.label, shared: isShared, note, key, triage: triage.get(key), later: later.isLater(key) }];
     }),
   );
 }
@@ -306,7 +313,7 @@ function configNeeded() {
       .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
       .map((risk) => {
         const key = configKey(s.projectId, risk.id, risk.shared);
-        return { sessionId: s.id, projectId: s.projectId, risk, key, triage: triage.get(key) };
+        return { sessionId: s.id, projectId: s.projectId, risk, key, triage: triage.get(key), later: later.isLater(key) };
       }),
   );
 }
@@ -550,6 +557,16 @@ const routes: [string, RegExp, Handler][] = [
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }
+    broadcast();
+    return { ok: true };
+  }],
+
+  // "Later": out of Needs you on this computer, with no decision (Orchia Cloud keeps it open).
+  ['POST', /^\/api\/findings\/later$/, async (req) => {
+    const body = await readJson(req);
+    const key = typeof body.key === 'string' && body.key.length <= 500 && /^(secret|config|cve):/.test(body.key) ? body.key : null;
+    if (!key || typeof body.later !== 'boolean') throw new HttpError(400, 'Expected { key, later }');
+    later.set(key, body.later);
     broadcast();
     return { ok: true };
   }],

@@ -10,6 +10,8 @@ export interface HubState {
   signInNeeded: SignInNeeded[];
   securityNeeded: SecurityNeeded[];
   secretsExposed: SecretExposure[];
+  /** Revoked in the last 90 days, for the Security list's history. */
+  secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
 }
 
@@ -32,7 +34,7 @@ export function useHub() {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], configNeeded: msg.configNeeded ?? [] });
+        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], secretsResolved: msg.secretsResolved ?? [], configNeeded: msg.configNeeded ?? [] });
       };
       ws.onclose = () => {
         if (closed) return;

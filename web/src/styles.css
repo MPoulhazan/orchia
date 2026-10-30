@@ -544,6 +544,12 @@ kbd {
   height: 26px;
   padding: 0 10px;
   font-size: 12px;
+  /* "Revoke on GitHub" stays one line: in a narrow sidebar the buttons wrap as a whole instead. */
+  white-space: nowrap;
+}
+
+.perm-acts[data-small='true'] {
+  flex-wrap: wrap;
 }
 
 /* Allow, with a menu that can save a rule: one button split in two. */
@@ -3748,4 +3754,63 @@ a.btn {
   padding-left: 18px;
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* ---- Security list (local) ------------------------------------------------- */
+
+/* The line under the projects, set like Plan usage's header. */
+.security-line {
+  margin: 6px 12px 0 16px;
+  width: auto;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.security-panel {
+  width: min(720px, 100% - 32px);
+}
+
+.security-section {
+  padding-top: 14px;
+}
+
+.security-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.security-hint,
+.security-empty {
+  margin: 2px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.security-empty {
+  color: var(--text-faint);
+}
+
+.security-decided {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.security-decided li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.security-how {
+  color: var(--text-muted);
 }

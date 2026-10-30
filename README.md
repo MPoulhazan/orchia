@@ -346,8 +346,16 @@ once a day:
   a second guard, for commits made outside Claude too. Private repositories need GitHub's
   paid Secret Protection, so Orchia says nothing there.
 
-A security alert has no plain dismiss: it stays in **Needs you** until it is decided under
-**Resolve**, so alerts don't pile up unread.
+**Needs you** only shows the alerts that can't wait: a secret that reached the model or a
+commit, a serious CVE, permissions left wide open, a secret in git. The others (readable
+`.env` files, a `.env` git would commit, GitHub's scanning off) can wait. **Security · N
+open**, under the projects next to Plan usage, opens the full list: what Needs you shows,
+what you put off, what can wait, and what was decided in the last 90 days, with **Reopen**.
+
+✕ on an alert puts it off (**Later**): it leaves Needs you without a decision and waits in the
+Security list. A secret comes back as soon as it is seen again; anything else after 30 days.
+Orchia Cloud doesn't know about Later: there, the alert stays open until it is decided under
+**Resolve**:
 
 - **Fixed**: on its own for a CVE or a setting, as soon as Orchia no longer sees the
   problem; **I revoked it** for a secret, which only you can do.
@@ -355,7 +363,7 @@ A security alert has no plain dismiss: it stays in **Needs you** until it is dec
   comes back once after that, to be looked at again.
 - **Not a real secret** (or **Not a real issue**) hides it for good: a test token, an example key.
 
-Decisions are kept in `~/.orchia/triage.json`.
+Decisions are kept in `~/.orchia/triage.json`, alerts put off in `~/.orchia/later.json`.
 
 ## Environment
 

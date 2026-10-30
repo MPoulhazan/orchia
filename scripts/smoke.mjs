@@ -311,6 +311,14 @@ try {
   if (!exposed.some((e) => e.source === 'commit' && e.where?.includes('config.ts'))) throw new Error(`No commit alert: ${JSON.stringify(exposed)}`);
   step('refuses a git commit that adds a secret, and raises the alert');
 
+  const commitAlert = exposed.find((e) => e.source === 'commit');
+  await api('POST', '/api/findings/later', { key: commitAlert.key, later: true });
+  const putOff = (await api('GET', '/api/state')).secretsExposed.find((e) => e.key === commitAlert.key);
+  if (!putOff?.later || putOff.triage) throw new Error(`Later did not put it off without a decision: ${JSON.stringify(putOff)}`);
+  await api('POST', '/api/findings/later', { key: commitAlert.key, later: false });
+  if ((await api('GET', '/api/state')).secretsExposed.find((e) => e.key === commitAlert.key)?.later) throw new Error('Back to Needs you did not work');
+  step('Later puts an alert off without deciding, and brings it back');
+
   mkdirSync(`${project}/.claude`, { recursive: true });
   writeFileSync(`${project}/.claude/settings.local.json`, JSON.stringify({ permissions: { deny: ['Read(**/.env)', 'Read(**/.env.*)'] } }));
   await api('POST', `/api/sessions/${id}/queue`, { text: 'Show the env' });
