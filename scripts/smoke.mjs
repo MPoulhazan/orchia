@@ -4,7 +4,7 @@
 // Usage: node scripts/smoke.mjs [path/to/bin/orchia.mjs]
 // Defaults to this repo's bin; CI passes the one installed from the packed tarball.
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -57,6 +57,7 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let cleared = false;
   let clearedLot2 = false;
   let lotsAsked = false;
+  let committed = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -110,6 +111,16 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       lotsAsked = true;
       await hook({ hook_event_name: 'UserPromptSubmit', prompt: '/lots' });
       await hook({ hook_event_name: 'Stop', last_assistant_message: '### Lot 1: Tokens\\nMove colors.\\n\\n### Lot 2: Toggle\\nAdd the button.' });
+      return;
+    }
+    if (lotsAsked && !committed && typed.endsWith('Commit the config\\r')) {
+      // Claude is about to commit a staged AWS key: Orchia should refuse the command.
+      committed = true;
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'Commit the config' });
+      const guard = await hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git add -A && git commit -m "config"' } });
+      out.guard = guard.status === 200 ? await guard.json() : guard.status;
+      writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
+      await hook({ hook_event_name: 'Stop', last_assistant_message: 'The commit was refused.' });
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -269,6 +280,20 @@ try {
   });
   if (asked.length !== 2 || !asked[1].startsWith('### Lot 2: Toggle')) throw new Error(`Unexpected /lots answer: ${JSON.stringify(asked)}`);
   step('/lots restates the plan as lots and opens the editor');
+
+  const git = (args) => execFileSync('git', args, { cwd: project, stdio: 'ignore' });
+  git(['init', '-q']);
+  writeFileSync(`${project}/config.ts`, 'export const key = "AKIAIOSFODNN7EXAMPLE";\n');
+  await api('POST', `/api/sessions/${id}/queue`, { text: 'Commit the config' });
+  const guard = await until('the commit guard answer', async () => JSON.parse(readFileSync(result, 'utf8')).guard);
+  const decision = guard?.hookSpecificOutput;
+  if (decision?.permissionDecision !== 'deny' || !decision.permissionDecisionReason.includes('AWS access key (AKIA…MPLE) in config.ts')) {
+    throw new Error(`Unexpected guard answer: ${JSON.stringify(guard)}`);
+  }
+  if (decision.permissionDecisionReason.includes('AKIAIOSFODNN7EXAMPLE')) throw new Error('The reason shows the whole key');
+  const exposed = (await api('GET', '/api/state')).secretsExposed ?? [];
+  if (!exposed.some((e) => e.source === 'commit' && e.where?.includes('config.ts'))) throw new Error(`No commit alert: ${JSON.stringify(exposed)}`);
+  step('refuses a git commit that adds a secret, and raises the alert');
 
   console.log('\nSmoke test passed');
 } catch (err) {

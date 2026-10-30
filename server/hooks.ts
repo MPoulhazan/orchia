@@ -27,6 +27,9 @@ export interface ActivityUpdate {
 
 // Tools that stop and wait for an answer from the user.
 const ASKING_TOOLS = 'AskUserQuestion|ExitPlanMode';
+const SHELL_TOOLS = 'Bash|PowerShell';
+/** Seconds Claude Code waits for the commit guard before running the command anyway. */
+const GIT_SCAN_WAIT_S = 20;
 // Notification types that mean the session is blocked on the user.
 const WAITING_NOTIFICATIONS = new Set([
   'permission_prompt',
@@ -57,7 +60,9 @@ export function writeHookSettings(dir: string, port: number): string {
   const settings = {
     hooks: {
       UserPromptSubmit: on(),
-      PreToolUse: on(ASKING_TOOLS),
+      // Shell commands too: a git commit or push that would add a secret is refused (commitGuard.ts).
+      // Longer wait: reading a big diff takes time, and a hook that times out lets the command run.
+      PreToolUse: [...on(ASKING_TOOLS), ...on(SHELL_TOOLS, GIT_SCAN_WAIT_S)],
       PermissionRequest: on(undefined, PERMISSION_WAIT_S),
       PostToolUse: on(),
       Notification: on([...WAITING_NOTIFICATIONS].join('|')),
@@ -85,6 +90,8 @@ export function activityFromHook(payload: any): ActivityUpdate | null {
     case 'PostToolUse':
       return { activity: 'working' };
     case 'PreToolUse':
+      // Only the asking tools wait on the user; a shell command comes here for the commit guard.
+      if (payload.tool_name !== 'AskUserQuestion' && payload.tool_name !== 'ExitPlanMode') return null;
       return { activity: 'waiting', detail: payload.tool_name === 'ExitPlanMode' ? 'Plan ready for review' : 'Claude has a question' };
     case 'PermissionRequest':
       return { activity: 'waiting', detail: payload.tool_name ? `Permission to use ${payload.tool_name}` : 'Permission needed' };

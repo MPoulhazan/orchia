@@ -123,7 +123,7 @@ export interface SecretExposure {
   /** "ghp_…a41f" */
   masked: string;
   rotateUrl: string | null;
-  source: 'prompt' | 'tool-input' | 'tool-output';
+  source: 'prompt' | 'tool-input' | 'tool-output' | 'commit';
   /** "Run cat .env.local"; null for a prompt. */
   where: string | null;
   projectId: string;

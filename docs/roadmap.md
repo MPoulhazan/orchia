@@ -151,3 +151,14 @@ from the phone (Orchia Cloud, "Needs you on your phone").
    lot, stop if one fails" box, on by default (clear depends on it).
 4. ~~**Follow the run.**~~ built (`lotRun` in SessionInfo; desktop notifications and phone needs skip the "done" of a lot with more to come). "Lot 2/4" in Up next; a notification (desktop and phone) when the
    last lot is done or one blocks.
+
+## Basic secret rules on every project (agreed 2026-10-29)
+
+1. ~~**Block commits that add a secret.**~~ built (server/commitGuard.ts): PreToolUse on Bash/PowerShell,
+   staged diff (plus what `git add` / `commit -a` stage; for a push, `git log -p @{u}..HEAD`),
+   same fixed-prefix rules as secrets.ts, deny with the masked reason; alert source `commit`.
+   Checked with the real claude CLI: the deny holds even with `Bash(git commit:*)` allowed.
+2. **Scan the project's tracked files**: `.env` and private key files in git, `.env` missing
+   from `.gitignore`, secrets in clear; on project open, then daily.
+3. **Broader .env read protection**: subfolders, `cat`, skip `*.example`.
+4. **GitHub secret scanning status**: check it per repo, offer to turn it on when free.

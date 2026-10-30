@@ -98,6 +98,9 @@ export function SecurityAlertRow(props: {
 
 /** "ghp_…a41f in the output of Run cat .env.local, in Fix auth. It reached the model: revoke it." */
 export function secretText(e: SecretExposure): string {
+  if (e.source === 'commit') {
+    return `${e.masked} in ${e.where ?? 'a commit'}, in ${e.sessionName}. Orchia refused it and told Claude to take the secret out. It also reached the model: revoke it if it is real.`;
+  }
   const where =
     e.source === 'prompt' ? 'in a prompt' : e.source === 'tool-output' ? `in the output of ${e.where ?? 'a tool'}` : `in ${e.where ?? 'a tool call'}`;
   const again = e.count > 1 ? ` Seen ${e.count} times.` : '';

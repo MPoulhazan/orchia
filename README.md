@@ -308,6 +308,13 @@ Google API keys and private keys), so an alert is almost always real. It shows i
 Orchia keeps only the kind of secret, its first and last characters (`ghp_…a41f`) and a
 hash to recognize it again, in `~/.orchia/secrets.json`; never the secret itself.
 
+The same rules guard git: when Claude is about to run `git commit` or `git push`, Orchia
+reads what would go in (the staged changes, plus what the command stages itself with
+`git add` or `commit -a`; for a push, every commit it sends) and refuses the command if it
+adds a secret. Claude is told which secret, masked, and in which file, so it takes it out
+and commits again; the alert shows in **Needs you** and on Orchia Cloud. Only Claude's
+commands are checked, not commits you type yourself.
+
 Permission settings that let Claude do more than you may think show in **Needs you** too,
 for projects with a running session:
 

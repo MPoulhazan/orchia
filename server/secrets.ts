@@ -73,8 +73,15 @@ function mask(kind: string, value: string): string {
   return `${prefix}…${value.slice(-4)}`;
 }
 
-/** Where a secret showed up: `Your prompt`, `Output of Run cat .env.local`. */
-export type SecretSource = 'prompt' | 'tool-input' | 'tool-output';
+/** "GitHub token reached the model" / "in a commit Orchia blocked", and where, as alerts word it. */
+export function exposureText(e: Pick<SecretExposure, 'label' | 'masked' | 'source' | 'where'>): { title: string; detail: string } {
+  if (e.source === 'commit') return { title: `${e.label} in a commit Orchia blocked`, detail: `${e.masked} in ${e.where ?? 'a commit'}` };
+  const where = e.source === 'prompt' ? 'in a prompt' : e.source === 'tool-output' ? `in the output of ${e.where ?? 'a tool'}` : `in ${e.where ?? 'a tool call'}`;
+  return { title: `${e.label} reached the model`, detail: `${e.masked} ${where}` };
+}
+
+/** Where a secret showed up: `Your prompt`, `Output of Run cat .env.local`; `commit`, in a commit or push Orchia blocked. */
+export type SecretSource = 'prompt' | 'tool-input' | 'tool-output' | 'commit';
 
 export interface SecretSighting {
   hit: SecretHit;
@@ -160,6 +167,11 @@ export class SecretStore {
       if (known) {
         known.lastSeenAt = now;
         known.count++;
+        // About to be committed is worse than seen by the model: say so, and open it again if it was closed.
+        if (source === 'commit' && known.source !== 'commit') {
+          Object.assign(known, { source, where: at.where === null ? null : redactSecrets(at.where), resolvedAt: null });
+          changed = true;
+        }
         continue;
       }
       // The command or file that showed it often holds the secret itself: `echo $TOKEN` expanded.

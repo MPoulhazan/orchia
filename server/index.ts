@@ -16,7 +16,8 @@ import { CloudLink, type RemoteFinding, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
-import { SecretStore, redactSecrets, secretsInHook } from './secrets.ts';
+import { SecretStore, exposureText, redactSecrets, secretsInHook } from './secrets.ts';
+import { blockedReason, secretsInGitCommand } from './commitGuard.ts';
 import { configRisks, denyEnvReads } from './configRisks.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
@@ -110,8 +111,8 @@ function remoteSecurity(): RemoteFinding[] | null {
     id: secretKey(e.fingerprint),
     category: 'secret',
     severity: e.severity,
-    title: `${e.label} reached the model`,
-    detail: clip(`${e.masked} ${e.source === 'prompt' ? 'in a prompt' : e.source === 'tool-output' ? `in the output of ${e.where ?? 'a tool'}` : `in ${e.where ?? 'a tool call'}`}`, 300),
+    title: exposureText(e).title,
+    detail: clip(exposureText(e).detail, 300),
     project: projectName(e.projectId),
     session: clip(e.sessionName, 80),
     fixUrl: e.rotateUrl,
@@ -991,6 +992,9 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse) {
   watchSecrets(session, payload);
 
   if (payload?.hook_event_name === 'PermissionRequest' && payload.tool_name === 'ExitPlanMode') return holdPlan(session, payload, res);
+  if (payload?.hook_event_name === 'PreToolUse' && (payload.tool_name === 'Bash' || payload.tool_name === 'PowerShell')) {
+    return guardCommit(session, payload, res);
+  }
   const ask = payload?.hook_event_name === 'PermissionRequest' ? permissionAsk(payload, session.cwd) : null;
   if (!ask || session.status !== 'running') return res.writeHead(204).end();
   let timer: NodeJS.Timeout;
@@ -1014,6 +1018,20 @@ function watchSecrets(session: Session, payload: any) {
   const ask = payload.hook_event_name === 'PostToolUse' ? permissionAsk(payload, session.cwd) : null;
   const where = ask ? `${ask.verb} ${ask.target}`.slice(0, 200) : null;
   if (secrets.record(sightings, { projectId: session.projectId, sessionId: session.id, sessionName: session.name, where })) broadcast();
+}
+
+/** Refuses a git commit or push that would add a secret, tells Claude why, and raises the alert. */
+async function guardCommit(session: Session, payload: any, res: http.ServerResponse) {
+  const blocked = await secretsInGitCommand(payload.tool_input?.command, session.cwd);
+  if (!blocked) return res.writeHead(204).end();
+  const files = [...new Set(blocked.secrets.map((s) => s.file))].join(', ');
+  const where = `${blocked.action === 'push' ? 'a push' : 'a commit'} of ${files}`;
+  const sightings = blocked.secrets.map((s) => ({ hit: s.hit, source: 'commit' as const }));
+  secrets.record(sightings, { projectId: session.projectId, sessionId: session.id, sessionName: session.name, where });
+  broadcast();
+  sendJson(res, 200, {
+    hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: blockedReason(blocked) },
+  });
 }
 
 /**
