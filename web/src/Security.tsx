@@ -19,7 +19,7 @@ export function SecurityAlertRow(props: {
   detailTitle?: string;
   selected: boolean;
   onOpen: () => void;
-  /** The alert's own fix, its one main action: Revoke on GitHub, Block reads, Details. */
+  /** The alert's own fix, its one main action: Revoke on GitHub, Hide from Claude, Details. */
   actions?: ReactNode;
   /** A secret can be marked revoked by hand ("I revoked it"); anything else is fixed once Orchia no longer sees it. */
   revocable?: boolean;
@@ -130,7 +130,7 @@ export const isOpen = (a: { triage: unknown }) => !a.triage;
 type Fix = NonNullable<ConfigNeeded['risk']['fix']>;
 
 const FIX_LABEL: Record<Fix, string> = {
-  'deny-env': 'Block reads',
+  'deny-env': 'Hide from Claude',
   'remove-allow': 'Remove rule',
   'ignore-env': 'Add to .gitignore',
   'github-secret-scanning': 'Turn on',
@@ -138,7 +138,7 @@ const FIX_LABEL: Record<Fix, string> = {
 
 const FIX_TITLE: Record<Fix, (risk: ConfigNeeded['risk']) => string> = {
   'deny-env': () =>
-    'Adds Read(**/.env) and Read(**/.env.*) to the deny rules in .claude/settings.local.json; Orchia then also refuses shell commands that print a .env file',
+    'Claude can no longer open .env files or print them in a command; your app is not affected. Adds Read(**/.env) and Read(**/.env.*) to the deny rules in .claude/settings.local.json',
   'remove-allow': (risk) => `Removes ${risk.rule} from .claude/settings.local.json`,
   'ignore-env': (risk) => `Adds ${risk.files?.join(', ') ?? 'the .env files'} to the project's .gitignore`,
   'github-secret-scanning': () => 'Turns on secret scanning and push protection in the repository settings on GitHub, with your gh login',

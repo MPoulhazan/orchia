@@ -124,8 +124,11 @@ export function configRisks(cwd: string): ConfigRisk[] {
     risks.push({
       id: 'env-readable',
       severity: 'moderate',
-      title: '.env files can be read',
-      detail: `${readable.slice(0, 3).join(', ')}${readable.length > 3 ? '…' : ''}: no deny rule stops Claude from reading ${readable.length > 1 ? 'them' : 'it'} and sending the secrets to the model.`,
+      title: readable.length > 1 ? `Claude can read ${readable.length} .env files` : `Claude can read ${readable[0]}`,
+      detail:
+        readable.length > 1
+          ? `${readable.slice(0, 3).join(', ')}${readable.length > 3 ? '…' : ''}: their secrets could be sent to Anthropic in a chat. Your app still reads them normally.`
+          : 'Its secrets could be sent to Anthropic in a chat. Your app still reads it normally.',
       file: '.claude/settings.local.json',
       shared: false,
       fix: 'deny-env',

@@ -323,7 +323,7 @@ for projects with a running session:
 - an allow rule for every shell command (`Bash`, `Bash(*)`), with **Remove rule** when it
   is in the project's `.claude/settings.local.json`;
 - `defaultMode: bypassPermissions`, which skips every prompt;
-- `.env` files in the project, subfolders included, with no deny rule: **Block reads** adds
+- `.env` files in the project, subfolders included, with no deny rule: **Hide from Claude** adds
   `Read(**/.env)` and `Read(**/.env.*)` to the deny rules of `.claude/settings.local.json`.
   Templates (`.env.example`…) and files holding only browser-public `VITE_`… values don't
   raise the alert, but the rules can't leave templates out, so Claude can't read those

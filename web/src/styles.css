@@ -487,6 +487,8 @@ kbd {
 }
 
 .attention-project {
+  flex: 0 100 auto;
+  min-width: 3ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
