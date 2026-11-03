@@ -650,6 +650,34 @@ kbd {
   margin-top: 2px;
 }
 
+/* Moving a project: it fades, and a line shows where it will land. */
+.tree-group {
+  position: relative;
+}
+
+.tree-group[data-dragging='true'] {
+  opacity: 0.5;
+}
+
+.tree-group[data-drop]::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.tree-group[data-drop='before']::after {
+  top: -2px;
+}
+
+.tree-group[data-drop='after']::after {
+  bottom: -2px;
+}
+
 .tree-project,
 .tree-session,
 .tree-new {
@@ -1282,6 +1310,20 @@ kbd {
 .pane[data-compact='true'][data-active='true'] {
   border-color: var(--focus);
   box-shadow: 0 0 0 1px var(--focus);
+}
+
+/* Moving a grid pane by its header: the pane being moved fades, the one it would swap with is outlined. */
+.pane-bar[draggable='true'] {
+  cursor: grab;
+}
+
+.pane[data-drag='source'] {
+  opacity: 0.5;
+}
+
+.pane[data-drag='target'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .grid-view {

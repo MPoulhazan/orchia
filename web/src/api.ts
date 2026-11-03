@@ -400,6 +400,7 @@ const wsBase = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${locat
 export const api = {
   addProject: (path: string) => request<Project>('/api/projects', 'POST', { path }),
   removeProject: (id: string) => request('/api/projects/' + id, 'DELETE'),
+  reorderProjects: (ids: string[]) => request('/api/projects/order', 'POST', { ids }),
   /** Where a GitHub repository would be cloned, or the clone already there. */
   cloneTarget: (url: string) => request<{ repo: string; path: string; existing: boolean }>(`/api/projects/clone?url=${encodeURIComponent(url)}`),
   /** Aborting `signal` stops the clone and removes what it wrote. */

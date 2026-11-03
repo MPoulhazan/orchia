@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Folder, FolderPlus } from 'lucide-react';
 import { api, type Project, type SessionInfo, type Suggestion } from './api';
 import { useHub } from './useHub';
@@ -26,6 +26,8 @@ const GRID_KEY = 'orchia.grid';
 const LAYOUT_KEY = 'orchia.gridLayout';
 const INSPECTOR_KEY = 'orchia.inspector';
 type GridLayout = '2x2' | '3x2';
+/** Our own drag type, so the terminal (which only takes files) and the sidebar ignore a moving pane. */
+const PANE_MIME = 'application/x-orchia-pane';
 const GRID_CAPACITY: Record<GridLayout, number> = { '2x2': 4, '3x2': 6 };
 
 function readGrid(): string[] {
@@ -58,6 +60,7 @@ export function App() {
   const [askWhere, setAskWhere] = useState<{ project: Project; busy: string[] } | null>(null);
   const [skillsChange, setSkillsChange] = useState<SkillsChange>({ n: 0, reload: false });
   const pendingId = useRef<string | null>(null);
+  const [dragPane, setDragPane] = useState<{ from: string; over: string | null } | null>(null);
   const lastProjectId = useRef<string | null>(null);
 
   const projects = state?.projects ?? [];
@@ -172,6 +175,47 @@ export function App() {
     setViewState(next);
     storage.set(VIEW_KEY, next);
     refocus();
+  }
+
+  /** Grid panes trade places: the one dragged by its header and the one it is dropped on. */
+  function gridDrag(id: string) {
+    const isPane = (e: DragEvent) => e.dataTransfer.types.includes(PANE_MIME);
+    return {
+      bar: {
+        draggable: gridSessions.length > 1,
+        onDragStart: (e: DragEvent) => {
+          e.dataTransfer.setData(PANE_MIME, id);
+          e.dataTransfer.effectAllowed = 'move';
+          setDragPane({ from: id, over: null });
+        },
+        onDragEnd: () => setDragPane(null),
+      },
+      pane: {
+        onDragOver: (e: DragEvent) => {
+          if (!isPane(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setDragPane((d) => (d && d.over !== id ? { ...d, over: id } : d));
+        },
+        onDragLeave: (e: DragEvent) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+          setDragPane((d) => (d?.over === id ? { ...d, over: null } : d));
+        },
+        onDrop: (e: DragEvent) => {
+          if (!isPane(e)) return;
+          e.preventDefault();
+          const from = e.dataTransfer.getData(PANE_MIME);
+          setDragPane(null);
+          const ids = gridSessions.map((s) => s.id);
+          const i = ids.indexOf(from);
+          const j = ids.indexOf(id);
+          if (i < 0 || j < 0 || i === j) return;
+          [ids[i], ids[j]] = [ids[j], ids[i]];
+          saveGrid(ids);
+        },
+      },
+      state: dragPane?.from === id ? ('source' as const) : dragPane?.over === id ? ('target' as const) : undefined,
+    };
   }
 
   function toggleGrid(id: string) {
@@ -351,10 +395,15 @@ export function App() {
               </header>
             {gridSessions.length ? (
               <div className="grid" data-count={gridSessions.length}>
-                {gridSessions.map((s) => (
+                {gridSessions.map((s) => {
+                  const drag = gridDrag(s.id);
+                  return (
                   <SessionPane
                     key={s.id}
                     compact
+                    barDrag={drag.bar}
+                    paneDrop={drag.pane}
+                    dragState={drag.state}
                     session={s}
                     project={projectOf(s)}
                     theme={terminalTheme}
@@ -364,7 +413,8 @@ export function App() {
                     onMaximize={() => maximize(s.id)}
                     onToggleGrid={() => toggleGrid(s.id)}
                   />
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="empty">

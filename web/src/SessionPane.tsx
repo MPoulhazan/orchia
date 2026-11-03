@@ -2,7 +2,7 @@ import type { ITheme } from '@xterm/xterm';
 import { CircleDot, GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, SquareTerminal, X } from 'lucide-react';
 import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
-import { useState } from 'react';
+import { useState, type HTMLAttributes } from 'react';
 import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
@@ -25,6 +25,10 @@ interface Props {
   onActivate?: () => void;
   onMaximize?: () => void;
   onToggleGrid?: () => void;
+  /** Grid only: the header is the handle that moves the pane, the whole pane is where another one lands. */
+  barDrag?: HTMLAttributes<HTMLElement>;
+  paneDrop?: HTMLAttributes<HTMLElement>;
+  dragState?: 'source' | 'target';
   /** Focus view only: the inspector button. */
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
@@ -33,7 +37,7 @@ interface Props {
 }
 
 export function SessionPane(props: Props) {
-  const { session, project, theme, compact, tabbed, active, focusKey, inGrid, onActivate, onMaximize, onToggleGrid } = props;
+  const { session, project, theme, compact, tabbed, active, focusKey, inGrid, onActivate, onMaximize, onToggleGrid, barDrag, paneDrop, dragState } = props;
   const exited = session.status === 'exited';
   const paused = session.status === 'suspended';
   // A session in its own copy has a Changes tab next to its terminal (focus view only).
@@ -42,8 +46,8 @@ export function SessionPane(props: Props) {
   const changes = useCopyChanges(session, !compact);
 
   return (
-    <section className="pane" data-compact={compact} data-tabbed={tabbed} data-active={active} data-status={statusOf(session)} onFocusCapture={onActivate} onMouseDown={onActivate}>
-      <header className="pane-bar" onDoubleClick={compact ? onMaximize : undefined}>
+    <section {...paneDrop} className="pane" data-compact={compact} data-tabbed={tabbed} data-active={active} data-status={statusOf(session)} data-drag={dragState} onFocusCapture={onActivate} onMouseDown={onActivate}>
+      <header {...barDrag} className="pane-bar" onDoubleClick={compact ? onMaximize : undefined}>
         {compact && <StatusDot session={session} />}
         {tabbed ? (
           <div className="crumbs">

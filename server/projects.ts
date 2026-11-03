@@ -106,6 +106,14 @@ export class ProjectStore {
     this.save();
   }
 
+  /** Put the projects in the given order; ids it leaves out (added meanwhile) keep their place after them. */
+  reorder(ids: string[]) {
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const ranked = this.config.projects.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+    this.config.projects = [...ranked, ...this.config.projects.filter((p) => !rank.has(p.id))];
+    this.save();
+  }
+
   remove(id: string) {
     this.config.projects = this.config.projects.filter((p) => p.id !== id);
     this.save();

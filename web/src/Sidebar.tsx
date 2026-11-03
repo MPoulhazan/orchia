@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, ShieldAlert, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
 import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from './Security';
@@ -40,14 +40,44 @@ interface Props {
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
 const DISMISSED_KEY = 'orchia.dismissedSignIns';
 
+/** Our own drag type, so the terminal and the grid ignore a moving project. */
+const PROJECT_MIME = 'application/x-orchia-project';
+/** Place in a dropped order; projects it does not know yet go last. */
+const rankIn = (order: string[], id: string) => {
+  const i = order.indexOf(id);
+  return i < 0 ? order.length : i;
+};
+
 /** A sign-in shared by every project is dismissed everywhere; a project's own, in that project only. */
 const signInKey = (c: SignInNeeded) => (c.shared ? c.name : `${c.projectId}:${c.name}`);
 
 export function Sidebar(props: Props) {
-  const { projects, sessions, selectedId } = props;
+  const { sessions, selectedId } = props;
   const [collapsed, setCollapsed] = useState<Set<string>>(
     () => new Set(JSON.parse(storage.get(COLLAPSED_KEY) ?? '[]')),
   );
+  // A dropped project moves at once; the server's order takes over once it says the same.
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [drag, setDrag] = useState<{ from: string; over: string | null; after: boolean } | null>(null);
+  const serverOrder = props.projects.map((p) => p.id).join();
+  useEffect(() => {
+    if (order && order.join() === serverOrder) setOrder(null);
+  }, [order, serverOrder]);
+  const projects = order
+    ? [...props.projects].sort((a, b) => rankIn(order, a.id) - rankIn(order, b.id))
+    : props.projects;
+
+  const isProject = (e: DragEvent) => e.dataTransfer.types.includes(PROJECT_MIME);
+  const dropProject = (target: string, after: boolean) => {
+    const from = drag?.from;
+    setDrag(null);
+    if (!from || from === target) return;
+    const ids = projects.map((p) => p.id).filter((id) => id !== from);
+    ids.splice(ids.indexOf(target) + (after ? 1 : 0), 0, from);
+    if (ids.join() === projects.map((p) => p.id).join()) return;
+    setOrder(ids);
+    api.reorderProjects(ids).catch(() => setOrder(null));
+  };
 
   const toggle = (id: string) => {
     const next = new Set(collapsed);
@@ -101,8 +131,41 @@ export function Sidebar(props: Props) {
           const isCollapsed = collapsed.has(project.id);
           const running = own.filter((s) => s.status === 'running').length;
           return (
-            <div key={project.id} className="tree-group">
-              <div className="tree-project" onClick={() => toggle(project.id)} title={project.path}>
+            <div
+              key={project.id}
+              className="tree-group"
+              data-dragging={drag?.from === project.id || undefined}
+              data-drop={drag?.over === project.id && drag.from !== project.id ? (drag.after ? 'after' : 'before') : undefined}
+              onDragOver={(e) => {
+                if (!isProject(e)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const box = e.currentTarget.getBoundingClientRect();
+                const after = e.clientY > box.top + box.height / 2;
+                setDrag((d) => (d && (d.over !== project.id || d.after !== after) ? { ...d, over: project.id, after } : d));
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                setDrag((d) => (d?.over === project.id ? { ...d, over: null } : d));
+              }}
+              onDrop={(e) => {
+                if (!isProject(e)) return;
+                e.preventDefault();
+                dropProject(project.id, drag?.after ?? false);
+              }}
+            >
+              <div
+                className="tree-project"
+                onClick={() => toggle(project.id)}
+                title={project.path}
+                draggable={projects.length > 1}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(PROJECT_MIME, project.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDrag({ from: project.id, over: null, after: false });
+                }}
+                onDragEnd={() => setDrag(null)}
+              >
                 <ChevronRight size={13} className={`chevron ${isCollapsed ? '' : 'is-open'}`} />
                 <span className="tree-label">{project.name}</span>
                 {isCollapsed && running > 0 && <span className="tree-count">{running}</span>}

@@ -614,6 +614,16 @@ const routes: [string, RegExp, Handler][] = [
       req.socket.off('close', onClose);
     }
   }],
+  ['POST', /^\/api\/projects\/order$/, async (req) => {
+    const body = await readJson(req);
+    const ids = body.ids;
+    if (!Array.isArray(ids) || ids.length > 1000 || !ids.every((id) => typeof id === 'string')) {
+      throw new HttpError(400, 'Expected { ids: string[] }');
+    }
+    projects.reorder(ids);
+    broadcast();
+    return { ok: true };
+  }],
   ['PATCH', /^\/api\/projects\/([\w-]+)$/, async (req, _url, [id]) => {
     const body = await readJson(req);
     if (!isCopyMode(body.copyMode)) throw new HttpError(400, 'Expected { copyMode: "ask" | "copy" | "same" }');
