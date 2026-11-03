@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "One local dashboard for all your Claude Code sessions, organized by project",
   "license": "MIT",
-  "author": "Mickael POULHAZAN",
+  "author": "The Orchia authors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MPoulhazan/orchia.git"
