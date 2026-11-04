@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, FilePen, Hand, ListChecks, Shield, Zap, type LucideIcon } from 'lucide-react';
 import { api, type PermissionMode, type SessionInfo } from './api';
 import { MODE_SHORTCUT, PERMISSION_HELP, permissionHelp } from './help';
+import { DiscoveryDot, markDiscovered, useUndiscovered } from './discovery';
 
 export const OFFERED: PermissionMode[] = ['manual', 'acceptEdits', 'plan', 'auto'];
 
@@ -22,9 +23,11 @@ export function ModeChip({ session }: { session: SessionInfo }) {
   const busy = session.status === 'running' && (session.activity === 'working' || session.activity === 'waiting');
   const help = permissionHelp(current);
   const Icon = (current && ICONS[current]) || Shield;
+  const fresh = useUndiscovered('mode');
 
   useEffect(() => {
     if (!open) return;
+    markDiscovered('mode');
     setChoice(current);
     setError('');
     const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -58,6 +61,7 @@ export function ModeChip({ session }: { session: SessionInfo }) {
         <Icon size={13} className="mode-chip-icon" />
         <span>{current ? help.label : 'Default mode'}</span>
         <ChevronDown size={12} />
+        {fresh && <DiscoveryDot />}
       </button>
 
       {open && (

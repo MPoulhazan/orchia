@@ -65,7 +65,7 @@ export function SessionPane(props: Props) {
         )}
         {!compact &&
           (session.copy ? (
-            <Help className="pane-path-help" entry={{ ...HELP.ownCopy, detail: `${session.copy.branch} · ${session.cwd}` }}>
+            <Help className="pane-path-help" discover="ownCopy" entry={{ ...HELP.ownCopy, detail: `${session.copy.branch} · ${session.cwd}` }}>
               <span className="pane-path pane-copy">
                 <GitBranch size={13} />
                 {session.copy.branch}
@@ -227,7 +227,7 @@ function ViewToggle({ count, showChanges, onChange }: { count: number; showChang
         <SquareTerminal size={13} />
         Terminal
       </button>
-      <Help entry={HELP.changes}>
+      <Help entry={HELP.changes} discover="changes">
         <button role="tab" aria-selected={showChanges} onClick={() => onChange(true)}>
           Changes
           {count > 0 && <span className="view-count">{count}</span>}

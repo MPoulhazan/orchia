@@ -58,7 +58,7 @@ export function UpNext({ session }: { session: SessionInfo }) {
         <div className="upnext-head">
           <ListOrdered size={13} />
           <b>
-            <Help entry={HELP.upNext} term>
+            <Help entry={HELP.upNext} term discover="upNext">
               Up next
             </Help>
           </b>

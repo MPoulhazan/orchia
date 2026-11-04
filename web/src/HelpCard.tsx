@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { HelpEntry } from './help';
+import { DiscoveryDot, markDiscovered, useUndiscovered } from './discovery';
 
 const WIDTH = 280;
 const OPEN_DELAY = 350;
@@ -11,7 +12,21 @@ const CLOSE_DELAY = 150;
  * when to use it. `term` draws the dotted underline and takes taps; leave it off to wrap
  * something already clickable (a tab, a chip), which then explains itself on hover and focus.
  */
-export function Help({ entry, children, term = false, className = '' }: { entry: HelpEntry; children: ReactNode; term?: boolean; className?: string }) {
+export function Help({
+  entry,
+  children,
+  term = false,
+  className = '',
+  discover,
+}: {
+  entry: HelpEntry;
+  children: ReactNode;
+  term?: boolean;
+  className?: string;
+  /** Shows a dot until this card has been opened once (discovery.tsx). */
+  discover?: string;
+}) {
+  const fresh = useUndiscovered(discover);
   const [at, setAt] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const anchor = useRef<HTMLSpanElement>(null);
   const timer = useRef<number>(0);
@@ -19,6 +34,7 @@ export function Help({ entry, children, term = false, className = '' }: { entry:
   const show = () => {
     const r = anchor.current?.getBoundingClientRect();
     if (!r) return;
+    if (discover) markDiscovered(discover);
     const left = Math.max(8, Math.min(r.left, window.innerWidth - WIDTH - 8));
     // Below the word, or above it when the bottom of the window is close.
     setAt(window.innerHeight - r.bottom < 180 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
@@ -60,6 +76,7 @@ export function Help({ entry, children, term = false, className = '' }: { entry:
       onKeyDown={term ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), at ? setAt(null) : show()) : undefined}
     >
       {children}
+      {fresh && <DiscoveryDot />}
       {at &&
         createPortal(
           <span className="help-card" role="tooltip" style={{ ...at, width: WIDTH }}>

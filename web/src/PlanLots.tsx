@@ -39,7 +39,7 @@ export function PlanLots({ session }: { session: SessionInfo }) {
           <ListOrdered size={13} />
           <b>
             {fromPlan ? 'This plan' : "Claude's answer"} has {found.length}{' '}
-            <Help entry={HELP.lots} term>
+            <Help entry={HELP.lots} term discover="lots">
               lots
             </Help>
             .
