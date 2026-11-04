@@ -9,6 +9,8 @@ export interface HelpEntry {
   text: string;
   /** When to reach for it. */
   when?: string;
+  /** A path or name specific to where it shows, in monospace. */
+  detail?: string;
 }
 
 export const PERMISSION_HELP = {
@@ -57,3 +59,31 @@ export function permissionHelp(mode: string | null): HelpEntry {
 
 /** How to switch modes without Orchia: Claude Code's own shortcut. */
 export const MODE_SHORTCUT = 'Shift+Tab in the terminal also cycles through the modes.';
+
+/** The other words a new user meets in a session, each explained where it shows up. */
+export const HELP = {
+  effort: {
+    label: 'Effort',
+    text: 'How hard Claude thinks before answering. Higher is slower and uses more of your plan.',
+    when: 'Raise it for a tricky bug or a design question. Lower it for quick edits.',
+  },
+  ownCopy: {
+    label: 'Own copy',
+    text: 'This session works in its own copy of the repository, on its own branch. Your project folder stays untouched until you merge.',
+    when: 'To run several sessions on one project without them overwriting each other.',
+  },
+  changes: {
+    label: 'Changes',
+    text: 'What this copy changed compared to your project, file by file. Merge brings those changes into your project folder.',
+  },
+  lots: {
+    label: 'Lots',
+    text: 'A plan cut into steps that Claude runs one at a time. Each lot starts once the previous one reports done, and a blocked lot holds the rest.',
+    when: 'For a change too big for one go, so you can check each step.',
+  },
+  upNext: {
+    label: 'Up next',
+    text: 'Prompts waiting their turn. Orchia sends the next one as soon as Claude finishes the current task.',
+    when: 'Type your next request while Claude is still working.',
+  },
+} satisfies Record<string, HelpEntry>;

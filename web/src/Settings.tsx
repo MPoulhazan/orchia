@@ -3,7 +3,7 @@ import { Monitor, Moon, Sun, X } from 'lucide-react';
 import { api, type CloudStatus, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
-import { permissionHelp } from './help';
+import { HELP, permissionHelp } from './help';
 import type { NotifyState } from './notifications';
 import { useSmoothScroll, type SmoothScrollPref } from './smoothScroll';
 
@@ -95,7 +95,7 @@ export function SettingsDialog(props: {
             <Field label="Model" description="Model new sessions start with. You can still change it per session.">
               <Options items={MODELS} value={settings.model} onChange={(model) => change({ model })} />
             </Field>
-            <Field label="Effort" description="How hard Claude thinks before answering. Higher is slower and uses more of your plan.">
+            <Field label="Effort" description={HELP.effort.text}>
               <Options items={EFFORTS} value={settings.effort} onChange={(effort) => change({ effort })} />
             </Field>
             <Field label="Permissions" description={mode.description}>

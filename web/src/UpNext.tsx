@@ -1,6 +1,8 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
 import { GripVertical, ListOrdered, Plus, X } from 'lucide-react';
 import { api, type SessionInfo } from './api';
+import { Help } from './HelpCard';
+import { HELP } from './help';
 import { queuedIssue } from './Issues';
 
 /** Shown under the terminal while Claude works, or while prompts wait. */
@@ -55,7 +57,11 @@ export function UpNext({ session }: { session: SessionInfo }) {
       {(queue.length > 0 || run?.state === 'running') && (
         <div className="upnext-head">
           <ListOrdered size={13} />
-          <b>Up next</b>
+          <b>
+            <Help entry={HELP.upNext} term>
+              Up next
+            </Help>
+          </b>
           {run?.state === 'running' && (
             <span className="issue-tag" title={`Running a plan in ${run.total} lots`}>
               Lot {run.n}/{run.total}

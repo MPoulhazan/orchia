@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ListOrdered, X } from 'lucide-react';
 import { api, type SessionInfo } from './api';
+import { Help } from './HelpCard';
+import { HELP } from './help';
 
 /** Shown under the terminal while Claude waits on a plan that splits into lots, or after an answer in lots. */
 export function showPlanLots(session: SessionInfo): boolean {
@@ -35,7 +37,13 @@ export function PlanLots({ session }: { session: SessionInfo }) {
       <div className="planlots" aria-label="Plan in lots">
         <div className="upnext-head">
           <ListOrdered size={13} />
-          <b>{fromPlan ? 'This plan' : "Claude's answer"} has {found.length} lots.</b>
+          <b>
+            {fromPlan ? 'This plan' : "Claude's answer"} has {found.length}{' '}
+            <Help entry={HELP.lots} term>
+              lots
+            </Help>
+            .
+          </b>
           <span className="upnext-hint">
             {fromPlan
               ? 'Run them one at a time, or answer in the terminal to approve it all.'

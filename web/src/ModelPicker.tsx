@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { api, type SessionInfo } from './api';
+import { Help } from './HelpCard';
+import { HELP } from './help';
 
 export const MODELS = [
   { value: null, label: 'Default' },
@@ -87,7 +89,11 @@ export function ModelPicker({ session }: { session: SessionInfo }) {
               </button>
             ))}
           </div>
-          <div className="model-group">Effort</div>
+          <div className="model-group">
+            <Help entry={HELP.effort} term>
+              Effort
+            </Help>
+          </div>
           <div className="option-row">
             {EFFORTS.map((e) => (
               <button key={e.label} className="option" aria-pressed={effort === e.value} onClick={() => setEffort(e.value)}>

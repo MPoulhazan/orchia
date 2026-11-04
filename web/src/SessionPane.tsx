@@ -7,6 +7,8 @@ import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
 import { ModeChip } from './ModeChip';
+import { Help } from './HelpCard';
+import { HELP } from './help';
 import { PermissionButtons, PermissionText } from './Permission';
 import { PlanLots, showPlanLots } from './PlanLots';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
@@ -63,10 +65,12 @@ export function SessionPane(props: Props) {
         )}
         {!compact &&
           (session.copy ? (
-            <span className="pane-path pane-copy" title={`Works in its own copy: ${session.cwd}`}>
-              <GitBranch size={13} />
-              {session.copy.branch}
-            </span>
+            <Help className="pane-path-help" entry={{ ...HELP.ownCopy, detail: `${session.copy.branch} · ${session.cwd}` }}>
+              <span className="pane-path pane-copy">
+                <GitBranch size={13} />
+                {session.copy.branch}
+              </span>
+            </Help>
           ) : (
             <span className="pane-path" title={session.cwd}>
               {session.cwd}
@@ -223,10 +227,12 @@ function ViewToggle({ count, showChanges, onChange }: { count: number; showChang
         <SquareTerminal size={13} />
         Terminal
       </button>
-      <button role="tab" aria-selected={showChanges} title="What this copy changed, and merging it" onClick={() => onChange(true)}>
-        Changes
-        {count > 0 && <span className="view-count">{count}</span>}
-      </button>
+      <Help entry={HELP.changes}>
+        <button role="tab" aria-selected={showChanges} onClick={() => onChange(true)}>
+          Changes
+          {count > 0 && <span className="view-count">{count}</span>}
+        </button>
+      </Help>
     </div>
   );
 }
