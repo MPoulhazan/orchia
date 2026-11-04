@@ -3,10 +3,10 @@ import { Check, ChevronDown, FilePen, Hand, ListChecks, Shield, Zap, type Lucide
 import { api, type PermissionMode, type SessionInfo } from './api';
 import { MODE_SHORTCUT, PERMISSION_HELP, permissionHelp } from './help';
 
-const OFFERED: PermissionMode[] = ['manual', 'acceptEdits', 'plan', 'auto'];
+export const OFFERED: PermissionMode[] = ['manual', 'acceptEdits', 'plan', 'auto'];
 
 // Sits next to the model chip, which can also read "Default": the icon tells them apart.
-const ICONS: Record<string, LucideIcon> = { manual: Hand, acceptEdits: FilePen, plan: ListChecks, auto: Zap };
+export const ICONS: Record<string, LucideIcon> = { manual: Hand, acceptEdits: FilePen, plan: ListChecks, auto: Zap };
 
 /**
  * Shows the session's permission mode, as Claude Code last reported it (so Shift+Tab in the

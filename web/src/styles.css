@@ -4018,3 +4018,22 @@ a.btn {
   font-size: 11.5px;
   overflow-wrap: anywhere;
 }
+
+/* Ctrl K: a glossary entry, opened with Enter. */
+.palette-help {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 10px 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--selected);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.palette-help b {
+  color: var(--text);
+}

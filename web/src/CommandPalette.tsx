@@ -20,8 +20,11 @@ import {
   Settings,
   Square,
   Sun,
+  CircleHelp,
 } from 'lucide-react';
-import { api, type FolderListing, type Project, type Suggestion } from './api';
+import { api, type FolderListing, type Project, type SessionInfo, type Suggestion } from './api';
+import { HELP, PERMISSION_HELP, matchesHelp, type HelpEntry } from './help';
+import { ICONS as MODE_ICONS, OFFERED as MODES } from './ModeChip';
 import { fuzzyScore } from './fuzzy';
 import { parseGitHubSource } from '../../server/githubSource';
 import type { ThemePref } from './theme';
@@ -43,6 +46,8 @@ interface Props {
   initialMode: PaletteMode;
   projects: Project[];
   currentProject: Project | null;
+  /** The session shown, for the permission mode actions. */
+  session?: SessionInfo;
   view: View;
   onClose: () => void;
   onOpenProject: (project: Project) => void;
@@ -80,6 +85,7 @@ export function CommandPalette(props: Props) {
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [target, setTarget] = useState<CloneTarget | null>(null);
   const [cloning, setCloning] = useState<CloneTarget | null>(null);
+  const [explained, setExplained] = useState<HelpEntry | null>(null);
   const stopClone = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -227,6 +233,37 @@ export function CommandPalette(props: Props) {
       { id: 'theme-dark', group: 'Actions', label: 'Theme: Dark', icon: <Moon size={ICON} />, run: () => props.onSetTheme('dark') },
     ];
     out.push(...rank(actions, (a) => a.label));
+
+    // Only once something is typed, so the empty palette stays as short as before.
+    const session = props.session;
+    if (q && session?.status === 'running') {
+      const current = session.liveMode ?? session.permissionMode;
+      for (const mode of MODES) {
+        const entry = PERMISSION_HELP[mode];
+        if (mode === current || !matchesHelp(q, { ...entry, keywords: `mode permission ${entry.keywords}` })) continue;
+        const Icon = MODE_ICONS[mode];
+        out.push({
+          id: `mode-${mode}`,
+          group: 'Permission mode',
+          label: `Switch this session to ${entry.label}`,
+          detail: entry.text,
+          icon: <Icon size={ICON} />,
+          run: () => {
+            if (session.activity === 'working' || session.activity === 'waiting') {
+              setError('Claude is busy. Switch modes once it is idle.');
+              return true;
+            }
+            api.configureSession(session.id, session.modelChoice, session.effortChoice, mode).catch(() => {});
+          },
+        });
+      }
+    }
+    if (q) {
+      for (const [key, entry] of Object.entries(HELP)) {
+        if (!matchesHelp(q, entry)) continue;
+        out.push({ id: `help-${key}`, group: 'Help', label: `What is ${entry.label}?`, detail: entry.text, icon: <CircleHelp size={ICON} />, run: () => (setExplained(entry), true) });
+      }
+    }
     if (q && looksLikePath(q)) {
       out.unshift({ id: 'add-path', group: 'Add', label: `Add ${q}`, icon: <FolderPlus size={ICON} />, run: () => add(q) });
     }
@@ -244,9 +281,12 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'clone', group: 'GitHub', label: `Clone ${owner}/${repo}`, detail: '…', icon: <GitBranch size={ICON} />, run: () => true });
     }
     return out;
-  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues, !props.onRunAsLots]);
+  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.session, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues, !props.onRunAsLots]);
 
-  useEffect(() => setActive(0), [query]);
+  useEffect(() => {
+    setActive(0);
+    setExplained(null);
+  }, [query]);
 
   useEffect(() => {
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
@@ -302,6 +342,13 @@ export function CommandPalette(props: Props) {
           placeholder={mode === 'browse' ? 'Filter folders, or paste a path…' : 'Search projects and actions, or paste a GitHub URL…'}
         />
         {error && <div className="palette-error">{error}</div>}
+        {explained && (
+          <div className="palette-help" role="note">
+            <b>{explained.label}</b>
+            <span>{explained.text}</span>
+            {explained.when && <span className="help-when">{explained.when}</span>}
+          </div>
+        )}
         <div className="palette-list" ref={listRef}>
           {items.length === 0 && <div className="palette-empty">No results</div>}
           {items.map((item, i) => {

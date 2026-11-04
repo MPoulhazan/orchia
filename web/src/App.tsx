@@ -481,6 +481,7 @@ export function App() {
           initialMode={palette}
           projects={projects}
           currentProject={selectedProject}
+          session={selected ?? undefined}
           view={view}
           onClose={closePalette}
           onOpenProject={openProject}

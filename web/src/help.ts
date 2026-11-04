@@ -11,6 +11,8 @@ export interface HelpEntry {
   when?: string;
   /** A path or name specific to where it shows, in monospace. */
   detail?: string;
+  /** Other words people search for it with (Ctrl K). */
+  keywords?: string;
 }
 
 export const PERMISSION_HELP = {
@@ -20,21 +22,25 @@ export const PERMISSION_HELP = {
   },
   manual: {
     label: 'Ask',
+    keywords: 'ask manual default confirm approve every',
     text: 'Asks before every file edit and command.',
     when: 'When you want to see each change before it happens.',
   },
   acceptEdits: {
     label: 'Accept edits',
+    keywords: 'accept edits write files',
     text: 'Edits files without asking. Still asks before running commands.',
     when: 'When you trust the task and review the diff at the end.',
   },
   plan: {
     label: 'Plan first',
+    keywords: 'plan mode read only review',
     text: 'Reads and plans only. Changes nothing until you approve the plan.',
     when: 'For a bigger change, or to see the approach before any edit.',
   },
   auto: {
     label: 'Auto',
+    keywords: 'auto mode autonomous safe',
     text: 'Claude runs what it judges safe and asks only for risky actions.',
     when: 'For longer tasks you want to leave running.',
   },
@@ -64,26 +70,38 @@ export const MODE_SHORTCUT = 'Shift+Tab in the terminal also cycles through the 
 export const HELP = {
   effort: {
     label: 'Effort',
+    keywords: 'effort thinking reasoning think harder speed',
     text: 'How hard Claude thinks before answering. Higher is slower and uses more of your plan.',
     when: 'Raise it for a tricky bug or a design question. Lower it for quick edits.',
   },
   ownCopy: {
     label: 'Own copy',
+    keywords: 'own copy worktree branch isolate parallel same folder',
     text: 'This session works in its own copy of the repository, on its own branch. Your project folder stays untouched until you merge.',
     when: 'To run several sessions on one project without them overwriting each other.',
   },
   changes: {
     label: 'Changes',
+    keywords: 'changes diff merge review copy',
     text: 'What this copy changed compared to your project, file by file. Merge brings those changes into your project folder.',
   },
   lots: {
     label: 'Lots',
+    keywords: 'lots plan steps split sequence /lots',
     text: 'A plan cut into steps that Claude runs one at a time. Each lot starts once the previous one reports done, and a blocked lot holds the rest.',
     when: 'For a change too big for one go, so you can check each step.',
   },
   upNext: {
     label: 'Up next',
+    keywords: 'up next queue later prompts waiting',
     text: 'Prompts waiting their turn. Orchia sends the next one as soon as Claude finishes the current task.',
     when: 'Type your next request while Claude is still working.',
   },
 } satisfies Record<string, HelpEntry>;
+
+/** Ctrl K: every word typed starts a word of the entry's name or keywords. */
+export function matchesHelp(query: string, entry: HelpEntry): boolean {
+  const words = `${entry.label} ${entry.keywords ?? ''}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
+  const typed = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return typed.length > 0 && typed.every((t) => words.some((w) => w.startsWith(t)));
+}
