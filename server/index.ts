@@ -11,14 +11,14 @@ import { MergeConflictError, canCopy, copyChanges, copyIsEmpty, createCopy, merg
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
-import { SettingsStore } from './settings.ts';
-import { CloudLink, type RemoteFinding, type RemoteNeed } from './cloud.ts';
+import { SettingsStore, isPermissionMode } from './settings.ts';
+import { CloudLink, type RemoteFinding, type RemoteFix, type RemoteNeed } from './cloud.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
 import { SecretStore, exposureText, redactSecrets, secretsInHook } from './secrets.ts';
 import { blockedReason, secretsInGitCommand } from './commitGuard.ts';
-import { configRisks, denyEnvReads, envReadsBlocked, printedEnvFile } from './configRisks.ts';
+import { configRisks, denyEnvReads, envReadsBlocked, printedEnvFile, type ConfigRisk } from './configRisks.ts';
 import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
@@ -64,7 +64,7 @@ const triage = new TriageStore();
 const later = new LaterStore();
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer, fix: remoteFix });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
@@ -122,6 +122,7 @@ function remoteSecurity(): RemoteFinding[] | null {
     fixUrl: e.rotateUrl,
     since: e.firstSeenAt,
     triage: triage.get(secretKey(e.fingerprint)),
+    fix: null,
   }));
 
   const configFindings = configNeeded().map(({ projectId, sessionId, risk }): RemoteFinding => {
@@ -137,6 +138,7 @@ function remoteSecurity(): RemoteFinding[] | null {
       fixUrl: null,
       since: since(id),
       triage: triage.get(id),
+      fix: remoteFixOf(risk),
     };
   });
 
@@ -162,6 +164,7 @@ function remoteSecurity(): RemoteFinding[] | null {
           fixUrl: note.url,
           since: since(id),
           triage: triage.get(id),
+          fix: null,
         },
       ];
     }),
@@ -190,6 +193,33 @@ function remoteAnswer(sessionId: string, permissionId: string, allow: boolean): 
   if (allow && remoteAnswers === 'no-shell' && SHELL_TOOLS.has(ask.tool)) return 'Orchia on this computer only lets you allow shell commands there.';
   // Never "Always allow" from afar: that would save a rule on this machine.
   return session.answerPermission(permissionId, allow, false) ? null : 'Already answered.';
+}
+
+/**
+ * The fixes Orchia Cloud may ask for: only the ones that take a permission away from Claude.
+ * Adding to .gitignore or turning on GitHub secret scanning stay on this computer.
+ */
+function remoteFixOf(risk: ConfigRisk): RemoteFix | null {
+  if (risk.fix === 'deny-env') return 'block-env-reads';
+  if (risk.fix === 'remove-allow' && risk.rule) return 'remove-allow';
+  return null;
+}
+
+/** A fix from the cloud's Security page: the alert is looked up again here, as it is now. */
+function remoteFix(findingId: string): string | null {
+  if (!settings.get().remoteSecurity) return 'Security alerts in Orchia Cloud is turned off in Orchia on this computer.';
+  const found = configNeeded().find((c) => c.key === findingId);
+  if (!found) return 'Already fixed.';
+  const fix = remoteFixOf(found.risk);
+  if (!fix) return 'This one is fixed in Orchia on this computer.';
+  try {
+    if (fix === 'block-env-reads') denyEnvReads(found.cwd);
+    else removeAllowRule(found.cwd, found.risk.rule!);
+  } catch (err) {
+    return (err as Error).message;
+  }
+  broadcast();
+  return null;
 }
 
 // ---- Live state -------------------------------------------------------------
@@ -313,7 +343,7 @@ function configNeeded() {
       .filter((r) => !r.shared || (!shared.has(r.id) && shared.add(r.id)))
       .map((risk) => {
         const key = configKey(s.projectId, risk.id, risk.shared);
-        return { sessionId: s.id, projectId: s.projectId, risk, key, triage: triage.get(key), later: later.isLater(key) };
+        return { sessionId: s.id, projectId: s.projectId, cwd: s.cwd, risk, key, triage: triage.get(key), later: later.isLater(key) };
       }),
   );
 }
@@ -369,7 +399,11 @@ function parseChoices(body: any): LaunchChoices {
   const effort = body.effort ?? null;
   if (model !== null && !isModelAlias(model)) throw new HttpError(400, 'Unknown model');
   if (effort !== null && !isEffortLevel(effort)) throw new HttpError(400, 'Unknown effort level');
-  return { modelChoice: model, effortChoice: effort };
+  // Absent keeps the session's mode; null goes back to Claude Code's own default.
+  if (!('permissionMode' in body)) return { modelChoice: model, effortChoice: effort };
+  const mode = body.permissionMode ?? null;
+  if (mode !== null && !isPermissionMode(mode)) throw new HttpError(400, 'Unknown permission mode');
+  return { modelChoice: model, effortChoice: effort, permissionMode: mode };
 }
 
 /** New sessions start from the settings; the request can override model and effort. */

@@ -3,16 +3,16 @@ import { Monitor, Moon, Sun, X } from 'lucide-react';
 import { api, type CloudStatus, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
+import { permissionHelp } from './help';
 import type { NotifyState } from './notifications';
 import { useSmoothScroll, type SmoothScrollPref } from './smoothScroll';
 
-const PERMISSION_MODES: { value: PermissionMode | null; label: string; description: string }[] = [
-  { value: null, label: 'Default', description: 'Uses the permission mode from your Claude Code settings.' },
-  { value: 'manual', label: 'Ask', description: 'Asks before every file edit and command.' },
-  { value: 'acceptEdits', label: 'Accept edits', description: 'Edits files without asking. Still asks before running commands.' },
-  { value: 'plan', label: 'Plan first', description: 'Reads and plans only. Changes nothing until you approve the plan.' },
-  { value: 'auto', label: 'Auto', description: 'Claude runs what it judges safe and asks only for risky actions.' },
-];
+const PERMISSION_MODES: { value: PermissionMode | null; label: string; description: string }[] = (
+  [null, 'manual', 'acceptEdits', 'plan', 'auto'] as const
+).map((value) => {
+  const help = permissionHelp(value);
+  return { value, label: help.label, description: help.text };
+});
 
 const COPY_MODES: { value: CopyMode; label: string; description: string }[] = [
   { value: 'ask', label: 'Ask', description: 'When another session is already working in this folder, a new session asks whether to work in its own copy.' },
@@ -292,7 +292,7 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
       {paired && (
         <Field
           label="Security alerts in Orchia Cloud"
-          description="Lists this computer's open security issues on Orchia Cloud's Security page, next to your other computers': known CVEs in your connectors, secrets that reached the model, risky permission settings. A secret's value is never sent."
+          description="Lists this computer's open security issues on Orchia Cloud's Security page, next to your other computers': known CVEs in your connectors, secrets that reached the model, risky permission settings, with a notification for a new high or critical one. A secret's value is never sent. From there you can apply a fix that only takes a permission away from Claude: block reads of .env files, or remove an allow rule for every shell command."
         >
           <Options items={ON_OFF} value={settings.remoteSecurity ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteSecurity: v === 'on' })} />
         </Field>
@@ -320,6 +320,7 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
             <>
               <li>For each open security issue: its kind, severity, a short description, and the project and session names</li>
               <li>What you decided about it: an accepted risk with your note, or a false positive</li>
+              <li>Whether it has a fix the cloud may ask for (Block reads, Remove rule)</li>
               <li>For a secret that reached the model: its kind and first and last characters (ghp_…a41f), never its value</li>
             </>
           )}

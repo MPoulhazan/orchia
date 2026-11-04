@@ -407,8 +407,13 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
   secrets that reached the model and risky permission settings, each with its severity,
   a short description, the project and session names, and what you decided about it (an
   accepted risk with your note, or a false positive). A secret is only named by its
-  kind and first and last characters (`ghp_…a41f`), never its value. Turning the switch
-  off removes this computer's issues from the cloud.
+  kind and first and last characters (`ghp_…a41f`), never its value. A new high or
+  critical issue sends a notification. From the Security page you can apply a fix that
+  only takes a permission away from Claude: "Block reads" (deny rules for `.env` files)
+  or "Remove rule" (an allow rule for every shell command), both in the project's
+  `.claude/settings.local.json`. Orchia looks the issue up again before applying it;
+  anything else is fixed on this computer. Turning the switch off removes this
+  computer's issues from the cloud.
 - A connector token you paste is written to Claude Code's own config
   (`~/.claude.json`), where `claude mcp add` would put it.
 

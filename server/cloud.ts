@@ -11,6 +11,7 @@ import type { Triage } from './triage.ts';
 // turned on, also what needs you (RemoteNeed below); with "Security alerts in Orchia Cloud", the
 // open security issues (RemoteFinding). Never prompts, code, terminal output or a secret's value.
 // The cloud can only answer a permission request that is already waiting: never start one, never type.
+// From the Security page it may ask for a fix that only restricts Claude (RemoteFix), nothing else.
 
 const CLOUD_URL = (process.env.ORCHIA_CLOUD_URL ?? 'https://app.orchia.app').replace(/\/$/, '');
 /** Close code the cloud sends when this device was unpaired there. */
@@ -70,7 +71,14 @@ export interface RemoteFinding {
   since: number;
   /** What the user decided (server/triage.ts): the cloud files it under Accepted risk or Closed. */
   triage: Triage | null;
+  /**
+   * The one-click fix Orchia Cloud may ask for, only ones that restrict Claude: block reads of
+   * .env files, or remove an allow rule for every shell command. Null for everything else.
+   */
+  fix: RemoteFix | null;
 }
+
+export type RemoteFix = 'block-env-reads' | 'remove-allow';
 
 export interface CloudHooks {
   onChange: () => void;
@@ -80,6 +88,8 @@ export interface CloudHooks {
   security: () => RemoteFinding[] | null;
   /** Applies an Allow or Deny from the phone; returns why it was refused, or null once applied. */
   answer: (sessionId: string, permissionId: string, allow: boolean) => string | null;
+  /** Applies the fix of a security issue from the cloud's Security page; returns why it was refused, or null once applied. */
+  fix: (findingId: string) => string | null;
 }
 
 export class CloudLink {
@@ -232,6 +242,10 @@ export class CloudLink {
       if (msg.type === 'answer' && typeof msg.requestId === 'string') {
         const ok = typeof msg.sessionId === 'string' && typeof msg.permissionId === 'string' && typeof msg.allow === 'boolean';
         const error = ok ? this.hooks.answer(msg.sessionId, msg.permissionId, msg.allow) : 'Malformed answer';
+        ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
+      }
+      if (msg.type === 'fix' && typeof msg.requestId === 'string') {
+        const error = typeof msg.findingId === 'string' ? this.hooks.fix(msg.findingId) : 'Malformed fix';
         ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
       }
     });
