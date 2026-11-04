@@ -1,6 +1,6 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, ShieldAlert, Square, X } from 'lucide-react';
-import { api, type ConfigNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
+import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
 import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
@@ -35,6 +35,7 @@ interface Props {
   secretsExposed: SecretExposure[];
   secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
+  pullRequestsNeeded: PullRequestNeeded[];
 }
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
@@ -111,7 +112,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} config={props.configNeeded} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} config={props.configNeeded} pullRequests={props.pullRequestsNeeded} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -297,6 +298,7 @@ function Attention(props: {
   security: SecurityNeeded[];
   secrets: SecretExposure[];
   config: ConfigNeeded[];
+  pullRequests: PullRequestNeeded[];
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
@@ -319,16 +321,20 @@ function Attention(props: {
     const session = props.sessions.find((s) => s.id === id);
     if (session) props.onSelect(session);
   };
-  if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length) return null;
+  const pullRequests = props.pullRequests.filter((p) => !p.later);
+  if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length && !pullRequests.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + signIns.length + security.length + secrets.length + config.length}</span>
+        <span className="section-count">{list.length + signIns.length + security.length + secrets.length + config.length + pullRequests.length}</span>
       </div>
       <div className="attention">
+        {pullRequests.map((p) => (
+          <PullRequestRow key={p.key} item={p} projectName={projectName(p.projectId)} selected={p.sessionId === props.selectedId} onOpen={() => openSession(p.sessionId)} />
+        ))}
         {list.map((s) => (
           // A plain "Done" has nothing more to say than its title: one line.
           <div key={s.id} className="attention-row" data-selected={s.id === props.selectedId} data-compact={statusOf(s) === 'done' && !s.detail && !s.summary}>
@@ -381,6 +387,54 @@ function Attention(props: {
         ))}
       </div>
     </>
+  );
+}
+
+const PR_TEXT: Record<PullRequestNeeded['kind'], { mark: string; title: (n: number) => string; tone?: string }> = {
+  'ci-failed': { mark: 'CI failed', title: (n) => `PR #${n}` },
+  'changes-requested': { mark: 'Review', title: (n) => `Changes requested on PR #${n}` },
+  merged: { mark: 'Merged', title: (n) => `PR #${n}`, tone: 'done' },
+};
+
+/**
+ * The session's pull request after the push: "Send to Claude" puts a prompt in its Up next
+ * (Claude reads the failure or the review itself with gh), ✕ puts it off until the next commit.
+ */
+function PullRequestRow({ item: p, projectName, selected, onOpen }: { item: PullRequestNeeded; projectName: string; selected: boolean; onOpen: () => void }) {
+  const text = PR_TEXT[p.kind];
+  const [busy, setBusy] = useState(false);
+  const act = (call: (key: string) => Promise<unknown>) => {
+    setBusy(true);
+    call(p.key).catch(() => setBusy(false));
+  };
+  const detail =
+    p.kind === 'ci-failed'
+      ? `${p.failed.slice(0, 3).join(', ')}${p.failed.length > 3 ? ` and ${p.failed.length - 3} more` : ''}${p.pending ? ` · ${p.pending} still running` : ''}`
+      : p.title;
+  return (
+    <div className="attention-row" data-selected={selected}>
+      <button className="attention-open" onClick={onOpen}>
+        <span className="attention-title">
+          <span className="mark" data-tone={text.tone}>{text.mark}</span>
+          <b>{text.title(p.number)}</b>
+          <span className="attention-project">· {projectName}</span>
+        </span>
+        <span className="attention-detail" title={p.title}>{detail}</span>
+      </button>
+      <span className="perm-acts" data-small>
+        {p.kind !== 'merged' && (
+          <button className="btn btn-primary" disabled={busy} title="Puts a prompt in this session's Up next: Claude reads the failure with gh and fixes it" onClick={() => act(api.sendPullRequest)}>
+            Send to Claude
+          </button>
+        )}
+        <a className="btn btn-secondary" href={p.url} target="_blank" rel="noreferrer">
+          Open
+        </a>
+        <button className="icon-btn" disabled={busy} title={p.kind === 'merged' ? 'Dismiss' : 'Later: back with the next commit’s result'} onClick={() => act(api.laterPullRequest)}>
+          <X size={13} />
+        </button>
+      </span>
+    </div>
   );
 }
 

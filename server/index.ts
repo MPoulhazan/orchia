@@ -23,6 +23,7 @@ import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import { LaterStore } from './later.ts';
+import { PullRequestWatcher, promptFor } from './pullRequests.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -62,6 +63,8 @@ const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
 const triage = new TriageStore();
 const later = new LaterStore();
+/** Pull request cards put off with ✕ or handed to Claude: back with the next commit's result. */
+const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
 const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer, fix: remoteFix });
@@ -248,6 +251,7 @@ function state() {
     // Revoked in the last 90 days, for the Security list's history.
     secretsResolved: secrets.list().filter((e) => e.resolvedAt).map((e) => ({ ...e, key: secretKey(e.fingerprint) })),
     configNeeded: configNeeded(),
+    pullRequestsNeeded: pullRequestsNeeded(),
   };
 }
 
@@ -346,6 +350,23 @@ function configNeeded() {
         return { sessionId: s.id, projectId: s.projectId, cwd: s.cwd, risk, key, triage: triage.get(key), later: later.isLater(key) };
       }),
   );
+}
+
+/** The pull request of each running session's branch, with gh: CI failed, changes requested, merged. */
+const pullRequests = new PullRequestWatcher(() => {
+  // One session per folder, the newest, so two sessions in the same folder show one card.
+  const byCwd = new Map<string, Session>();
+  for (const s of sessions.values()) {
+    if (s.status !== 'running') continue;
+    const seen = byCwd.get(s.cwd);
+    if (!seen || s.createdAt > seen.createdAt) byCwd.set(s.cwd, s);
+  }
+  return [...byCwd.values()];
+}, () => broadcast());
+pullRequests.start();
+
+function pullRequestsNeeded() {
+  return pullRequests.needs().map((n) => ({ ...n, later: pullRequestsLater.isLater(n.key) }));
 }
 
 /** What each project has in git that it shouldn't (tracked .env files, keys, secrets); scanned in the background. */
@@ -601,6 +622,21 @@ const routes: [string, RegExp, Handler][] = [
     const key = typeof body.key === 'string' && body.key.length <= 500 && /^(secret|config|cve):/.test(body.key) ? body.key : null;
     if (!key || typeof body.later !== 'boolean') throw new HttpError(400, 'Expected { key, later }');
     later.set(key, body.later);
+    broadcast();
+    return { ok: true };
+  }],
+
+  // A pull request card: hand it to Claude in its session (Up next), or put it off until the next commit's result.
+  ['POST', /^\/api\/pull-requests\/(send|later)$/, async (req, _url, [action]) => {
+    const body = await readJson(req);
+    const need = typeof body.key === 'string' ? pullRequests.needs().find((n) => n.key === body.key) : undefined;
+    if (!need) throw new HttpError(404, 'This pull request has nothing waiting any more');
+    if (action === 'send') {
+      const prompt = promptFor(need);
+      if (!prompt) throw new HttpError(400, 'Nothing to send to Claude for this one');
+      findSession(need.sessionId).enqueue(prompt);
+    }
+    pullRequestsLater.set(need.key, true);
     broadcast();
     return { ok: true };
   }],

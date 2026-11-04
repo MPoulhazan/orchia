@@ -351,6 +351,7 @@ export function App() {
           secretsExposed={state?.secretsExposed ?? []}
           secretsResolved={state?.secretsResolved ?? []}
           configNeeded={state?.configNeeded ?? []}
+          pullRequestsNeeded={state?.pullRequestsNeeded ?? []}
         />
       ) : (
         <Rail

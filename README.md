@@ -189,6 +189,16 @@ Amber and blue sessions are listed under **Needs you** and counted in the tab
 title. The bell in the sidebar turns on desktop notifications, sent only while
 the tab is in the background.
 
+### After the push
+
+When a running session's branch has a pull request, Orchia checks it with your
+`gh` login every two minutes (every 45 seconds while checks run). **Needs you**
+then shows when CI failed, when a reviewer asked for changes, and for a day
+after it was merged. **Send to Claude** puts a one-line prompt in that session's
+Up next: Claude reads the failure or the review itself with `gh` and fixes it.
+✕ puts the card off until the next commit's result. Without `gh`, or with no
+pull request for the branch, nothing shows.
+
 ## Permissions
 
 When Claude asks to run a command, edit a file or use another tool, the request

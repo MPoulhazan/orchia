@@ -144,6 +144,21 @@ export interface SecretExposure {
   later?: boolean;
 }
 
+/** What happened to a running session's pull request after the push (server/pullRequests.ts). */
+export interface PullRequestNeeded {
+  key: string;
+  sessionId: string;
+  projectId: string;
+  kind: 'ci-failed' | 'changes-requested' | 'merged';
+  number: number;
+  title: string;
+  url: string;
+  failed: string[];
+  pending: number;
+  /** Put off with ✕, or already handed to Claude: back with the next commit's result. */
+  later: boolean;
+}
+
 /** A permission setting that lets Claude do more than expected, in a project with a running session. */
 export interface ConfigNeeded {
   sessionId: string;
@@ -433,6 +448,8 @@ export const api = {
   triageFinding: (key: string, status: TriageChoice, note = '') => request('/api/findings/triage', 'POST', { key, status, note }),
   laterFinding: (key: string, later: boolean) => request('/api/findings/later', 'POST', { key, later }),
   fixConfigRisk: (sessionId: string, riskId: string) => request(`/api/sessions/${sessionId}/config-risks/fix`, 'POST', { id: riskId }),
+  sendPullRequest: (key: string) => request('/api/pull-requests/send', 'POST', { key }),
+  laterPullRequest: (key: string) => request('/api/pull-requests/later', 'POST', { key }),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),

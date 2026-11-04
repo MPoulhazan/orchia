@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type ConfigNeeded, type Project, type RateLimits, type SessionInfo, type SecretExposure, type SecurityNeeded, type Settings, type SignInNeeded, type CloudStatus } from './api';
+import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type RateLimits, type SessionInfo, type SecretExposure, type SecurityNeeded, type Settings, type SignInNeeded, type CloudStatus } from './api';
 
 export interface HubState {
   projects: Project[];
@@ -13,6 +13,7 @@ export interface HubState {
   /** Revoked in the last 90 days, for the Security list's history. */
   secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
+  pullRequestsNeeded: PullRequestNeeded[];
 }
 
 const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false };
@@ -34,7 +35,7 @@ export function useHub() {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], secretsResolved: msg.secretsResolved ?? [], configNeeded: msg.configNeeded ?? [] });
+        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], secretsResolved: msg.secretsResolved ?? [], configNeeded: msg.configNeeded ?? [], pullRequestsNeeded: msg.pullRequestsNeeded ?? [] });
       };
       ws.onclose = () => {
         if (closed) return;
