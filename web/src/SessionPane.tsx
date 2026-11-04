@@ -6,6 +6,7 @@ import { useState, type HTMLAttributes } from 'react';
 import { ConfirmButton } from './ui';
 import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
 import { ModelPicker } from './ModelPicker';
+import { ModeChip } from './ModeChip';
 import { PermissionButtons, PermissionText } from './Permission';
 import { PlanLots, showPlanLots } from './PlanLots';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
@@ -73,6 +74,7 @@ export function SessionPane(props: Props) {
           ))}
         {!compact && session.copy && <ViewToggle count={changes.data?.files.length ?? 0} showChanges={showChanges} onChange={(on) => setChangesFor(on ? session.id : null)} />}
         <ModelPicker session={session} />
+        {!compact && <ModeChip session={session} />}
         <StatusText session={session} compact={compact} />
         {compact && <QueueBadge session={session} />}
         <span className="pane-spacer" />

@@ -45,6 +45,7 @@ export interface SessionInfo {
   effortChoice: string | null;
   /** Permission mode claude was launched with; null means Claude Code's own default. */
   permissionMode: PermissionMode | null;
+  liveMode: string | null;
   /** The lots of a plan waiting for review, when it splits into some ("Split into Up next"). */
   planLots: string[] | null;
   /** The lots of Claude's last answer, outside plan mode ("Run as a sequence"). */
@@ -93,6 +94,7 @@ export interface LotRun {
 export interface LaunchChoices {
   modelChoice: string | null;
   effortChoice: string | null;
+  permissionMode?: PermissionMode | null;
 }
 
 /** What survives a server restart. */
@@ -171,8 +173,10 @@ export class Session extends EventEmitter {
   model: string | null;
   modelChoice: string | null;
   effortChoice: string | null;
-  /** Set at creation from the settings; Shift+Tab in the terminal changes it for the current run only. */
-  readonly permissionMode: PermissionMode | null;
+  /** Set at creation from the settings, or from the mode chip; Shift+Tab in the terminal changes it for the current run only. */
+  permissionMode: PermissionMode | null;
+  /** The mode Claude Code reports in its hooks (after Shift+Tab too); null until the first hook of this run. */
+  liveMode: string | null = null;
   /** Inspector data for the current conversation. */
   usage: Usage | null;
   plan: PlanItem[];
@@ -350,6 +354,8 @@ export class Session extends EventEmitter {
   configure(choices: LaunchChoices, hasTranscript: boolean) {
     this.modelChoice = choices.modelChoice;
     this.effortChoice = choices.effortChoice;
+    if (choices.permissionMode !== undefined) this.permissionMode = choices.permissionMode;
+    this.liveMode = null; // the relaunch starts in the chosen mode
     this.model = null; // unknown until Claude reports it
     this.restart({ fresh: false, hasTranscript });
   }
@@ -418,6 +424,11 @@ export class Session extends EventEmitter {
   /** Turns and plan, from the hooks. */
   trackHook(payload: any) {
     const event = payload?.hook_event_name;
+    const mode = payload?.permission_mode === "default" ? "manual" : payload?.permission_mode;
+    if (typeof mode === "string" && mode !== this.liveMode) {
+      this.liveMode = mode;
+      this.emit("change");
+    }
     if (event === 'UserPromptSubmit') {
       this.turns++;
       const name = this.autoName && this.turns === 1 ? nameFromPrompt(payload.prompt) : null;
@@ -826,6 +837,7 @@ export class Session extends EventEmitter {
       modelChoice: this.modelChoice,
       effortChoice: this.effortChoice,
       permissionMode: this.permissionMode,
+      liveMode: this.liveMode,
       planLots: this.planOffer?.lots ?? null,
       answerLots: this.answerLots,
       answerLotsAsked: !!this.answerLots && this.lotsAsked,

@@ -45,6 +45,8 @@ export interface SessionInfo {
   modelChoice: string | null;
   effortChoice: string | null;
   permissionMode: PermissionMode | null;
+  /** The mode Claude Code last reported (Shift+Tab included); null before its first hook. */
+  liveMode: string | null;
   /**
    * A permission request that can be answered from Orchia: "Run" + `npm test`.
    * `always`: the rules "Always allow" saves, as Claude Code suggests them; may be empty.
@@ -416,8 +418,9 @@ export const api = {
   resolveCopy: (id: string) => request(`/api/sessions/${id}/resolve`, 'POST'),
   renameSession: (id: string, name: string) => request(`/api/sessions/${id}`, 'PATCH', { name }),
   markSeen: (id: string) => request(`/api/sessions/${id}/seen`, 'POST'),
-  configureSession: (id: string, model: string | null, effort: string | null) =>
-    request(`/api/sessions/${id}/config`, 'POST', { model, effort }),
+  /** Relaunches on the same conversation; leaving out the mode keeps the session's. */
+  configureSession: (id: string, model: string | null, effort: string | null, permissionMode?: PermissionMode | null) =>
+    request(`/api/sessions/${id}/config`, 'POST', permissionMode === undefined ? { model, effort } : { model, effort, permissionMode }),
   resumeSession: (id: string) => request(`/api/sessions/${id}/resume`, 'POST'),
   /** Keeps the conversation unless `fresh`. */
   restartSession: (id: string, fresh = false) => request(`/api/sessions/${id}/restart`, 'POST', { fresh }),

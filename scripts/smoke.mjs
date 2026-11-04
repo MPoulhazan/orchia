@@ -34,10 +34,10 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
 });
 (async () => {
   process.stdout.write('Fake Claude ready\\r\\n');
-  await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'run the tests' });
+  await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'run the tests', permission_mode: 'plan' });
   execSync(settings.statusLine.command, { input: JSON.stringify({ session_id: 'smoke-session', cost: { total_cost_usd: 0.4242 } }) });
   out.statusLine = 'ok';
-  const answer = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  const answer = await hook({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm test' }, permission_mode: 'default' });
   out.permission = answer.status === 200 ? await answer.json() : answer.status;
   writeFileSync(${JSON.stringify(transcript)}, JSON.stringify({ type: 'ai-title', aiTitle: 'Fix the "flaky" tests', sessionId: 'smoke-session' }) + '\\n');
   const reply = ['All tests pass. Run them again with:', '', '\\x60\\x60\\x60bash', 'npm test', '\\x60\\x60\\x60'].join('\\n');
@@ -204,6 +204,10 @@ try {
   });
   if (asking.permission.target !== 'npm test') throw new Error(`Unexpected permission: ${JSON.stringify(asking.permission)}`);
   step('shows the permission request');
+
+  // Shift+Tab from plan back to the default mode: the hooks report it, under Orchia's name.
+  if (asking.liveMode !== 'manual') throw new Error(`Unexpected live mode: ${asking.liveMode}`);
+  step('follows the permission mode the hooks report');
 
   await api('POST', `/api/sessions/${id}/permission`, { id: asking.permission.id, allow: true });
   await until('the end of the turn', async () => (await session(id))?.activity === 'idle');

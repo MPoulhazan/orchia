@@ -3858,3 +3858,96 @@ a.btn {
 .security-how {
   color: var(--text-muted);
 }
+
+/* Permission mode chip: one row per mode, with what it does and when to use it. */
+.mode-popover {
+  /* Opens leftward: the chip sits mid-header, with the inspector to its right. */
+  left: auto;
+  right: 0;
+  width: 380px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+}
+
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.mode-option {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mode-option:hover {
+  border-color: var(--border-strong);
+}
+
+.mode-option[aria-checked='true'] {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+  background: var(--selected);
+}
+
+.mode-check {
+  flex: none;
+  width: 16px;
+  padding-top: 1px;
+  color: var(--focus);
+}
+
+.mode-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mode-now {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mode-text {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.mode-when {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+  .mode-popover {
+    width: min(380px, calc(100vw - 32px));
+  }
+}
+
+.mode-chip-icon {
+  flex: none;
+  color: var(--text-muted);
+}
