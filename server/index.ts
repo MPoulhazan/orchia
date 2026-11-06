@@ -24,6 +24,7 @@ import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import { LaterStore } from './later.ts';
 import { PullRequestWatcher, promptFor } from './pullRequests.ts';
+import { IssueLabelWatcher } from './issueLabels.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
@@ -364,6 +365,13 @@ const pullRequests = new PullRequestWatcher(() => {
   return [...byCwd.values()];
 }, () => broadcast());
 pullRequests.start();
+
+/** Issues labelled orchia:go or orchia:plan on GitHub go into the Up next of their project's newest session. */
+const issueLabels = new IssueLabelWatcher({
+  sessions: () => latestSessions(true).map((s) => ({ id: s.id, projectId: s.projectId, cwd: s.cwd, queued: s.info().queue.map((q) => q.text) })),
+  enqueue: (sessionId, text) => sessions.get(sessionId)?.enqueue(text),
+});
+issueLabels.start();
 
 function pullRequestsNeeded() {
   return pullRequests.needs().map((n) => ({ ...n, later: pullRequestsLater.isLater(n.key) }));

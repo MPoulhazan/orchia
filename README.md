@@ -266,6 +266,16 @@ you ask: their text goes to Claude, so read it in the preview first. This needs 
 [GitHub CLI](https://cli.github.com) signed in (`gh auth login`); Orchia uses your `gh`
 login and stores no token.
 
+### From a label
+
+Put the label `orchia:go` on an issue on GitHub, from any device, and it goes into the
+Up next of the project's newest running session within two minutes, with the same
+prompt; `orchia:plan` does the same with **Plan first**. Orchia then removes the label,
+so another computer with the project doesn't take it too, and labelling it again later
+queues it again. The label is the go-ahead, so it works for issues from outside the
+project too: only someone with triage or write access can add it. With no running
+session for the project, the issue waits until you open one.
+
 ## Model and effort
 
 The chip next to the session name shows the model that last answered (read from
