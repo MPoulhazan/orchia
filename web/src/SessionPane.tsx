@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm';
-import { CircleDot, GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, SquareTerminal, X } from 'lucide-react';
+import { CircleDot, GitBranch, LayoutGrid, Maximize2, PanelRight, RotateCcw, Square, SquareTerminal, X } from 'lucide-react';
 import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
 import { useState, type HTMLAttributes } from 'react';
@@ -86,6 +86,12 @@ export function SessionPane(props: Props) {
         {props.onPickIssues && session.status === 'running' && (
           <button className="icon-btn" title="Work on GitHub issues" onClick={props.onPickIssues}>
             <CircleDot size={14} />
+          </button>
+        )}
+        {session.status === 'running' && session.activity === 'working' && (
+          <button className="icon-btn pane-stop" title="Stop Claude (Esc)" onClick={() => api.stopSession(session.id).catch(() => {})}>
+            <Square size={11} fill="currentColor" />
+            {!compact && <span>Stop</span>}
           </button>
         )}
         <button className="icon-btn" title="Restart (keeps the conversation)" onClick={() => api.restartSession(session.id)}>
@@ -210,6 +216,13 @@ export function SessionPane(props: Props) {
 
 function StatusText({ session, compact }: { session: SessionInfo; compact?: boolean }) {
   const status = statusOf(session);
+  if ((status === 'idle' || status === 'done') && session.stoppedByUser) {
+    return (
+      <span className="pane-status" data-status="stopped" title="You stopped the last turn before it finished.">
+        Stopped by you
+      </span>
+    );
+  }
   if (status === 'idle' || status === 'starting') return null;
   const text = !compact && session.detail && status === 'waiting' ? `${statusLabel[status]} · ${session.detail}` : statusLabel[status];
   return (

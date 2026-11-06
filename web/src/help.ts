@@ -91,6 +91,12 @@ export const HELP = {
     text: 'A plan cut into steps that Claude runs one at a time. Each lot starts once the previous one reports done, and a blocked lot holds the rest.',
     when: 'For a change too big for one go, so you can check each step.',
   },
+  stop: {
+    label: 'Stop',
+    keywords: 'stop interrupt cancel abort esc halt',
+    text: 'Interrupts Claude mid-turn, like Esc in the terminal. Nothing is undone: changes already made stay, and the conversation goes on from there.',
+    when: 'Claude went the wrong way, or you sent a prompt by mistake. Prompts in Up next wait until you send one yourself.',
+  },
   upNext: {
     label: 'Up next',
     keywords: 'up next queue later prompts waiting',

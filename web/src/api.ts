@@ -64,6 +64,8 @@ export interface SessionInfo {
   queue: { id: string; text: string; lot?: { n: number; total: number; clear?: boolean } }[];
   /** Why the queue waits although Claude is idle: text in Claude's prompt, a stopped turn, or a lot not done. */
   queueHeld: 'typing' | 'stopped' | 'blocked' | null;
+  /** The user interrupted the last turn (Stop, Esc or Ctrl+C); cleared when the next one starts. */
+  stoppedByUser: boolean;
   /** A lot of a split plan that ended without `LOT n DONE`; `reason` is '' when Claude said neither. */
   lotBlocked: { n: number; total: number; reason: string } | null;
   /** Where a run of lots is: on lot n (or about to start it), held on lot n, or done with all of them. */
@@ -438,6 +440,7 @@ export const api = {
     request(`/api/sessions/${id}/config`, 'POST', permissionMode === undefined ? { model, effort } : { model, effort, permissionMode }),
   resumeSession: (id: string) => request(`/api/sessions/${id}/resume`, 'POST'),
   /** Keeps the conversation unless `fresh`. */
+  stopSession: (id: string) => request(`/api/sessions/${id}/stop`, 'POST'),
   restartSession: (id: string, fresh = false) => request(`/api/sessions/${id}/restart`, 'POST', { fresh }),
   closeSession: (id: string) => request(`/api/sessions/${id}`, 'DELETE'),
   answerPermission: (id: string, permissionId: string, allow: boolean, always = false) =>

@@ -63,6 +63,8 @@ export interface SessionInfo {
    * prompt; `stopped`, the last turn was interrupted or failed. Null otherwise.
    */
   queueHeld: 'typing' | 'stopped' | 'blocked' | null;
+  /** The user interrupted the last turn (Stop, Esc or Ctrl+C); cleared when the next one starts. */
+  stoppedByUser: boolean;
   /** A lot of a split plan that ended without `LOT n DONE`: the next lots wait for the user. */
   lotBlocked: LotBlocked | null;
   /** Where a run of lots is: on lot n (or about to start it), held on lot n, or done with all of them. */
@@ -190,6 +192,8 @@ export class Session extends EventEmitter {
   queue: QueuedPrompt[];
   /** The last turn ended normally (Stop), so the next queued prompt may go. */
   private cleanStop = false;
+  /** The user interrupted the last turn: "Stopped by you" until the next one starts. */
+  private stoppedByUser = false;
   /** The lot of a split plan Claude is working on, checked for `LOT n DONE` when the turn ends. */
   private runningLot: { n: number; total: number } | null = null;
   /** The lots of Claude's last answer, offered as "Run as a sequence" until the next turn starts. */
@@ -583,6 +587,7 @@ export class Session extends EventEmitter {
     const changed = activity !== this.activity || (detail ?? null) !== this.detail;
     this.activity = activity;
     this.detail = detail ?? null;
+    if (activity === 'working') this.stoppedByUser = false;
     // Finishing a turn or blocking on the user is worth a look; working is not.
     if (activity === 'waiting' || activity === 'idle') this.unseen = this.unseen || changed;
     if (changed) this.emit('change');
@@ -623,8 +628,16 @@ export class Session extends EventEmitter {
       this.detail = null;
       // Stopped on purpose: the queue waits for the user.
       this.cleanStop = false;
+      this.stoppedByUser = true;
       this.emit('change');
     }
+  }
+
+  /** The Stop button: Esc, as if typed in the terminal. False when no turn is running. */
+  stop(): boolean {
+    if (this.status !== 'running' || this.activity !== 'working') return false;
+    this.write('\x1b');
+    return true;
   }
 
   // ---- Up next ------------------------------------------------------------------
@@ -853,6 +866,7 @@ export class Session extends EventEmitter {
       summary: this.summary,
       queue: this.queue,
       queueHeld: this.queueHeld(),
+      stoppedByUser: this.stoppedByUser,
       lotBlocked: this.lotBlocked,
       lotRun: this.lotRun(),
       copy: this.copy,

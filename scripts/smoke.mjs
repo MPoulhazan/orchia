@@ -59,6 +59,7 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
   let lotsAsked = false;
   let committed = false;
   let envShown = false;
+  let slow = false;
   process.stdin.on('data', async (d) => {
     writeFileSync(${JSON.stringify(typedFile)}, (typed += d));
     if (planned && !compacted && typed.includes('/compact\\r')) {
@@ -134,6 +135,19 @@ const hook = (payload) => fetch(settings.hooks.Stop[0].hooks[0].url, {
       out.envLoad = loaded.status;
       writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
       await hook({ hook_event_name: 'Stop', last_assistant_message: 'Reading it was refused.' });
+      return;
+    }
+    if (envShown && !slow && typed.endsWith('Take your time\\r')) {
+      // A long turn that only ends when Stop sends Esc: Claude Code fires no Stop hook then.
+      slow = true;
+      // Claude Code reads keys raw; a console in line mode would hold Esc until Enter.
+      process.stdin.setRawMode?.(true);
+      await hook({ hook_event_name: 'UserPromptSubmit', prompt: 'Take your time' });
+      return;
+    }
+    if (slow && d.includes('\x1b')) {
+      out.stopKey = true;
+      writeFileSync(${JSON.stringify(result)}, JSON.stringify(out));
       return;
     }
     if (planned || !typed.includes('\\r')) return;
@@ -332,6 +346,17 @@ try {
   }
   if (JSON.parse(readFileSync(result, 'utf8')).envLoad !== 204) throw new Error('Loading .env without printing it was refused');
   step('refuses a shell command that prints a .env file when reads are blocked');
+
+  await until('Claude idle after the .env turn', async () => (await session(id))?.activity === 'idle');
+  await api('POST', `/api/sessions/${id}/queue`, { text: 'Take your time' });
+  await until('the long turn', async () => readFileSync(typedFile, 'utf8').endsWith('Take your time\r') && (await session(id))?.activity === 'working');
+  await api('POST', `/api/sessions/${id}/stop`);
+  await until('Esc reaching Claude', async () => JSON.parse(readFileSync(result, 'utf8')).stopKey);
+  const stopped = await session(id);
+  if (stopped.activity !== 'idle' || !stopped.stoppedByUser) throw new Error(`Stop did not end the turn: ${JSON.stringify(stopped)}`);
+  const again = await fetch(`${BASE}/api/sessions/${id}/stop`, { method: 'POST' });
+  if (again.status !== 409) throw new Error(`Stop on an idle session answered ${again.status}`);
+  step('Stop interrupts a turn with Esc and says it was you');
 
   // The repo scan runs when a project is first looked at; a fix rescans it.
   const repo = `${dir}/repo`;

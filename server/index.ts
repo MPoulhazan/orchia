@@ -771,6 +771,10 @@ const routes: [string, RegExp, Handler][] = [
     projectConnectors(session.cwd).catch(() => {});
     return { ok: true };
   }],
+  ['POST', /^\/api\/sessions\/([\w-]+)\/stop$/, (_req, _url, [id]) => {
+    if (!findSession(id).stop()) throw new HttpError(409, 'Claude is not working');
+    return { ok: true };
+  }],
   ['POST', /^\/api\/sessions\/([\w-]+)\/restart$/, async (req, _url, [id]) => {
     const session = findSession(id);
     const body = await readJson(req);

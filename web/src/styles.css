@@ -309,6 +309,26 @@ kbd {
   color: var(--done);
 }
 
+.pane-status[data-status='stopped'] {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Stop: only while Claude works, so it reads as an action, not a fixture. */
+.icon-btn.pane-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pane[data-compact='true'] .icon-btn.pane-stop {
+  padding: 0 6px;
+}
+
 /* ---- Layout ---------------------------------------------------------------- */
 
 .app {

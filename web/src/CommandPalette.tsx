@@ -21,6 +21,7 @@ import {
   Square,
   Sun,
   CircleHelp,
+  OctagonX,
 } from 'lucide-react';
 import { api, type FolderListing, type Project, type SessionInfo, type Suggestion } from './api';
 import { HELP, PERMISSION_HELP, matchesHelp, type HelpEntry } from './help';
@@ -226,6 +227,9 @@ export function CommandPalette(props: Props) {
         : []),
       ...(props.onRunAsLots
         ? [{ id: 'lots', group: 'Actions', label: 'Run the last plan as lots', detail: '/lots', icon: <ListOrdered size={ICON} />, run: () => props.onRunAsLots!() }]
+        : []),
+      ...(props.session?.status === 'running' && props.session.activity === 'working'
+        ? [{ id: 'stop', group: 'Actions', label: 'Stop this session', detail: 'Esc', icon: <OctagonX size={ICON} />, run: () => void api.stopSession(props.session!.id).catch(() => {}) }]
         : []),
       { id: 'settings', group: 'Actions', label: 'Settings…', icon: <Settings size={ICON} />, run: () => (props.onOpenSettings(), true) },
       { id: 'theme-system', group: 'Actions', label: 'Theme: System', icon: <Monitor size={ICON} />, run: () => props.onSetTheme('system') },
