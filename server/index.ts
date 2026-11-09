@@ -29,6 +29,7 @@ import { IssueLabelWatcher } from './issueLabels.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
+import { projectDiet } from './tokenDiet.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
 import { dropIssue, openIssues } from './githubIssues.ts';
@@ -37,6 +38,7 @@ import {
   cachedConnectors,
   onConnectorsChecked,
   projectConnectors,
+  type Connector,
   removeConnector,
   serverConfig,
   setConnectorEnabled,
@@ -1118,6 +1120,13 @@ const routes: [string, RegExp, Handler][] = [
     if (!findSession(id).answerPermission(body.id, body.allow, body.always === true)) throw new HttpError(409, 'Already answered');
     countAnswer('computer');
     return { ok: true };
+  }],
+
+  ['GET', /^\/api\/projects\/([\w-]+)\/token-diet$/, async (_req, _url, [id]) => {
+    const project = projects.get(id);
+    if (!project) throw new HttpError(404, 'Project not found');
+    const { connectors } = await projectConnectors(project.path).catch(() => ({ connectors: [] as Connector[] }));
+    return projectDiet(project.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.label, prefix: c.toolPrefix })));
   }],
 
   ['GET', /^\/api\/suggestions$/, () => claudeProjectSuggestions()],

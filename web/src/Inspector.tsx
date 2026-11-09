@@ -3,6 +3,7 @@ import { Check, Copy, GitBranch, Play, X } from 'lucide-react';
 import { api, type AllowRule, type CodeBlock, type Inspection, type SessionInfo } from './api';
 import { ConnectorsSection, type ConnectorsChange } from './Connectors';
 import { SkillsSection, type SkillsChange } from './Skills';
+import { TokenDietSection } from './TokenDiet';
 import { InspectorSection } from './ui';
 
 const POLL_MS = 3000;
@@ -60,6 +61,8 @@ export function Inspector({
       <SkillsSection session={session} change={skillsChange} onAdd={onAddSkill} />
 
       <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} autoRestart={autoRestart} />
+
+      <TokenDietSection projectId={session.projectId} />
 
       {data && <AllowRulesSection session={session} rules={data.allowRules} onChange={reload} />}
 

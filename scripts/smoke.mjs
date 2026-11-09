@@ -234,6 +234,12 @@ try {
   if (answerCounts.computer !== 1 || answerCounts.phone !== 0) throw new Error(`Unexpected answer counts: ${JSON.stringify(answerCounts)}`);
   step('counts the answer given on this computer');
 
+  writeFileSync(`${project}/CLAUDE.md`, 'x'.repeat(30_000));
+  const diet = await api('GET', `/api/projects/${projectId}/token-diet`);
+  if (!diet.findings.some((f) => f.id === 'heavy-memory:CLAUDE.md')) throw new Error(`No heavy CLAUDE.md in the token diet: ${JSON.stringify(diet)}`);
+  writeFileSync(`${project}/CLAUDE.md`, '');
+  step('reports a heavy CLAUDE.md in the token diet');
+
   const done = await session(id);
   if (!done.summary) throw new Error('No done summary');
   const inspect = JSON.stringify(await api('GET', `/api/sessions/${id}/inspect`));

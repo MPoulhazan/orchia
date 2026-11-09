@@ -225,6 +225,12 @@ export type CloudStatus =
   | { state: 'pairing'; url: string; userCode: string; verifyUrl: string; expiresAt: number }
   | { state: 'connecting' | 'connected'; url: string; name: string };
 
+/** Where a project's tokens go (server/tokenDiet.ts). */
+export interface TokenDiet {
+  findings: { id: string; title: string; detail: string; action: string }[];
+  sessions: number;
+}
+
 /** Permission requests answered from each place (server/answerCounts.ts). */
 export interface AnswerCounts {
   phone: number;
@@ -436,6 +442,7 @@ export const api = {
   /** Without `where`, the server may ask first: `{ choose }` lists the sessions already at work in the folder. */
   createSession: (projectId: string, where?: 'copy' | 'same', remember = false) =>
     request<SessionInfo | { choose: { busy: string[] } }>('/api/sessions', 'POST', { projectId, where, remember }),
+  tokenDiet: (projectId: string) => request<TokenDiet>(`/api/projects/${projectId}/token-diet`),
   setCopyMode: (projectId: string, copyMode: CopyMode) => request(`/api/projects/${projectId}`, 'PATCH', { copyMode }),
   copyChanges: (id: string) => request<CopyChanges>(`/api/sessions/${id}/changes`),
   mergeCopy: (id: string) => request<{ ok: boolean; conflict?: string }>(`/api/sessions/${id}/merge`, 'POST'),

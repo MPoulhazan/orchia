@@ -304,6 +304,10 @@ screen:
   Connectors load when Claude starts, so after a change Orchia restarts the project's
   sessions by itself once Claude is free, keeping the conversation (Settings: **Restart by
   itself**).
+- **Token diet** of the project, each with what to do about it: connectors never called, a
+  heavy `CLAUDE.md`, sessions that keep hitting auto-compact, Opus at max effort on short
+  sessions, the same prompt typed in several sessions. Fixed rules over the last 30 days of
+  Claude Code's transcripts: no model is called and nothing leaves your computer.
 - **Plan**, when Claude keeps one with its task tools (`TaskCreate`/`TaskUpdate`,
   or `TodoWrite`). Recent models don't use them by default, so it is often absent.
 - **Uncommitted changes** and **branch** of the project folder, from `git status`

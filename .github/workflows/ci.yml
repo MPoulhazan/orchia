@@ -20,6 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
       # Install the package the way users will, outside the repo, and drive it with a fake claude.
       - name: Pack and install
