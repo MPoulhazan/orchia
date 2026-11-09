@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun, X } from 'lucide-react';
-import { api, type CloudStatus, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
+import { api, type AnswerCounts, type CloudStatus, type CopyMode, type PermissionMode, type Project, type Settings } from './api';
 import { EFFORTS, MODELS } from './ModelPicker';
 import type { ThemePref } from './theme';
 import { HELP, permissionHelp } from './help';
@@ -47,6 +47,7 @@ const SMOOTH_SCROLL:{ value: SmoothScrollPref; label: string }[] = [
 export function SettingsDialog(props: {
   settings: Settings;
   cloud: CloudStatus;
+  answerCounts: AnswerCounts;
   /** The project shown when Settings opened, for its own settings. */
   project: Project | null;
   themePref: ThemePref;
@@ -145,7 +146,7 @@ export function SettingsDialog(props: {
             </section>
           )}
 
-          <CloudSection cloud={props.cloud} settings={settings} onChange={change} />
+          <CloudSection cloud={props.cloud} answerCounts={props.answerCounts} settings={settings} onChange={change} />
 
           <section className="settings-section">
             <h3>This browser</h3>
@@ -208,8 +209,8 @@ function Options<T extends string | null>(props: { items: { value: T; label: str
 }
 
 /** Optional pairing with an Orchia Cloud account. Says exactly what leaves this machine before it does. */
-function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange: (patch: Partial<Settings>) => void }) {
-  const { cloud, settings } = props;
+function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; settings: Settings; onChange: (patch: Partial<Settings>) => void }) {
+  const { cloud, answerCounts, settings } = props;
   const paired = cloud.state === 'connected' || cloud.state === 'connecting';
   const answers = REMOTE_ANSWERS.find((a) => a.value === settings.remoteAnswers) ?? REMOTE_ANSWERS[0];
   const [busy, setBusy] = useState(false);
@@ -287,6 +288,13 @@ function CloudSection(props: { cloud: CloudStatus; settings: Settings; onChange:
       {paired && settings.remoteNeeds && (
         <Field label="From your phone" description={answers.description}>
           <Options items={REMOTE_ANSWERS} value={settings.remoteAnswers} onChange={(remoteAnswers) => props.onChange({ remoteAnswers })} />
+        </Field>
+      )}
+      {paired && settings.remoteNeeds && (
+        <Field label="Answers so far" description="Allow and Deny on permission requests. Counted on this computer and never sent. Answers typed in the terminal aren't counted.">
+          <span className="cloud-state">
+            {answerCounts.phone} from your phone · {answerCounts.computer} on this computer
+          </span>
         </Field>
       )}
       {paired && (

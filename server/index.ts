@@ -13,6 +13,7 @@ import { projectAllowRules, removeAllowRule, suggestedRules } from './permission
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore, isPermissionMode } from './settings.ts';
 import { CloudLink, type RemoteFinding, type RemoteFix, type RemoteNeed } from './cloud.ts';
+import { AnswerCounts, type AnswerSource } from './answerCounts.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
 import { connectorNote, refreshAdvisories, skillNote } from './advisories.ts';
@@ -64,6 +65,7 @@ const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
 const triage = new TriageStore();
 const later = new LaterStore();
+const answerCounts = new AnswerCounts();
 /** Pull request cards put off with ✕ or handed to Claude: back with the next commit's result. */
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
@@ -186,6 +188,12 @@ function lotRunText(info: SessionInfo): string | null {
   return `Lot ${run.n}/${run.total} ${reason ? `blocked: ${reason}` : 'ended without saying it was done'}`;
 }
 
+/** Counts an answer that reached Claude, and shows the new totals in Settings. */
+function countAnswer(source: AnswerSource) {
+  answerCounts.add(source);
+  broadcast();
+}
+
 /** An Allow or Deny from the phone, for the request it was shown: the oldest one of the session. */
 function remoteAnswer(sessionId: string, permissionId: string, allow: boolean): string | null {
   const { remoteNeeds: on, remoteAnswers } = settings.get();
@@ -196,7 +204,9 @@ function remoteAnswer(sessionId: string, permissionId: string, allow: boolean): 
   if (allow && remoteAnswers === 'deny-only') return 'Orchia on this computer only accepts Deny from your phone.';
   if (allow && remoteAnswers === 'no-shell' && SHELL_TOOLS.has(ask.tool)) return 'Orchia on this computer only lets you allow shell commands there.';
   // Never "Always allow" from afar: that would save a rule on this machine.
-  return session.answerPermission(permissionId, allow, false) ? null : 'Already answered.';
+  if (!session.answerPermission(permissionId, allow, false)) return 'Already answered.';
+  countAnswer('phone');
+  return null;
 }
 
 /**
@@ -243,6 +253,7 @@ function state() {
     limits,
     settings: settings.get(),
     cloud: cloud.get(),
+    answerCounts: answerCounts.get(),
     signInNeeded: signInNeeded(),
     securityNeeded: securityNeeded(),
     secretsExposed: secrets.open().map((e) => {
@@ -1073,6 +1084,7 @@ const routes: [string, RegExp, Handler][] = [
     const body = await readJson(req);
     if (typeof body.id !== 'string' || typeof body.allow !== 'boolean') throw new HttpError(400, 'Expected { id, allow, always? }');
     if (!findSession(id).answerPermission(body.id, body.allow, body.always === true)) throw new HttpError(409, 'Already answered');
+    countAnswer('computer');
     return { ok: true };
   }],
 

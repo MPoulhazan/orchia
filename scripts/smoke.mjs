@@ -230,6 +230,10 @@ try {
   if (out.permission?.hookSpecificOutput?.decision?.behavior !== 'allow') throw new Error(`Claude did not get an allow: ${JSON.stringify(out.permission)}`);
   step('allow reaches Claude, turn ends');
 
+  const { answerCounts } = await api('GET', '/api/state');
+  if (answerCounts.computer !== 1 || answerCounts.phone !== 0) throw new Error(`Unexpected answer counts: ${JSON.stringify(answerCounts)}`);
+  step('counts the answer given on this computer');
+
   const done = await session(id);
   if (!done.summary) throw new Error('No done summary');
   const inspect = JSON.stringify(await api('GET', `/api/sessions/${id}/inspect`));

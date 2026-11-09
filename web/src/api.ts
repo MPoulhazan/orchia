@@ -223,6 +223,12 @@ export type CloudStatus =
   | { state: 'pairing'; url: string; userCode: string; verifyUrl: string; expiresAt: number }
   | { state: 'connecting' | 'connected'; url: string; name: string };
 
+/** Permission requests answered from each place (server/answerCounts.ts). */
+export interface AnswerCounts {
+  phone: number;
+  computer: number;
+}
+
 /** One plan usage window, in whole percents; resetsAt is ms since epoch. */
 export interface LimitWindow {
   usedPct: number;

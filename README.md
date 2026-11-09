@@ -421,7 +421,8 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
   prompts or terminal output. The phone can only answer a request Claude already made,
   never start one or type in a session, and "Always allow" stays on your computer.
   Settings can limit it to Deny, or keep shell commands for the computer. Claude Code's
-  own deny rules still apply.
+  own deny rules still apply. Settings also shows how many requests you answered from the
+  phone and from the computer; that count stays on your computer.
 - "Security alerts in Orchia Cloud", a third switch, also off by default, lists this
   computer's open security issues on the cloud's Security page: CVEs in your connectors,
   secrets that reached the model and risky permission settings, each with its severity,

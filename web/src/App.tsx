@@ -546,6 +546,7 @@ export function App() {
         <SettingsDialog
           settings={state.settings}
           cloud={state.cloud}
+          answerCounts={state.answerCounts}
           project={selectedProject ?? projects.find((p) => p.id === lastProjectId.current) ?? null}
           themePref={theme.pref}
           onSetTheme={theme.setPref}
