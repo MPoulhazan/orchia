@@ -39,7 +39,7 @@
     "typecheck": "tsc --noEmit",
     "prepack": "vite build",
     "smoke": "node scripts/smoke.mjs",
-    "test": "node --import tsx --test scripts/tokenDiet.test.ts"
+    "test": "node --import tsx --test scripts/tokenDiet.test.ts scripts/prEvidence.test.ts"
   },
   "dependencies": {
     "@lydell/node-pty": "^1.2.0-beta.15",

@@ -7,6 +7,8 @@ export interface Project {
   addedAt: number;
   /** Where a new session works while another one is busy in the folder; missing means ask. */
   copyMode?: CopyMode;
+  /** Keep one comment on this project's pull requests saying how they were made; off when missing. */
+  prEvidence?: boolean;
 }
 
 export type CopyMode = 'ask' | 'copy' | 'same';
@@ -444,6 +446,7 @@ export const api = {
     request<SessionInfo | { choose: { busy: string[] } }>('/api/sessions', 'POST', { projectId, where, remember }),
   tokenDiet: (projectId: string) => request<TokenDiet>(`/api/projects/${projectId}/token-diet`),
   setCopyMode: (projectId: string, copyMode: CopyMode) => request(`/api/projects/${projectId}`, 'PATCH', { copyMode }),
+  setPrEvidence: (projectId: string, prEvidence: boolean) => request(`/api/projects/${projectId}`, 'PATCH', { prEvidence }),
   copyChanges: (id: string) => request<CopyChanges>(`/api/sessions/${id}/changes`),
   mergeCopy: (id: string) => request<{ ok: boolean; conflict?: string }>(`/api/sessions/${id}/merge`, 'POST'),
   discardCopy: (id: string) => request(`/api/sessions/${id}/discard`, 'POST'),

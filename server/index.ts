@@ -30,6 +30,7 @@ import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { projectDiet } from './tokenDiet.ts';
+import { evidenceSources, PrEvidencePublisher } from './prEvidence.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
 import { dropIssue, openIssues } from './githubIssues.ts';
@@ -411,6 +412,27 @@ const pullRequests = new PullRequestWatcher(() => {
 }, () => broadcast());
 pullRequests.start();
 
+/** The evidence comment, for the projects that turned it on. */
+new PrEvidencePublisher(() =>
+  evidenceSources(
+    [...sessions.values()].map((s) => ({
+      id: s.id,
+      projectId: s.projectId,
+      cwd: s.cwd,
+      turns: s.turns,
+      row: {
+        // Not the session's name: it can be the start of its first prompt.
+        session: s.claudeSessionId.slice(0, 8),
+        model: s.model,
+        costUsd: s.usage?.costUsd ?? null,
+        approved: s.approved,
+      },
+    })),
+    (projectId) => projects.get(projectId)?.prEvidence === true,
+    (cwd) => pullRequests.pullRequestOf(cwd),
+  ),
+).start();
+
 /** Issues labelled orchia:go or orchia:plan on GitHub go into the Up next of their project's newest session. */
 const issueLabels = new IssueLabelWatcher({
   sessions: () => latestSessions(true).map((s) => ({ id: s.id, projectId: s.projectId, cwd: s.cwd, queued: s.info().queue.map((q) => q.text) })),
@@ -749,9 +771,12 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ['PATCH', /^\/api\/projects\/([\w-]+)$/, async (req, _url, [id]) => {
     const body = await readJson(req);
-    if (!isCopyMode(body.copyMode)) throw new HttpError(400, 'Expected { copyMode: "ask" | "copy" | "same" }');
+    if ('prEvidence' in body ? typeof body.prEvidence !== 'boolean' : !isCopyMode(body.copyMode)) {
+      throw new HttpError(400, 'Expected { copyMode: "ask" | "copy" | "same" } or { prEvidence: boolean }');
+    }
     try {
-      projects.setCopyMode(id, body.copyMode);
+      if ('prEvidence' in body) projects.setPrEvidence(id, body.prEvidence);
+      else projects.setCopyMode(id, body.copyMode);
     } catch (err) {
       throw new HttpError(404, (err as Error).message);
     }

@@ -119,6 +119,7 @@ export interface SessionRecord extends Partial<LaunchChoices> {
   plan?: PlanItem[];
   turns?: number;
   autoName?: boolean;
+  approved?: Record<string, number>;
 }
 
 /** A PermissionRequest hook kept open until someone answers it. */
@@ -184,6 +185,8 @@ export class Session extends EventEmitter {
   usage: Usage | null;
   plan: PlanItem[];
   turns: number;
+  /** Permission requests approved in Orchia in this conversation, by tool. */
+  approved: Record<string, number>;
   /** What the last finished turn did, from the Stop hook. */
   summary: TurnSummary | null;
   /** Code blocks of the last finished turn's reply, for Copy and Run. */
@@ -247,6 +250,7 @@ export class Session extends EventEmitter {
     this.usage = restore?.usage ?? null;
     this.plan = restore?.plan ?? [];
     this.turns = restore?.turns ?? 0;
+    this.approved = restore?.approved ?? {};
     this.summary = restore?.summary ?? null;
     this.blocks = restore?.blocks ?? [];
     this.queue = restore?.queue ?? [];
@@ -383,6 +387,7 @@ export class Session extends EventEmitter {
     this.usage = null;
     this.plan = [];
     this.turns = 0;
+    this.approved = {};
     this.summary = null;
   }
 
@@ -510,6 +515,7 @@ export class Session extends EventEmitter {
     const held = this.held.find((p) => p.id === id);
     if (!held) return false;
     this.held = this.held.filter((p) => p !== held);
+    if (allow) this.approved = { ...this.approved, [held.tool]: (this.approved[held.tool] ?? 0) + 1 };
     held.reply(allow, allow && always);
     if (!this.held.length) {
       // Denying stops the turn, and Claude Code fires no Stop hook for that.
@@ -907,6 +913,7 @@ export class Session extends EventEmitter {
       usage: this.usage,
       plan: this.plan,
       turns: this.turns,
+      approved: this.approved,
       summary: this.summary,
       blocks: this.blocks,
       queue: this.queue,

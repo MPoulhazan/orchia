@@ -12,6 +12,8 @@ export interface Project {
   dismissedSkills?: string[];
   /** Where a new session works while another one is busy in the folder; `ask` when missing. */
   copyMode?: CopyMode;
+  /** Keep one comment on this project's pull requests saying how they were made; off when missing. */
+  prEvidence?: boolean;
 }
 
 export type CopyMode = 'ask' | 'copy' | 'same';
@@ -103,6 +105,14 @@ export class ProjectStore {
     if (!project) throw new Error('Project not found');
     if (mode === 'ask') delete project.copyMode;
     else project.copyMode = mode;
+    this.save();
+  }
+
+  setPrEvidence(id: string, on: boolean) {
+    const project = this.get(id);
+    if (!project) throw new Error('Project not found');
+    if (on) project.prEvidence = true;
+    else delete project.prEvidence;
     this.save();
   }
 

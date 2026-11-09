@@ -178,6 +178,11 @@ export class PullRequestWatcher {
     if (changed) this.onChange();
   }
 
+  /** The pull request of a watched folder's branch, as last read. */
+  pullRequestOf(cwd: string): PullRequestState | null {
+    return this.byCwd.get(cwd)?.pr ?? null;
+  }
+
   /** Every card, for the session given for the folder. */
   needs(now = Date.now()): PullRequestNeed[] {
     return this.sessions().flatMap((s) => {

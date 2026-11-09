@@ -143,6 +143,16 @@ export function SettingsDialog(props: {
                   onChange={(copyMode) => api.setCopyMode(props.project!.id, copyMode).catch((err) => setError((err as Error).message))}
                 />
               </Field>
+              <Field
+                label="Evidence on pull requests"
+                description="Keeps one comment up to date on the open pull request of this project's sessions, posted with your gh login: a short conversation ID, the model, the estimated cost and how many requests you approved per tool. Never a prompt, a command, a file or terminal output. Anyone who can read the pull request can read the comment."
+              >
+                <Options
+                  items={ON_OFF}
+                  value={props.project.prEvidence ? 'on' : 'off'}
+                  onChange={(v) => api.setPrEvidence(props.project!.id, v === 'on').catch((err) => setError((err as Error).message))}
+                />
+              </Field>
             </section>
           )}
 

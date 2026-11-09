@@ -240,6 +240,17 @@ try {
   writeFileSync(`${project}/CLAUDE.md`, '');
   step('reports a heavy CLAUDE.md in the token diet');
 
+  const projectOf = async () => (await api('GET', '/api/state')).projects.find((p) => p.id === projectId);
+  if ((await projectOf()).prEvidence) throw new Error('Evidence on pull requests should be off by default');
+  await api('PATCH', `/api/projects/${projectId}`, { prEvidence: true });
+  if ((await projectOf()).prEvidence !== true) throw new Error('Evidence on pull requests did not turn on');
+  await api('PATCH', `/api/projects/${projectId}`, { prEvidence: false });
+  if ((await projectOf()).prEvidence) throw new Error('Evidence on pull requests did not turn off');
+  step('turns evidence on pull requests on and off, per project');
+
+  await until('the approved permission on disk', async () => JSON.parse(readFileSync(`${home}/sessions.json`, 'utf8')).sessions.find((s) => s.id === id)?.approved?.Bash === 1, 5000);
+  step('records the approved permission for the evidence comment');
+
   const done = await session(id);
   if (!done.summary) throw new Error('No done summary');
   const inspect = JSON.stringify(await api('GET', `/api/sessions/${id}/inspect`));

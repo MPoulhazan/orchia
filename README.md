@@ -199,6 +199,15 @@ Up next: Claude reads the failure or the review itself with `gh` and fixes it.
 ✕ puts the card off until the next commit's result. Without `gh`, or with no
 pull request for the branch, nothing shows.
 
+**Evidence on pull requests**, a project setting that is off by default, keeps one
+comment up to date on the open pull request of the project's sessions, posted
+with your `gh` login. For each conversation in that folder it gives a short ID,
+the model, Claude Code's estimated cost, and how many requests you approved per
+tool in Orchia. It never holds a prompt, a command, a file or terminal output,
+and recognized secrets are masked. Anyone who can read the pull request can read
+it, so check the repository's visibility first. Turning it off stops the updates;
+the comment stays until you delete it.
+
 ## Permissions
 
 When Claude asks to run a command, edit a file or use another tool, the request
