@@ -17,7 +17,7 @@ export interface HubState {
   pullRequestsNeeded: PullRequestNeeded[];
 }
 
-const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false };
+const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false, remoteSessions: false };
 
 const NO_CLOUD: CloudStatus = { state: 'off', url: '', note: null };
 

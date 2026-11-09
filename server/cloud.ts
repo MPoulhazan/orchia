@@ -80,12 +80,25 @@ export interface RemoteFinding {
 
 export type RemoteFix = 'block-env-reads' | 'remove-allow';
 
+/** One running session, as the cloud's Devices page lists it. Settings lists these fields as what is sent. */
+export interface RemoteSession {
+  sessionId: string;
+  session: string;
+  project: string;
+  state: 'working' | 'waiting' | 'idle';
+  /** The lot of a plan running as a sequence. */
+  lot: { n: number; total: number } | null;
+  costUsd: number | null;
+}
+
 export interface CloudHooks {
   onChange: () => void;
   /** What needs you right now; null while "Needs you on your phone" is off. */
   needs: () => RemoteNeed[] | null;
   /** Open security issues; null while "Security alerts in Orchia Cloud" is off. */
   security: () => RemoteFinding[] | null;
+  /** Running sessions; null while "Sessions on Orchia Cloud" is off. */
+  sessions: () => RemoteSession[] | null;
   /** Applies an Allow or Deny from the phone; returns why it was refused, or null once applied. */
   answer: (sessionId: string, permissionId: string, allow: boolean) => string | null;
   /** Applies the fix of a security issue from the cloud's Security page; returns why it was refused, or null once applied. */
@@ -103,6 +116,7 @@ export class CloudLink {
   /** The needs last sent on the current connection, to send only changes. */
   private sentNeeds: string | null = null;
   private sentSecurity: string | null = null;
+  private sentSessions: string | null = null;
 
   constructor(dir: string, private readonly hooks: CloudHooks) {
     this.file = join(dir, 'cloud.json');
@@ -137,6 +151,12 @@ export class CloudLink {
     if (json !== this.sentNeeds) {
       this.sentNeeds = json;
       ws.send(JSON.stringify({ type: 'needs', items }));
+    }
+    const running = this.hooks.sessions() ?? [];
+    const sessions = JSON.stringify(running);
+    if (sessions !== this.sentSessions) {
+      this.sentSessions = sessions;
+      ws.send(JSON.stringify({ type: 'sessions', items: running }));
     }
     // null tells the cloud to forget this computer's issues: the switch was turned off.
     const findings = this.hooks.security();
@@ -236,6 +256,7 @@ export class CloudLink {
       if (msg.type === 'ready') {
         this.sentNeeds = null;
         this.sentSecurity = null;
+        this.sentSessions = null;
         this.set({ state: 'connected', url: saved.url, name: saved.name });
         this.report();
       }

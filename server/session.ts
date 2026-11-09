@@ -10,6 +10,7 @@ import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOption
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
+import { redactSecrets } from './secrets.ts';
 
 // These packages ship CommonJS entry points; load them through require.
 const require = createRequire(import.meta.url);
@@ -941,7 +942,8 @@ export const MAX_NAME = 60;
 /** A first name for the session until Claude titles it: the prompt's first words, cut at a word. */
 export function nameFromPrompt(prompt: unknown): string | null {
   if (typeof prompt !== 'string') return null;
-  let text = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
+  // Masked before the cut below: a secret cut in two would no longer be recognized.
+  let text = redactSecrets(prompt.trim().split('\n')[0].replace(/\s+/g, ' '));
   // A GitHub issue from Up next: "#12 Its title".
   const issue = text.match(/^Work on GitHub issue (#\d+) "(.*?)":/);
   if (issue) text = `${issue[1]} ${issue[2]}`;

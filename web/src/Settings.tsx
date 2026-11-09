@@ -305,11 +305,19 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
           <Options items={ON_OFF} value={settings.remoteSecurity ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteSecurity: v === 'on' })} />
         </Field>
       )}
+      {paired && (
+        <Field
+          label="Sessions on Orchia Cloud"
+          description="Lists the sessions running on this computer on Orchia Cloud's Devices page, next to your other computers'. Read-only: nothing can be started or typed from there."
+        >
+          <Options items={ON_OFF} value={settings.remoteSessions ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteSessions: v === 'on' })} />
+        </Field>
+      )}
       <Field
         label="What is sent"
         description={
-          settings.remoteNeeds || settings.remoteSecurity
-            ? 'Your code, prompts and terminal output never leave this computer.'
+          settings.remoteNeeds || settings.remoteSecurity || settings.remoteSessions
+            ? "Your code and terminal output never leave this computer. Neither do your prompts, apart from a session's name, which can be the start of its first prompt."
             : 'Your code, prompts, terminal output, file and project names never leave this computer.'
         }
       >
@@ -331,6 +339,9 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
               <li>Whether it has a fix the cloud may ask for (Hide from Claude, Remove rule)</li>
               <li>For a secret that reached the model: its kind and first and last characters (ghp_…a41f), never its value</li>
             </>
+          )}
+          {settings.remoteSessions && (
+            <li>For each running session: its name (the title you or Claude gave it, or the start of its first prompt), its project's name, whether it is working, waiting or idle, its lot number, and its cost</li>
           )}
         </ul>
       </Field>

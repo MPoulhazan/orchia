@@ -215,6 +215,7 @@ export interface Settings {
   /** What a phone may answer: everything, everything but shell commands, or Deny only. */
   remoteAnswers: 'all' | 'no-shell' | 'deny-only';
   remoteSecurity: boolean;
+  remoteSessions: boolean;
 }
 
 /** The optional link to an Orchia Cloud account (server/cloud.ts). */

@@ -417,12 +417,18 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
 - "Needs you on your phone", a second switch that is also off by default, sends the
   sessions that need you to the cloud so you can allow or deny from your phone: each
   one's session and project name, why it waits, a permission request's tool and target
-  (the command, file or URL), and the summary of a finished turn. Still no code,
-  prompts or terminal output. The phone can only answer a request Claude already made,
+  (the command, file or URL), and the summary of a finished turn. Still no code or
+  terminal output, and no prompts apart from a session's name, which can be the start
+  of its first prompt, with any recognized secret masked. The phone can only answer a request Claude already made,
   never start one or type in a session, and "Always allow" stays on your computer.
   Settings can limit it to Deny, or keep shell commands for the computer. Claude Code's
   own deny rules still apply. Settings also shows how many requests you answered from the
   phone and from the computer; that count stays on your computer.
+- "Sessions on Orchia Cloud", another switch that is off by default, lists the sessions
+  running on this computer on the cloud's Devices page: each one's name (its title, or
+  the start of its first prompt), its project's name, whether it is working, waiting or idle, its lot number in a sequence, and its cost.
+  The list is kept only while the computer is connected, and it is read-only: nothing can
+  be started or typed from there.
 - "Security alerts in Orchia Cloud", a third switch, also off by default, lists this
   computer's open security issues on the cloud's Security page: CVEs in your connectors,
   secrets that reached the model and risky permission settings, each with its severity,

@@ -12,7 +12,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore, isPermissionMode } from './settings.ts';
-import { CloudLink, type RemoteFinding, type RemoteFix, type RemoteNeed } from './cloud.ts';
+import { CloudLink, type RemoteFinding, type RemoteFix, type RemoteNeed, type RemoteSession } from './cloud.ts';
 import { AnswerCounts, type AnswerSource } from './answerCounts.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
@@ -70,12 +70,14 @@ const answerCounts = new AnswerCounts();
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, answer: remoteAnswer, fix: remoteFix });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, answer: remoteAnswer, fix: remoteFix });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+/** A session's name as it leaves this computer: it can be the start of the first prompt, so it may hold a secret. */
+const remoteName = (name: string) => clip(redactSecrets(name), 80);
 
 /** Running sessions that need you, cut to what Settings says is sent. */
 function remoteNeeds(): RemoteNeed[] | null {
@@ -92,13 +94,34 @@ function remoteNeeds(): RemoteNeed[] | null {
     return [
       {
         sessionId: info.id,
-        session: clip(info.name, 80),
+        session: remoteName(info.name),
         project: clip(projectNames.get(info.projectId) ?? '', 80),
         kind,
         detail: detail ? clip(detail, 200) : null,
         // A command can hold a token (`curl -H "Authorization: Bearer ghp_…"`): only its masked form leaves.
         permission: ask ? { id: ask.id, tool: clip(ask.tool, 80), verb: ask.verb, target: clip(redactSecrets(ask.target), 300) } : null,
         summary: kind === 'done' ? clip(info.summary!.text, 600) : null,
+      },
+    ];
+  });
+}
+
+/** Running sessions for Orchia Cloud's Devices page, cut to what Settings says is sent. */
+function remoteSessions(): RemoteSession[] | null {
+  if (!settings.get().remoteSessions) return null;
+  return [...sessions.values()].flatMap((s): RemoteSession[] => {
+    const info = s.info();
+    if (info.status !== 'running') return [];
+    const cost = s.usage?.costUsd;
+    return [
+      {
+        sessionId: info.id,
+        session: remoteName(info.name),
+        project: clip(projects.get(info.projectId)?.name ?? '', 80),
+        state: info.permission || info.activity === 'waiting' ? 'waiting' : info.activity === 'idle' ? 'idle' : 'working',
+        lot: info.lotRun?.state === 'running' ? { n: info.lotRun.n, total: info.lotRun.total } : null,
+        // In cents, so a tiny change of cost is not worth a message.
+        costUsd: cost == null ? null : Math.round(cost * 100) / 100,
       },
     ];
   });
@@ -114,7 +137,7 @@ function remoteSecurity(): RemoteFinding[] | null {
   const since = (id: string) => findingSince.get(id) ?? (findingSince.set(id, Date.now()), Date.now());
   const sessionName = (id: string) => {
     const s = sessions.get(id);
-    return s ? clip(s.name, 80) : null;
+    return s ? remoteName(s.name) : null;
   };
 
   const secretFindings = secrets.open().map((e): RemoteFinding => ({
@@ -124,7 +147,7 @@ function remoteSecurity(): RemoteFinding[] | null {
     title: exposureText(e).title,
     detail: clip(exposureText(e).detail, 300),
     project: projectName(e.projectId),
-    session: clip(e.sessionName, 80),
+    session: remoteName(e.sessionName),
     fixUrl: e.rotateUrl,
     since: e.firstSeenAt,
     triage: triage.get(secretKey(e.fingerprint)),
@@ -739,7 +762,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {
