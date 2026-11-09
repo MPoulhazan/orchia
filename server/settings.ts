@@ -30,6 +30,8 @@ export interface Settings {
   remoteSecurity: boolean;
   /** Once paired, list the running sessions (name, project, state, lot, cost) on Orchia Cloud's Devices page. */
   remoteSessions: boolean;
+  /** Once sessions are listed there, let Orchia Cloud run what Up next holds back, by ID. */
+  remoteRunNext: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -42,6 +44,7 @@ const DEFAULTS: Settings = {
   remoteAnswers: 'all',
   remoteSecurity: false,
   remoteSessions: false,
+  remoteRunNext: false,
 };
 
 /** Keeps known values only, so a hand-edited or older file never breaks a launch. */
@@ -56,6 +59,7 @@ function clean(raw: any): Settings {
     remoteAnswers: REMOTE_ANSWERS.includes(raw?.remoteAnswers) ? raw.remoteAnswers : 'all',
     remoteSecurity: raw?.remoteSecurity === true,
     remoteSessions: raw?.remoteSessions === true,
+    remoteRunNext: raw?.remoteRunNext === true,
   };
 }
 
@@ -90,6 +94,7 @@ export class SettingsStore {
     if (!REMOTE_ANSWERS.includes(next.remoteAnswers)) throw new Error('Unknown remoteAnswers value');
     if (typeof next.remoteSecurity !== 'boolean') throw new Error('remoteSecurity must be true or false');
     if (typeof next.remoteSessions !== 'boolean') throw new Error('remoteSessions must be true or false');
+    if (typeof next.remoteRunNext !== 'boolean') throw new Error('remoteRunNext must be true or false');
     this.settings = next;
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.settings, null, 2));

@@ -308,9 +308,17 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
       {paired && (
         <Field
           label="Sessions on Orchia Cloud"
-          description="Lists the sessions running on this computer on Orchia Cloud's Devices page, next to your other computers'. Read-only: nothing can be started or typed from there."
+          description="Lists the sessions running on this computer on Orchia Cloud's Devices page, next to your other computers'. Nothing can be typed from there."
         >
           <Options items={ON_OFF} value={settings.remoteSessions ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteSessions: v === 'on' })} />
+        </Field>
+      )}
+      {paired && settings.remoteSessions && (
+        <Field
+          label="Run next lot from Orchia Cloud"
+          description="When Up next is on hold because a turn stopped or a lot said it was blocked, adds a button on the Devices page that runs what's next. Orchia Cloud only sends the item's ID, so it can only start a prompt already written on this computer, and only if it is still first in line and the session is free. Permission requests still ask as usual."
+        >
+          <Options items={ON_OFF} value={settings.remoteRunNext ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteRunNext: v === 'on' })} />
         </Field>
       )}
       <Field
@@ -342,6 +350,9 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
           )}
           {settings.remoteSessions && (
             <li>For each running session: its name (the title you or Claude gave it, or the start of its first prompt), its project's name, whether it is working, waiting or idle, its lot number, and its cost</li>
+          )}
+          {settings.remoteSessions && settings.remoteRunNext && (
+            <li>For a session whose Up next is on hold: the next item's ID and why it is on hold, never its text</li>
           )}
         </ul>
       </Field>

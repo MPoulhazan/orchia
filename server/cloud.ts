@@ -89,6 +89,8 @@ export interface RemoteSession {
   /** The lot of a plan running as a sequence. */
   lot: { n: number; total: number } | null;
   costUsd: number | null;
+  /** What Up next holds back, while "Run next lot from Orchia Cloud" is on: its ID, never its text. */
+  next: { id: string; held: 'stopped' | 'blocked' } | null;
 }
 
 export interface CloudHooks {
@@ -103,6 +105,8 @@ export interface CloudHooks {
   answer: (sessionId: string, permissionId: string, allow: boolean) => string | null;
   /** Applies the fix of a security issue from the cloud's Security page; returns why it was refused, or null once applied. */
   fix: (findingId: string) => string | null;
+  /** Runs the item Up next holds back, by ID; returns why it was refused, or null once started. */
+  runNext: (sessionId: string, itemId: string) => string | null;
 }
 
 export class CloudLink {
@@ -267,6 +271,11 @@ export class CloudLink {
       }
       if (msg.type === 'fix' && typeof msg.requestId === 'string') {
         const error = typeof msg.findingId === 'string' ? this.hooks.fix(msg.findingId) : 'Malformed fix';
+        ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
+      }
+      if (msg.type === 'run-next' && typeof msg.requestId === 'string') {
+        const ok = typeof msg.sessionId === 'string' && typeof msg.itemId === 'string';
+        const error = ok ? this.hooks.runNext(msg.sessionId, msg.itemId) : 'Malformed request';
         ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
       }
     });

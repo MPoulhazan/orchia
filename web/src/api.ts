@@ -216,6 +216,7 @@ export interface Settings {
   remoteAnswers: 'all' | 'no-shell' | 'deny-only';
   remoteSecurity: boolean;
   remoteSessions: boolean;
+  remoteRunNext: boolean;
 }
 
 /** The optional link to an Orchia Cloud account (server/cloud.ts). */

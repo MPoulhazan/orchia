@@ -427,8 +427,12 @@ Orchia starts processes on your machine, so it is built to be reachable only by 
 - "Sessions on Orchia Cloud", another switch that is off by default, lists the sessions
   running on this computer on the cloud's Devices page: each one's name (its title, or
   the start of its first prompt), its project's name, whether it is working, waiting or idle, its lot number in a sequence, and its cost.
-  The list is kept only while the computer is connected, and it is read-only: nothing can
-  be started or typed from there.
+  The list is kept only while the computer is connected, and nothing can be typed from there.
+  With "Run next lot from Orchia Cloud", a further switch that is off by default, a session
+  whose Up next is on hold (its turn stopped, or a lot said it was blocked) gets a button
+  there. The cloud receives the next item's ID and why it is on hold, never its text, and
+  sends back only that ID: Orchia runs it if it is still first in line, the session is free
+  and there is no draft in Claude's prompt. Permission requests still ask as usual.
 - "Security alerts in Orchia Cloud", a third switch, also off by default, lists this
   computer's open security issues on the cloud's Security page: CVEs in your connectors,
   secrets that reached the model and risky permission settings, each with its severity,

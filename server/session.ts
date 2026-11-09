@@ -696,6 +696,23 @@ export class Session extends EventEmitter {
     return true;
   }
 
+  /** What Up next holds back on an idle session, as Orchia Cloud may ask to run it: its ID only. */
+  remoteNext(): { id: string; held: 'stopped' | 'blocked' } | null {
+    const held = this.queueHeld();
+    return this.activity === 'idle' && (held === 'stopped' || held === 'blocked') ? { id: this.queue[0].id, held } : null;
+  }
+
+  /** "Run next lot" from Orchia Cloud: only the item still first in line, on a free session. Returns why it refused. */
+  runNextFromCloud(id: string): string | null {
+    const next = this.queue[0];
+    if (next?.id !== id) return 'This is no longer next in Up next.';
+    if (!this.canSend() || this.activity !== 'idle') return 'This session is busy.';
+    if (this.draftLength > 0) return "There is a draft in Claude's prompt on this computer.";
+    if (next.lot?.clear) this.clearThenSend();
+    else this.sendNext();
+    return null;
+  }
+
   private queueHeld(): SessionInfo['queueHeld'] {
     if (!this.queue.length || !this.canSend()) return null;
     if (this.lotBlocked) return 'blocked';

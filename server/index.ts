@@ -70,7 +70,7 @@ const answerCounts = new AnswerCounts();
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, answer: remoteAnswer, fix: remoteFix });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, answer: remoteAnswer, fix: remoteFix, runNext: remoteRunNext });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
@@ -122,9 +122,18 @@ function remoteSessions(): RemoteSession[] | null {
         lot: info.lotRun?.state === 'running' ? { n: info.lotRun.n, total: info.lotRun.total } : null,
         // In cents, so a tiny change of cost is not worth a message.
         costUsd: cost == null ? null : Math.round(cost * 100) / 100,
+        next: settings.get().remoteRunNext ? s.remoteNext() : null,
       },
     ];
   });
+}
+
+/** "Run next lot" from the cloud's Devices page. Only IDs arrive: the prompt was written on this computer. */
+function remoteRunNext(sessionId: string, itemId: string): string | null {
+  const { remoteSessions: listed, remoteRunNext: allowed } = settings.get();
+  if (!listed || !allowed) return 'Run next lot from Orchia Cloud is turned off in Orchia on this computer.';
+  const session = sessions.get(sessionId);
+  return session ? session.runNextFromCloud(itemId) : 'This is no longer next in Up next.';
 }
 
 /** When each security issue was first seen since Orchia started; secrets keep their own date. */
@@ -762,7 +771,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions', 'remoteRunNext']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
     } catch (err) {
