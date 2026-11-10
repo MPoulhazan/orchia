@@ -30,6 +30,7 @@ import type { LaunchChoices, SessionInfo } from './session.ts';
 import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { projectDiet } from './tokenDiet.ts';
+import { projectUsage, USAGE_DAYS } from './usage.ts';
 import { evidenceSources, PrEvidencePublisher } from './prEvidence.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
@@ -1163,6 +1164,11 @@ const routes: [string, RegExp, Handler][] = [
     const { connectors } = await projectConnectors(project.path).catch(() => ({ connectors: [] as Connector[] }));
     return projectDiet(project.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.name, label: c.label, prefix: c.toolPrefix })));
   }],
+
+  ['GET', /^\/api\/usage$/, async () => ({
+    days: USAGE_DAYS,
+    projects: await Promise.all(projects.list().map(async (p) => ({ id: p.id, name: p.name, rows: await projectUsage(p.path).catch(() => []) }))),
+  })],
 
   ['GET', /^\/api\/suggestions$/, () => claudeProjectSuggestions()],
   ['GET', /^\/api\/folders$/, (_req, url) => {
