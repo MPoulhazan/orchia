@@ -110,6 +110,8 @@ export interface RemoteUsageRow {
 /** A token diet finding: its kind and title, never a prompt's text. */
 export interface RemoteDietFinding {
   project: string;
+  /** The same while the finding stays open, whatever its count: a repeated prompt's is a hash of it. */
+  key: string;
   kind: string;
   title: string;
   /** About this many tokens at the start of every session, when known. */

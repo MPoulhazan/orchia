@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -136,8 +136,12 @@ async function refreshUsage() {
       for (const r of await projectUsage(p.path).catch(() => [])) rows.push({ project, ...r });
       const { connectors } = await projectConnectors(p.path).catch(() => ({ connectors: [] as Connector[] }));
       const diet = await projectDiet(p.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.name, label: c.label, prefix: c.toolPrefix }))).catch(() => null);
-      // The kind only: a repeated prompt's id and detail hold its text.
-      for (const f of diet?.findings ?? []) findings.push({ project, kind: f.id.split(':')[0], title: clip(f.title, 120), tokens: f.tokens ?? null });
+      // A repeated prompt's id and detail hold its text: only a hash of the id leaves.
+      for (const f of diet?.findings ?? []) {
+        const kind = f.id.split(':')[0];
+        const key = kind === 'repeat' ? `repeat:${createHash('sha256').update(f.id).digest('hex').slice(0, 12)}` : f.id;
+        findings.push({ project, key, kind, title: clip(f.title, 120), tokens: f.tokens ?? null });
+      }
     }
     usageReport = { days: USAGE_DAYS, rows, findings };
   } finally {
