@@ -116,6 +116,16 @@ export interface RemoteDietFinding {
   title: string;
   /** About this many tokens at the start of every session, when known. */
   tokens: number | null;
+  /** What Orchia Cloud may ask for, while "Optimize from Orchia Cloud" is on. */
+  action: 'disable-connectors' | null;
+}
+
+/** A change asked from Orchia Cloud that can still be undone from there. */
+export interface RemoteDietUndo {
+  project: string;
+  key: string;
+  count: number;
+  at: number;
 }
 
 export interface RemoteUsage {
@@ -123,6 +133,7 @@ export interface RemoteUsage {
   rows: RemoteUsageRow[];
   limits: { fiveHour: { usedPct: number; resetsAt: number | null } | null; sevenDay: { usedPct: number; resetsAt: number | null } | null } | null;
   findings: RemoteDietFinding[];
+  undo: RemoteDietUndo[];
 }
 
 export interface CloudHooks {
@@ -141,6 +152,8 @@ export interface CloudHooks {
   fix: (findingId: string) => string | null;
   /** Runs the item Up next holds back, by ID; returns why it was refused, or null once started. */
   runNext: (sessionId: string, itemId: string) => string | null;
+  /** Applies, or undoes, a token diet change asked from the Usage page; returns why it was refused, or null once done. */
+  diet: (project: string, key: string, undo: boolean) => Promise<string | null>;
 }
 
 export class CloudLink {
@@ -315,6 +328,13 @@ export class CloudLink {
       if (msg.type === 'fix' && typeof msg.requestId === 'string') {
         const error = typeof msg.findingId === 'string' ? this.hooks.fix(msg.findingId) : 'Malformed fix';
         ws.send(JSON.stringify({ type: 'answered', requestId: msg.requestId, error }));
+      }
+      if (msg.type === 'diet' && typeof msg.requestId === 'string') {
+        const ok = typeof msg.project === 'string' && typeof msg.key === 'string';
+        const requestId = msg.requestId;
+        (ok ? this.hooks.diet(msg.project, msg.key, msg.undo === true) : Promise.resolve('Malformed request'))
+          .catch((err: Error) => err.message)
+          .then((error) => ws.send(JSON.stringify({ type: 'answered', requestId, error })));
       }
       if (msg.type === 'run-next' && typeof msg.requestId === 'string') {
         const ok = typeof msg.sessionId === 'string' && typeof msg.itemId === 'string';

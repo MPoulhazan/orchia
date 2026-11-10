@@ -31,6 +31,7 @@ import { claudeProjectSuggestions, homeFolder, listFolder } from './folders.ts';
 import { gitSummary, limitsFromStatusLine, type RateLimits } from './inspector.ts';
 import { projectDiet } from './tokenDiet.ts';
 import { projectUsage, USAGE_DAYS } from './usage.ts';
+import { DietActionStore } from './dietActions.ts';
 import { evidenceSources, PrEvidencePublisher } from './prEvidence.ts';
 import { MAX_PASTE_BYTES, isPasteType, savePaste, startPasteCleanup } from './pastes.ts';
 import { importSkills, previewRepo } from './githubSkills.ts';
@@ -75,7 +76,7 @@ const answerCounts = new AnswerCounts();
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, usage: remoteUsage, answer: remoteAnswer, fix: remoteFix, runNext: remoteRunNext });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, usage: remoteUsage, diet: remoteDiet, answer: remoteAnswer, fix: remoteFix, runNext: remoteRunNext });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
@@ -114,6 +115,9 @@ function remoteNeeds(): RemoteNeed[] | null {
 /** Token use for Orchia Cloud's Usage page, worked out every few minutes: reading transcripts is too slow for every report. */
 let usageReport: Omit<RemoteUsage, 'limits'> | null = null;
 let usageRefreshing = false;
+/** A refresh asked while one runs: it runs again right after, so a change from the cloud shows at once. */
+let usageAgain = false;
+const dietActions = new DietActionStore(CONFIG_DIR);
 const USAGE_REFRESH_MS = 10 * 60 * 1000;
 
 function remoteUsage(): RemoteUsage | null {
@@ -126,8 +130,12 @@ async function refreshUsage() {
     usageReport = null;
     return cloud.report();
   }
-  if (usageRefreshing) return;
+  if (usageRefreshing) {
+    usageAgain = true;
+    return;
+  }
   usageRefreshing = true;
+  const canAct = settings.get().remoteDietActions;
   try {
     const rows: RemoteUsageRow[] = [];
     const findings: RemoteDietFinding[] = [];
@@ -140,14 +148,55 @@ async function refreshUsage() {
       for (const f of diet?.findings ?? []) {
         const kind = f.id.split(':')[0];
         const key = kind === 'repeat' ? `repeat:${createHash('sha256').update(f.id).digest('hex').slice(0, 12)}` : f.id;
-        findings.push({ project, key, kind, title: clip(f.title, 120), tokens: f.tokens ?? null });
+        const action = canAct && f.id === 'unused-connectors' && f.connectors?.length ? 'disable-connectors' : null;
+        findings.push({ project, key, kind, title: clip(f.title, 120), tokens: f.tokens ?? null, action });
       }
     }
-    usageReport = { days: USAGE_DAYS, rows, findings };
+    dietActions.keepProjects(new Set(projects.list().map((p) => p.id)));
+    const undo = canAct
+      ? dietActions.list().flatMap((a) => {
+          const p = projects.get(a.projectId);
+          return p ? [{ project: clip(p.name, 80), key: a.key, count: a.names.length, at: a.at }] : [];
+        })
+      : [];
+    usageReport = { days: USAGE_DAYS, rows, findings, undo };
   } finally {
     usageRefreshing = false;
   }
   cloud.report();
+  if (usageAgain) {
+    usageAgain = false;
+    await refreshUsage();
+  }
+}
+
+/**
+ * A token diet change from the Usage page. Only the project's name and the finding's key arrive:
+ * the finding is worked out again here, as it is now, and only connectors can be turned off.
+ */
+async function remoteDiet(projectName: string, key: string, undo: boolean): Promise<string | null> {
+  if (!settings.get().remoteUsage || !settings.get().remoteDietActions) return 'Optimize from Orchia Cloud is turned off in Orchia on this computer.';
+  if (key !== 'unused-connectors') return 'This one is changed in Orchia on this computer.';
+  const matches = projects.list().filter((p) => clip(p.name, 80) === projectName);
+  if (matches.length !== 1) return matches.length ? 'Several projects have this name here: change it in Orchia on this computer.' : 'This project is no longer in Orchia.';
+  const project = matches[0];
+  if (undo) {
+    const done = dietActions.get(project.id, key);
+    if (!done) return 'Nothing to undo.';
+    setConnectorsEnabled(project.path, done.names, true);
+    dietActions.remove(project.id, key);
+  } else {
+    const { connectors } = await projectConnectors(project.path);
+    const diet = await projectDiet(project.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.name, label: c.label, prefix: c.toolPrefix })));
+    const names = diet.findings.find((f) => f.id === key)?.connectors?.map((c) => c.name) ?? [];
+    if (!names.length) return 'Already done: no unused connector is left in this project.';
+    setConnectorsEnabled(project.path, names, false);
+    dietActions.add({ projectId: project.id, key, names, at: Date.now() });
+  }
+  connectorsChangedIn(project.id);
+  broadcast();
+  refreshUsage().catch((err) => console.error('Could not add up token use:', err));
+  return null;
 }
 
 /** Running sessions for Orchia Cloud's Devices page, cut to what Settings says is sent. */
@@ -515,8 +564,13 @@ const restartWhenQuiet = new Set<Session>();
 
 /** Connectors load when claude starts: every running session of the project needs a restart. */
 function connectorsChanged(session: Session) {
+  connectorsChangedIn(session.projectId);
+}
+
+/** The project's running sessions pick the change up once they are quiet, if Settings says so. */
+function connectorsChangedIn(projectId: string) {
   if (!settings.get().restartAfterConnectorChange) return;
-  for (const s of sessions.values()) if (s.projectId === session.projectId && s.status === 'running') restartWhenQuiet.add(s);
+  for (const s of sessions.values()) if (s.projectId === projectId && s.status === 'running') restartWhenQuiet.add(s);
   restartQuietOnes();
 }
 
@@ -844,7 +898,7 @@ const routes: [string, RegExp, Handler][] = [
     for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions', 'remoteRunNext']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
-      if ('remoteUsage' in patch) refreshUsage().catch((err) => console.error('Could not add up token use:', err));
+      if ('remoteUsage' in patch || 'remoteDietActions' in patch) refreshUsage().catch((err) => console.error('Could not add up token use:', err));
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }

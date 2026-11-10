@@ -339,6 +339,14 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
           <Options items={ON_OFF} value={settings.remoteUsage ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteUsage: v === 'on' })} />
         </Field>
       )}
+      {paired && settings.remoteUsage && (
+        <Field
+          label="Optimize from Orchia Cloud"
+          description="Adds a button on the Usage page that turns off a project's connectors that no session called, as the token diet card does here, and one that undoes it. Orchia Cloud only sends the project's name: this computer works out the list again before changing anything, and nothing else can be changed from there."
+        >
+          <Options items={ON_OFF} value={settings.remoteDietActions ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteDietActions: v === 'on' })} />
+        </Field>
+      )}
       <Field
         label="What is sent"
         description={
@@ -377,6 +385,7 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
               <li>For each project, day and model: its name, the tokens used (input, output, cache reads and writes), the number of conversations and the estimated cost</li>
               <li>Your plan's 5-hour and weekly limits: the share used and when they reset</li>
               <li>For each token diet finding: its project, kind, title and token weight, never a prompt's text</li>
+              {settings.remoteDietActions && <li>For connectors turned off from Orchia Cloud: the project's name, how many, and when, so it can be undone</li>}
             </>
           )}
         </ul>

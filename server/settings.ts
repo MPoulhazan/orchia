@@ -34,6 +34,8 @@ export interface Settings {
   remoteRunNext: boolean;
   /** Once paired, send token use per project, day and model, the plan limits and the token diet to Orchia Cloud. */
   remoteUsage: boolean;
+  /** Once token use is sent, let Orchia Cloud turn off a project's unused connectors, and undo it. */
+  remoteDietActions: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -48,6 +50,7 @@ const DEFAULTS: Settings = {
   remoteSessions: false,
   remoteRunNext: false,
   remoteUsage: false,
+  remoteDietActions: false,
 };
 
 /** Keeps known values only, so a hand-edited or older file never breaks a launch. */
@@ -64,6 +67,7 @@ function clean(raw: any): Settings {
     remoteSessions: raw?.remoteSessions === true,
     remoteRunNext: raw?.remoteRunNext === true,
     remoteUsage: raw?.remoteUsage === true,
+    remoteDietActions: raw?.remoteDietActions === true,
   };
 }
 
@@ -100,6 +104,7 @@ export class SettingsStore {
     if (typeof next.remoteSessions !== 'boolean') throw new Error('remoteSessions must be true or false');
     if (typeof next.remoteRunNext !== 'boolean') throw new Error('remoteRunNext must be true or false');
     if (typeof next.remoteUsage !== 'boolean') throw new Error('remoteUsage must be true or false');
+    if (typeof next.remoteDietActions !== 'boolean') throw new Error('remoteDietActions must be true or false');
     this.settings = next;
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.settings, null, 2));

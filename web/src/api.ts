@@ -219,6 +219,7 @@ export interface Settings {
   remoteSecurity: boolean;
   remoteSessions: boolean;
   remoteUsage: boolean;
+  remoteDietActions: boolean;
   remoteRunNext: boolean;
 }
 
