@@ -206,26 +206,38 @@ const toggled = (list: unknown, name: string, on: boolean): string[] => {
 
 /** On or off for this project only, whatever the server's scope. */
 export function setConnectorEnabled(cwd: string, name: string, on: boolean) {
-  if (sourceOf(name, cwd) === 'project') {
+  setConnectorsEnabled(cwd, [name], on);
+}
+
+/** Several at once, each file written once. */
+export function setConnectorsEnabled(cwd: string, names: string[], on: boolean) {
+  const fromRepo = names.filter((name) => sourceOf(name, cwd) === 'project');
+  const others = names.filter((name) => !fromRepo.includes(name));
+  if (fromRepo.length) {
     // `.mcp.json` servers: Claude Code's own approve / reject lists.
-    const file = join(cwd, '.claude', 'settings.local.json');
+    const file = localSettingsFile(cwd);
     const settings = readJsonFile(file) ?? {};
-    settings.disabledMcpjsonServers = toggled(settings.disabledMcpjsonServers, name, on);
-    const approved = toggled(settings.enabledMcpjsonServers, name, true);
-    settings.enabledMcpjsonServers = on ? [...approved, name] : approved;
+    for (const name of fromRepo) {
+      settings.disabledMcpjsonServers = toggled(settings.disabledMcpjsonServers, name, on);
+      const approved = toggled(settings.enabledMcpjsonServers, name, true);
+      settings.enabledMcpjsonServers = on ? [...approved, name] : approved;
+    }
     writeJsonFile(file, settings);
-  } else {
+  }
+  if (others.length) {
     // Read right before writing: Claude Code writes this file often.
     const config = readJsonFile(CLAUDE_JSON);
     if (!config) throw new Error(`Can't read ${CLAUDE_JSON}`);
-    for (const entry of ownEntries(config, cwd)) entry.disabledMcpServers = toggled(entry.disabledMcpServers, name, on);
+    for (const entry of ownEntries(config, cwd)) {
+      for (const name of others) entry.disabledMcpServers = toggled(entry.disabledMcpServers, name, on);
+    }
     writeJsonFile(CLAUDE_JSON, config);
   }
   // Shown at once; the next check says whether it connects.
   const hit = cache.get(cwd.toLowerCase());
   if (hit) {
     hit.connectors = hit.connectors.map((c) =>
-      c.name === name ? { ...c, state: on ? 'unknown' : 'disabled', detail: on ? 'Checking…' : 'Disabled for this project' } : c,
+      names.includes(c.name) ? { ...c, state: on ? 'unknown' : 'disabled', detail: on ? 'Checking…' : 'Disabled for this project' } : c,
     );
     hit.at = 0;
   }

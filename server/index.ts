@@ -43,6 +43,7 @@ import {
   removeConnector,
   serverConfig,
   setConnectorEnabled,
+  setConnectorsEnabled,
   setConnectorToken,
   signIn,
   signInsFor,
@@ -981,6 +982,15 @@ const routes: [string, RegExp, Handler][] = [
         connectorsChanged(session);
         return { ok: true };
       }
+      // From the token diet: the connectors nobody called, at once.
+      if (body.action === 'toggle-many') {
+        const known = new Set((await projectConnectors(session.cwd)).connectors.map((c) => c.name));
+        const names = (Array.isArray(body.names) ? body.names : []).map(String).filter((n: string) => known.has(n));
+        if (!names.length) throw new Error('None of these connectors is known here');
+        setConnectorsEnabled(session.cwd, names, body.on === true);
+        connectorsChanged(session);
+        return { ok: true };
+      }
       if (body.action === 'add') {
         const server = configFrom(body.server);
         if (!server) throw new Error('Give a server URL or the command that starts it');
@@ -1151,7 +1161,7 @@ const routes: [string, RegExp, Handler][] = [
     const project = projects.get(id);
     if (!project) throw new HttpError(404, 'Project not found');
     const { connectors } = await projectConnectors(project.path).catch(() => ({ connectors: [] as Connector[] }));
-    return projectDiet(project.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.label, prefix: c.toolPrefix })));
+    return projectDiet(project.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.name, label: c.label, prefix: c.toolPrefix })));
   }],
 
   ['GET', /^\/api\/suggestions$/, () => claudeProjectSuggestions()],

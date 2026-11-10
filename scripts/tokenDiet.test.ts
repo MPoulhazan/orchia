@@ -15,10 +15,43 @@ function ids(input: Partial<DietInput>): string[] {
   return dietFindings({ sessions: [], connectors: [], memoryFiles: [], now: NOW, ...input }).map((f) => f.id);
 }
 
-const sentry = { name: 'claude.ai Sentry', prefix: 'claude_ai_Sentry' };
+const sentry = { name: 'claude.ai Sentry', label: 'Sentry', prefix: 'claude_ai_Sentry' };
+const hue = { name: 'claude.ai MyHue', label: 'MyHue', prefix: 'claude_ai_MyHue' };
 
 test('a connected connector never called in enough sessions is reported', () => {
   assert.deepEqual(ids({ sessions: many(5), connectors: [sentry] }), ['unused-connectors']);
+});
+
+test('unused connectors come with their weight, heaviest first, from the latest session that listed tools', () => {
+  const sentryTools = ['mcp__claude_ai_Sentry__search_issues', 'mcp__claude_ai_Sentry__get_trace_details'];
+  const sessions = [
+    ...many(4, { deferredTools: ['mcp__claude_ai_MyHue__control_lights'] }),
+    session('latest', { lastAt: OLD + 1, deferredTools: [...sentryTools, 'mcp__claude_ai_MyHue__control_lights'], mcpInstructions: { 'claude.ai Sentry': 400 } }),
+  ];
+  const [finding] = dietFindings({ sessions, connectors: [hue, sentry], memoryFiles: [], now: NOW });
+  const sentryChars = sentryTools.join('\n').length + 1 + 400;
+  assert.deepEqual(finding.connectors, [
+    { name: 'claude.ai Sentry', label: 'Sentry', tools: 2, tokens: Math.round(sentryChars / 4) },
+    { name: 'claude.ai MyHue', label: 'MyHue', tools: 1, tokens: Math.round(('mcp__claude_ai_MyHue__control_lights'.length + 1) / 4) },
+  ]);
+  assert.match(finding.detail, /about \d+ tokens at the start of every session/);
+});
+
+test('without a list of deferred tools, the weight is unknown and not guessed', () => {
+  const [finding] = dietFindings({ sessions: many(5), connectors: [sentry], memoryFiles: [], now: NOW });
+  assert.deepEqual(finding.connectors, [{ name: 'claude.ai Sentry', label: 'Sentry', tools: null, tokens: null }]);
+  assert.doesNotMatch(finding.detail, /tokens/);
+});
+
+test('deferred tools and connector instructions are read from transcript attachments', () => {
+  const facts = emptyFacts('t');
+  const attachment = (a: object) => JSON.stringify({ type: 'attachment', attachment: a });
+  addLine(facts, attachment({ type: 'deferred_tools_delta', addedNames: ['mcp__a__one', 'mcp__a__two', 'Monitor'], removedNames: [] }));
+  addLine(facts, attachment({ type: 'deferred_tools_delta', addedNames: ['mcp__b__x'], removedNames: ['mcp__a__two'] }));
+  addLine(facts, attachment({ type: 'mcp_instructions_delta', addedNames: ['a', 'b'], addedBlocks: ['## a\nuse it', '## b'], removedNames: [] }));
+  addLine(facts, attachment({ type: 'mcp_instructions_delta', addedNames: [], addedBlocks: [], removedNames: ['b'] }));
+  assert.deepEqual(facts.deferredTools, ['mcp__a__one', 'Monitor', 'mcp__b__x']);
+  assert.deepEqual(facts.mcpInstructions, { a: '## a\nuse it'.length });
 });
 
 test('a connector called once is not reported', () => {

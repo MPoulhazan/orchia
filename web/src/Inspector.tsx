@@ -62,7 +62,7 @@ export function Inspector({
 
       <ConnectorsSection session={session} change={connectorsChange} onAdd={onAddConnector} autoRestart={autoRestart} />
 
-      <TokenDietSection projectId={session.projectId} />
+      <TokenDietSection projectId={session.projectId} sessionId={session.id} />
 
       {data && <AllowRulesSection session={session} rules={data.allowRules} onChange={reload} />}
 

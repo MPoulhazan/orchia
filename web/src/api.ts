@@ -229,7 +229,14 @@ export type CloudStatus =
 
 /** Where a project's tokens go (server/tokenDiet.ts). */
 export interface TokenDiet {
-  findings: { id: string; title: string; detail: string; action: string }[];
+  findings: {
+    id: string;
+    title: string;
+    detail: string;
+    action: string;
+    /** Connectors nobody called: turned off from the finding. Weight unknown when tools are all loaded up front. */
+    connectors?: { name: string; label: string; tools: number | null; tokens: number | null }[];
+  }[];
   sessions: number;
 }
 
@@ -388,6 +395,7 @@ export type TokenChoice = { useCli: true } | { token: string };
 
 export type ConnectorChange =
   | { action: 'toggle'; name: string; on: boolean }
+  | { action: 'toggle-many'; names: string[]; on: boolean }
   | { action: 'signin'; name: string }
   | ({ action: 'add'; name: string; server: McpServerConfig; scope: SkillScope } & Partial<{ useCli: true; token: string }>)
   | ({ action: 'token'; name: string } & TokenChoice)

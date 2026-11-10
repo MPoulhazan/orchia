@@ -25,7 +25,6 @@ export const SETTLED_AFTER_MS = 60 * 60 * 1000;
 export const MIN_REPEAT_SESSIONS = 3;
 export const MIN_REPEAT_LENGTH = 15;
 const MAX_REPEATS_SHOWN = 3;
-const MAX_NAMES_SHOWN = 6;
 
 /** What one transcript says, reduced to what the rules read. */
 export interface TranscriptFacts {
@@ -36,6 +35,20 @@ export interface TranscriptFacts {
   autoCompacts: number;
   model: string | null;
   effort: string | null;
+  /** Tool names Claude Code listed as deferred: only their names are sent until one is looked up. */
+  deferredTools: string[];
+  /** Server name → length of the instructions it sends with every session. */
+  mcpInstructions: Record<string, number>;
+}
+
+/** A connector nobody called, with what it costs every session when that is known. */
+export interface UnusedConnector {
+  /** Claude Code's name for it, e.g. `claude.ai Sentry`: what turning it off takes. */
+  name: string;
+  label: string;
+  tools: number | null;
+  /** About this many tokens in every session: its tools' names and its instructions. */
+  tokens: number | null;
 }
 
 export interface DietFinding {
@@ -44,6 +57,8 @@ export interface DietFinding {
   detail: string;
   /** What to do about it. */
   action: string;
+  /** For `unused-connectors`: they can be turned off from the finding. */
+  connectors?: UnusedConnector[];
 }
 
 export interface MemoryFile {
@@ -54,12 +69,22 @@ export interface MemoryFile {
 export interface DietInput {
   sessions: TranscriptFacts[];
   /** Connected connectors, with the prefix of their tools' names (`mcp__<prefix>__tool`). */
-  connectors: { name: string; prefix: string }[];
+  connectors: { name: string; label: string; prefix: string }[];
   memoryFiles: MemoryFile[];
   now: number;
 }
 
-export const emptyFacts = (id: string): TranscriptFacts => ({ id, lastAt: 0, prompts: [], mcpTools: [], autoCompacts: 0, model: null, effort: null });
+export const emptyFacts = (id: string): TranscriptFacts => ({
+  id,
+  lastAt: 0,
+  prompts: [],
+  mcpTools: [],
+  autoCompacts: 0,
+  model: null,
+  effort: null,
+  deferredTools: [],
+  mcpInstructions: {},
+});
 
 /** Text the user wrote in this entry; null for a tool result, a command or something Claude Code added itself. */
 function promptText(entry: any): string | null {
@@ -78,6 +103,7 @@ function promptText(entry: any): string | null {
 
 /** Reads one transcript line into `facts`. Most lines are skipped without being parsed: transcripts get large. */
 export function addLine(facts: TranscriptFacts, line: string) {
+  if (line.includes('"deferred_tools_delta"') || line.includes('"mcp_instructions_delta"')) return addAttachment(facts, line);
   if (!line.includes('"type":"user"') && !line.includes('"type":"assistant"') && !line.includes('"compact_boundary"')) return;
   let entry: any;
   try {
@@ -106,24 +132,59 @@ export function addLine(facts: TranscriptFacts, line: string) {
   }
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-function namesList(names: string[]): string {
-  const shown = names.slice(0, MAX_NAMES_SHOWN).join(', ');
-  return names.length > MAX_NAMES_SHOWN ? `${shown} and ${names.length - MAX_NAMES_SHOWN} more` : shown;
+/** What Claude Code tells the model about connectors: their tools' names and their instructions, as they change. */
+function addAttachment(facts: TranscriptFacts, line: string) {
+  let a: any;
+  try {
+    a = JSON.parse(line).attachment;
+  } catch {
+    return;
+  }
+  const names = (list: unknown): string[] => (Array.isArray(list) ? list.filter((n): n is string => typeof n === 'string') : []);
+  if (a?.type === 'deferred_tools_delta') {
+    const removed = new Set(names(a.removedNames));
+    const kept = facts.deferredTools.filter((n) => !removed.has(n));
+    const known = new Set(kept);
+    facts.deferredTools = [...kept, ...names(a.addedNames).filter((n) => !known.has(n))];
+  } else if (a?.type === 'mcp_instructions_delta') {
+    for (const name of names(a.removedNames)) delete facts.mcpInstructions[name];
+    names(a.addedNames).forEach((name, i) => {
+      const block = a.addedBlocks?.[i];
+      facts.mcpInstructions[name] = typeof block === 'string' ? block.length : 0;
+    });
+  }
 }
+
+/** About 4 characters a token. */
+const tokensOf = (chars: number) => Math.round(chars / 4);
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function unusedConnectors({ sessions, connectors }: DietInput): DietFinding[] {
   if (sessions.length < MIN_SESSIONS_FOR_CONNECTORS) return [];
   const called = sessions.flatMap((s) => s.mcpTools);
-  const unused = connectors.filter((c) => !called.some((tool) => tool.startsWith(`mcp__${c.prefix}__`))).map((c) => c.name);
+  // What the latest session that listed deferred tools carried; unknown when tools are all loaded up front.
+  const latest = [...sessions].sort((a, b) => b.lastAt - a.lastAt).find((s) => s.deferredTools.length);
+  const unused: UnusedConnector[] = connectors
+    .filter((c) => !called.some((tool) => tool.startsWith(`mcp__${c.prefix}__`)))
+    .map((c) => {
+      if (!latest) return { name: c.name, label: c.label, tools: null, tokens: null };
+      const tools = latest.deferredTools.filter((t) => t.startsWith(`mcp__${c.prefix}__`));
+      const chars = tools.reduce((sum, t) => sum + t.length + 1, 0) + (latest.mcpInstructions[c.name] ?? 0);
+      return { name: c.name, label: c.label, tools: tools.length, tokens: tokensOf(chars) };
+    })
+    .sort((a, b) => (b.tokens ?? 0) - (a.tokens ?? 0) || a.label.localeCompare(b.label));
   if (!unused.length) return [];
+  const total = unused.reduce((sum, c) => sum + (c.tokens ?? 0), 0);
   return [
     {
       id: 'unused-connectors',
       title: `${plural(unused.length, 'connector')} never called`,
-      detail: `${namesList(unused)}: connected here, but not called in the last ${plural(sessions.length, 'session')}.`,
-      action: 'Turn off what this project does not need, in Connectors above. A connector adds its tools to what Claude has to carry.',
+      detail:
+        `Connected here, but not called in the last ${plural(sessions.length, 'session')}.` +
+        (total ? ` Together, about ${total.toLocaleString('en-US')} tokens at the start of every session.` : ''),
+      action: 'Untick what this project still needs, then turn off the rest. Only this project changes, and you can undo it.',
+      connectors: unused,
     },
   ];
 }
