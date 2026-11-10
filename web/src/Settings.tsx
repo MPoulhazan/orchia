@@ -331,10 +331,18 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
           <Options items={ON_OFF} value={settings.remoteRunNext ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteRunNext: v === 'on' })} />
         </Field>
       )}
+      {paired && (
+        <Field
+          label="Token use on Orchia Cloud"
+          description="Shows on Orchia Cloud's Usage page how many tokens each project used over the last 30 days, by day and model, with the estimated cost at API list price, your plan's 5-hour and weekly limits, and what the token diet found. Counted on this computer from Claude Code's transcripts; a prompt's text is never sent."
+        >
+          <Options items={ON_OFF} value={settings.remoteUsage ? 'on' : 'off'} onChange={(v) => props.onChange({ remoteUsage: v === 'on' })} />
+        </Field>
+      )}
       <Field
         label="What is sent"
         description={
-          settings.remoteNeeds || settings.remoteSecurity || settings.remoteSessions
+          settings.remoteNeeds || settings.remoteSecurity || settings.remoteSessions || settings.remoteUsage
             ? "Your code and terminal output never leave this computer. Neither do your prompts, apart from a session's name, which can be the start of its first prompt."
             : 'Your code, prompts, terminal output, file and project names never leave this computer.'
         }
@@ -363,6 +371,13 @@ function CloudSection(props: { cloud: CloudStatus; answerCounts: AnswerCounts; s
           )}
           {settings.remoteSessions && settings.remoteRunNext && (
             <li>For a session whose Up next is on hold: the next item's ID and why it is on hold, never its text</li>
+          )}
+          {settings.remoteUsage && (
+            <>
+              <li>For each project, day and model: its name, the tokens used (input, output, cache reads and writes), the number of conversations and the estimated cost</li>
+              <li>Your plan's 5-hour and weekly limits: the share used and when they reset</li>
+              <li>For each token diet finding: its project, kind, title and token weight, never a prompt's text</li>
+            </>
           )}
         </ul>
       </Field>

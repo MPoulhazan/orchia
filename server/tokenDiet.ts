@@ -57,6 +57,8 @@ export interface DietFinding {
   detail: string;
   /** What to do about it. */
   action: string;
+  /** About this many tokens read at the start of every session because of it, when that is known. */
+  tokens?: number;
   /** For `unused-connectors`: they can be turned off from the finding. */
   connectors?: UnusedConnector[];
 }
@@ -184,6 +186,7 @@ function unusedConnectors({ sessions, connectors }: DietInput): DietFinding[] {
         `Connected here, but not called in the last ${plural(sessions.length, 'session')}.` +
         (total ? ` Together, about ${total.toLocaleString('en-US')} tokens at the start of every session.` : ''),
       action: 'Untick what this project still needs, then turn off the rest. Only this project changes, and you can undo it.',
+      ...(total ? { tokens: total } : {}),
       connectors: unused,
     },
   ];
@@ -197,6 +200,7 @@ function heavyMemory({ memoryFiles }: DietInput): DietFinding[] {
       title: `${f.label} is heavy`,
       detail: `${Math.round(f.bytes / 1000)} KB, about ${Math.round(f.bytes / 4).toLocaleString('en-US')} tokens read at the start of every session.`,
       action: 'Keep the rules that apply every time, and move the rest to files Claude reads when it needs them, or to skills.',
+      tokens: Math.round(f.bytes / 4),
     }));
 }
 

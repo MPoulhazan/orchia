@@ -218,6 +218,7 @@ export interface Settings {
   remoteAnswers: 'all' | 'no-shell' | 'deny-only';
   remoteSecurity: boolean;
   remoteSessions: boolean;
+  remoteUsage: boolean;
   remoteRunNext: boolean;
 }
 

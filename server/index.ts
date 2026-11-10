@@ -12,7 +12,7 @@ import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision,
 import { projectAllowRules, removeAllowRule, suggestedRules } from './permissionRules.ts';
 import { SessionStore, hasTranscript } from './sessionStore.ts';
 import { SettingsStore, isPermissionMode } from './settings.ts';
-import { CloudLink, type RemoteFinding, type RemoteFix, type RemoteNeed, type RemoteSession } from './cloud.ts';
+import { CloudLink, type RemoteDietFinding, type RemoteFinding, type RemoteFix, type RemoteNeed, type RemoteSession, type RemoteUsage, type RemoteUsageRow } from './cloud.ts';
 import { AnswerCounts, type AnswerSource } from './answerCounts.ts';
 import { isEffortLevel, isModelAlias, watchModel, watchTitle } from './models.ts';
 import { firstLotPlan, splitPlan } from './planLots.ts';
@@ -75,7 +75,7 @@ const answerCounts = new AnswerCounts();
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
 Session.compactAt = () => (settings.get().compactBetweenTasks ? COMPACT_AT : null);
 startPasteCleanup();
-const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, answer: remoteAnswer, fix: remoteFix, runNext: remoteRunNext });
+const cloud = new CloudLink(CONFIG_DIR, { onChange: () => broadcast(), needs: remoteNeeds, security: remoteSecurity, sessions: remoteSessions, usage: remoteUsage, answer: remoteAnswer, fix: remoteFix, runNext: remoteRunNext });
 
 // ---- Needs you on your phone (Orchia Cloud) ---------------------------------
 
@@ -109,6 +109,41 @@ function remoteNeeds(): RemoteNeed[] | null {
       },
     ];
   });
+}
+
+/** Token use for Orchia Cloud's Usage page, worked out every few minutes: reading transcripts is too slow for every report. */
+let usageReport: Omit<RemoteUsage, 'limits'> | null = null;
+let usageRefreshing = false;
+const USAGE_REFRESH_MS = 10 * 60 * 1000;
+
+function remoteUsage(): RemoteUsage | null {
+  if (!settings.get().remoteUsage || !usageReport) return null;
+  return { ...usageReport, limits };
+}
+
+async function refreshUsage() {
+  if (!settings.get().remoteUsage) {
+    usageReport = null;
+    return cloud.report();
+  }
+  if (usageRefreshing) return;
+  usageRefreshing = true;
+  try {
+    const rows: RemoteUsageRow[] = [];
+    const findings: RemoteDietFinding[] = [];
+    for (const p of projects.list()) {
+      const project = clip(p.name, 80);
+      for (const r of await projectUsage(p.path).catch(() => [])) rows.push({ project, ...r });
+      const { connectors } = await projectConnectors(p.path).catch(() => ({ connectors: [] as Connector[] }));
+      const diet = await projectDiet(p.path, connectors.filter((c) => c.state === 'connected').map((c) => ({ name: c.name, label: c.label, prefix: c.toolPrefix }))).catch(() => null);
+      // The kind only: a repeated prompt's id and detail hold its text.
+      for (const f of diet?.findings ?? []) findings.push({ project, kind: f.id.split(':')[0], title: clip(f.title, 120), tokens: f.tokens ?? null });
+    }
+    usageReport = { days: USAGE_DAYS, rows, findings };
+  } finally {
+    usageRefreshing = false;
+  }
+  cloud.report();
 }
 
 /** Running sessions for Orchia Cloud's Devices page, cut to what Settings says is sent. */
@@ -453,6 +488,8 @@ setInterval(() => latestSessions(true).forEach((s) => repoScanner.get(s.cwd)), 6
 
 // The catalog of advisories: at start, then once a day.
 refreshAdvisories().then(broadcast);
+refreshUsage().catch((err) => console.error('Could not add up token use:', err));
+setInterval(() => refreshUsage().catch((err) => console.error('Could not add up token use:', err)), USAGE_REFRESH_MS).unref();
 setInterval(() => refreshAdvisories().then(broadcast), 60 * 60 * 1000).unref();
 
 /** Push the new state to every client and persist the sessions. */
@@ -803,6 +840,7 @@ const routes: [string, RegExp, Handler][] = [
     for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions', 'remoteRunNext']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
+      if ('remoteUsage' in patch) refreshUsage().catch((err) => console.error('Could not add up token use:', err));
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
     }

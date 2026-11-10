@@ -93,12 +93,44 @@ export interface RemoteSession {
   next: { id: string; held: 'stopped' | 'blocked' } | null;
 }
 
+/** One project's tokens on one day with one model. Settings lists these fields as what is sent. */
+export interface RemoteUsageRow {
+  project: string;
+  day: string;
+  model: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite5m: number;
+  cacheWrite1h: number;
+  sessions: number;
+  costUsd: number | null;
+}
+
+/** A token diet finding: its kind and title, never a prompt's text. */
+export interface RemoteDietFinding {
+  project: string;
+  kind: string;
+  title: string;
+  /** About this many tokens at the start of every session, when known. */
+  tokens: number | null;
+}
+
+export interface RemoteUsage {
+  days: number;
+  rows: RemoteUsageRow[];
+  limits: { fiveHour: { usedPct: number; resetsAt: number | null } | null; sevenDay: { usedPct: number; resetsAt: number | null } | null } | null;
+  findings: RemoteDietFinding[];
+}
+
 export interface CloudHooks {
   onChange: () => void;
   /** What needs you right now; null while "Needs you on your phone" is off. */
   needs: () => RemoteNeed[] | null;
   /** Open security issues; null while "Security alerts in Orchia Cloud" is off. */
   security: () => RemoteFinding[] | null;
+  /** Token use, limits and diet; null while "Token use on Orchia Cloud" is off. */
+  usage: () => RemoteUsage | null;
   /** Running sessions; null while "Sessions on Orchia Cloud" is off. */
   sessions: () => RemoteSession[] | null;
   /** Applies an Allow or Deny from the phone; returns why it was refused, or null once applied. */
@@ -121,6 +153,7 @@ export class CloudLink {
   private sentNeeds: string | null = null;
   private sentSecurity: string | null = null;
   private sentSessions: string | null = null;
+  private sentUsage: string | null = null;
 
   constructor(dir: string, private readonly hooks: CloudHooks) {
     this.file = join(dir, 'cloud.json');
@@ -168,6 +201,13 @@ export class CloudLink {
     if (security !== this.sentSecurity) {
       this.sentSecurity = security;
       ws.send(JSON.stringify({ type: 'security', items: findings }));
+    }
+    // null here too: the cloud forgets this computer's token use.
+    const usage = this.hooks.usage();
+    const usageJson = JSON.stringify(usage);
+    if (usageJson !== this.sentUsage) {
+      this.sentUsage = usageJson;
+      ws.send(JSON.stringify({ type: 'usage', usage }));
     }
   }
 
@@ -261,6 +301,7 @@ export class CloudLink {
         this.sentNeeds = null;
         this.sentSecurity = null;
         this.sentSessions = null;
+        this.sentUsage = null;
         this.set({ state: 'connected', url: saved.url, name: saved.name });
         this.report();
       }
