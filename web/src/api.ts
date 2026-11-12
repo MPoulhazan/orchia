@@ -31,6 +31,23 @@ export interface CopyChanges {
   blocked: string | null;
 }
 
+export interface TurnCheck {
+  kind: 'tests' | 'types' | 'build' | 'lint' | 'push';
+  ok: boolean;
+}
+
+export interface TurnSummary {
+  text: string;
+  files: number;
+  at: number;
+  /** Tests, types, build… run during the turn, with whether the last run passed. */
+  checks?: TurnCheck[];
+  /** The question the reply ends on: Claude waits for an answer. */
+  question?: string | null;
+  /** The turn ended on an error (rate limit, API error), not because Claude was done. */
+  failed?: boolean;
+}
+
 export interface SessionInfo {
   id: string;
   projectId: string;
@@ -61,7 +78,9 @@ export interface SessionInfo {
   answerLotsAsked: boolean;
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
-  summary: { text: string; files: number; at: number } | null;
+  summary: TurnSummary | null;
+  /** "`npm test` failed 3 times": the running turn seems to go in circles. */
+  stuck: string | null;
   /** Prompts sent one at a time when Claude finishes a turn. */
   queue: { id: string; text: string; lot?: { n: number; total: number; clear?: boolean } }[];
   /** Why the queue waits although Claude is idle: text in Claude's prompt, a stopped turn, or a lot not done. */

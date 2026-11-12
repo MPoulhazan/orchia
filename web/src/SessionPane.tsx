@@ -4,7 +4,7 @@ import { api, type Project, type SessionInfo } from './api';
 import { TerminalView } from './TerminalView';
 import { useState, type HTMLAttributes } from 'react';
 import { ConfirmButton } from './ui';
-import { StatusDot, filesChanged, statusLabel, statusOf, timeAgo } from './status';
+import { Proof, StatusDot, filesChanged, statusLabel, statusOf, timeAgo, waitingText } from './status';
 import { ModelPicker } from './ModelPicker';
 import { ModeChip } from './ModeChip';
 import { Help } from './HelpCard';
@@ -157,8 +157,8 @@ export function SessionPane(props: Props) {
 
       {compact && statusOf(session) === 'waiting' && (
         <div className="ask-bar">
-          <span className="ask-text" title={session.permission ? `${session.permission.verb} ${session.permission.target}` : (session.detail ?? undefined)}>
-            {session.permission ? <PermissionText permission={session.permission} /> : (session.detail ?? 'Needs your input')}
+          <span className="ask-text" title={session.permission ? `${session.permission.verb} ${session.permission.target}` : waitingText(session)}>
+            {session.permission ? <PermissionText permission={session.permission} /> : waitingText(session)}
           </span>
           {session.permission ? (
             <PermissionButtons session={session} small />
@@ -173,12 +173,13 @@ export function SessionPane(props: Props) {
       {!compact && showPlanLots(session) && <PlanLots session={session} />}
       {!compact && showUpNext(session) && <UpNext session={session} />}
 
-      {compact && session.summary &&(statusOf(session) === 'done' || statusOf(session) === 'idle') && (
+      {compact && session.summary && ['done', 'idle', 'blocked'].includes(statusOf(session)) && (
         <div className="done-bar" data-status={statusOf(session)} title={session.summary.text}>
           <span className="done-text">
-            <b>Done.</b> {session.summary.text}
+            {session.summary.failed ? <b>Blocked.</b> : <b>Done.</b>} {session.summary.text.replace(/^Stopped: /, '')}
           </span>
           <span className="done-meta">
+            <Proof summary={session.summary} />
             {[filesChanged(session.summary.files), timeAgo(session.summary.at)].filter(Boolean).join(' · ')}
           </span>
         </div>
@@ -224,9 +225,10 @@ function StatusText({ session, compact }: { session: SessionInfo; compact?: bool
     );
   }
   if (status === 'idle' || status === 'starting') return null;
-  const text = !compact && session.detail && status === 'waiting' ? `${statusLabel[status]} · ${session.detail}` : statusLabel[status];
+  const why = status === 'waiting' ? waitingText(session) : status === 'stuck' ? session.stuck : status === 'blocked' ? session.detail : null;
+  const text = !compact && why ? `${statusLabel[status]} · ${why.replace(/^Stopped: /, '')}` : statusLabel[status];
   return (
-    <span className="pane-status" data-status={status} title={session.detail ?? undefined}>
+    <span className="pane-status" data-status={status} title={why ?? session.detail ?? undefined}>
       {text}
     </span>
   );

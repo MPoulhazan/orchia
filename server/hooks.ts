@@ -65,6 +65,8 @@ export function writeHookSettings(dir: string, port: number): string {
       PreToolUse: [...on(ASKING_TOOLS), ...on(SHELL_TOOLS, GIT_SCAN_WAIT_S)],
       PermissionRequest: on(undefined, PERMISSION_WAIT_S),
       PostToolUse: on(),
+      // A shell command that exited with an error: tells a failing test run from a passing one.
+      PostToolUseFailure: on(),
       Notification: on([...WAITING_NOTIFICATIONS].join('|')),
       Stop: on(),
       StopFailure: on(),
@@ -88,6 +90,7 @@ export function activityFromHook(payload: any): ActivityUpdate | null {
   switch (payload?.hook_event_name) {
     case 'UserPromptSubmit':
     case 'PostToolUse':
+    case 'PostToolUseFailure':
       return { activity: 'working' };
     case 'PreToolUse':
       // Only the asking tools wait on the user; a shell command comes here for the commit guard.

@@ -256,6 +256,18 @@ kbd {
   background: var(--done);
 }
 
+/* The turn ended on an error: rate limit, API error. */
+.status-dot[data-status='blocked'] {
+  background: var(--danger);
+}
+
+/* Still working, but the same command keeps failing. */
+.status-dot[data-status='stuck'] {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
 .status-dot[data-status='paused'] {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--text-faint);
@@ -278,7 +290,8 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-dot[data-status='working'] {
+  .status-dot[data-status='working'],
+  .status-dot[data-status='stuck'] {
     animation: none;
   }
 }
@@ -307,6 +320,16 @@ kbd {
 
 .pane-status[data-status='done'] {
   color: var(--done);
+}
+
+.pane-status[data-status='blocked'] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pane-status[data-status='stuck'] {
+  color: var(--warn);
+  font-weight: 600;
 }
 
 .pane-status[data-status='stopped'] {
@@ -1642,6 +1665,38 @@ kbd {
 
 .done-bar[data-status='done'] .done-text b {
   color: var(--done);
+}
+
+.done-bar[data-status='blocked'] {
+  border-top-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: var(--danger-bg);
+}
+
+.done-bar[data-status='blocked'] .done-text b {
+  color: var(--danger);
+}
+
+/* "✓ tests ✓ types · pushed": what the turn proved. */
+.proof {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.proof[data-tone='ok'] {
+  color: var(--accent);
+}
+
+.proof[data-tone='bad'] {
+  color: var(--danger);
+}
+
+.proof[data-tone='none'] {
+  color: var(--text-faint);
+}
+
+.done-meta .proof {
+  margin-right: 8px;
 }
 
 .done-meta {
@@ -3657,6 +3712,17 @@ a.conn-state:hover {
   opacity: 0.75;
 }
 
+.mark[data-tone='warn'] {
+  background: linear-gradient(
+    transparent 10%,
+    color-mix(in srgb, var(--warn) 16%, transparent) 10%,
+    color-mix(in srgb, var(--warn) 16%, transparent) 90%,
+    transparent 90%
+  );
+  color: var(--warn);
+}
+
+.tab-mark[data-tone='danger'],
 .mark[data-tone='danger'] {
   background: linear-gradient(transparent 10%, var(--danger-bg) 10%, var(--danger-bg) 90%, transparent 90%);
   color: var(--danger);

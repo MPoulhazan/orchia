@@ -5,7 +5,7 @@ import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from '.
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
 import { PermissionButtons, PermissionText } from './Permission';
-import { DoneSummary, StatusDot, initials, needsAttention, statusLabel, statusOf } from './status';
+import { DoneSummary, StatusDot, attentionRank, initials, needsAttention, statusLabel, statusOf, waitingText } from './status';
 import type { RateLimits } from './api';
 import { UsageMeters } from './Limits';
 import { TokenPanel } from './Connectors';
@@ -302,9 +302,8 @@ function Attention(props: {
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
-  const waiting = props.sessions.filter((s) => statusOf(s) === 'waiting');
-  const done = props.sessions.filter((s) => statusOf(s) === 'done');
-  const list = [...waiting, ...done].filter(needsAttention);
+  const rank = (s: SessionInfo) => attentionRank[statusOf(s)] ?? 9;
+  const list = props.sessions.filter(needsAttention).sort((a, b) => rank(a) - rank(b));
   const [dismissed, setDismissed] = useState<string[]>(() => JSON.parse(storage.get(DISMISSED_KEY) ?? '[]'));
   const signIns = props.signIns.filter((c) => !dismissed.includes(signInKey(c)));
   const dismiss = (c: SignInNeeded) => {
@@ -344,6 +343,10 @@ function Attention(props: {
                   <span className="mark">Permission</span>
                 ) : statusOf(s) === 'waiting' ? (
                   <span className="mark">Needs you</span>
+                ) : statusOf(s) === 'blocked' ? (
+                  <span className="mark" data-tone="danger">Blocked</span>
+                ) : statusOf(s) === 'stuck' ? (
+                  <span className="mark" data-tone="warn">Stuck?</span>
                 ) : (
                   <span className="mark" data-tone="done">Done</span>
                 )}
@@ -354,7 +357,9 @@ function Attention(props: {
                 {s.permission ? (
                   <PermissionText permission={s.permission} />
                 ) : statusOf(s) === 'waiting' ? (
-                  (s.detail ?? 'Needs your input')
+                  waitingText(s)
+                ) : statusOf(s) === 'stuck' ? (
+                  <>{s.stuck}</>
                 ) : (
                   (s.detail ?? <DoneSummary session={s} />)
                 )}
@@ -543,7 +548,7 @@ export function Rail(props: {
   limits: RateLimits | null;
 }) {
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
-  const waiting = props.sessions.filter(needsAttention).sort((a, b) => Number(statusOf(b) === 'waiting') - Number(statusOf(a) === 'waiting'));
+  const waiting = props.sessions.filter(needsAttention).sort((a, b) => (attentionRank[statusOf(a)] ?? 9) - (attentionRank[statusOf(b)] ?? 9));
 
   return (
     <aside className="rail">

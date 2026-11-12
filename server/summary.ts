@@ -4,11 +4,19 @@
  * usually opens with the gist, so this keeps its first meaningful sentences.
  */
 
+import type { TurnCheck } from './turnCheck.ts';
+
 export interface TurnSummary {
   text: string;
   /** Files Claude edited or wrote during the turn. */
   files: number;
   at: number;
+  /** Tests, types, build… run during the turn, with whether the last run passed. */
+  checks?: TurnCheck[];
+  /** The question the reply ends on: Claude waits for an answer. */
+  question?: string | null;
+  /** The turn ended on an error (rate limit, API error), not because Claude was done. */
+  failed?: boolean;
 }
 
 const MAX = 180;

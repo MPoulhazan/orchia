@@ -155,6 +155,7 @@ export function App() {
   // Tab title and icon: what is on screen, plus how many sessions want the user.
   const attentionCount = sessions.filter(needsAttention).length;
   const anyWaiting = sessions.some((s) => statusOf(s) === 'waiting');
+  const anyBlocked = sessions.some((s) => s.unseen && statusOf(s) === 'blocked');
   const limitLevel = topLevel(limits);
   const nearLimit = limitLevel === 'high' || limitLevel === 'full';
   const shown = view === 'grid' ? 'Grid' : selected ? [selected.name, selectedProject?.name].filter(Boolean).join(' · ') : '';
@@ -162,8 +163,8 @@ export function App() {
     document.title = (attentionCount ? `(${attentionCount}) ` : '') + (shown ? `${shown} — Orchia` : 'Orchia');
   }, [attentionCount, shown]);
   useEffect(() => {
-    setFavicon(anyWaiting ? 'waiting' : nearLimit ? 'limit' : attentionCount ? 'done' : 'none');
-  }, [anyWaiting, nearLimit, attentionCount > 0]);
+    setFavicon(anyWaiting ? 'waiting' : nearLimit || anyBlocked ? 'limit' : attentionCount ? 'done' : 'none');
+  }, [anyWaiting, anyBlocked, nearLimit, attentionCount > 0]);
 
   function setView(next: View) {
     // First time in an empty grid: show what is running instead of a blank screen.

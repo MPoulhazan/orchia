@@ -8,6 +8,7 @@ import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
 import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
+import { TurnChecks, closingQuestion, shellFailed } from './turnCheck.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
 import { nextPlan, usageFromStatusLine, userStatusLine, type PlanItem, type Usage } from './inspector.ts';
 import { redactSecrets } from './secrets.ts';
@@ -57,6 +58,8 @@ export interface SessionInfo {
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
   summary: TurnSummary | null;
+  /** "`npm test` failed 3 times": the running turn seems to go in circles. */
+  stuck: string | null;
   /** Prompts sent one at a time when Claude finishes a turn. */
   queue: QueuedPrompt[];
   /**
@@ -193,6 +196,8 @@ export class Session extends EventEmitter {
   blocks: CodeBlock[];
   /** Files edited or written since the turn started. */
   private turnFiles = new Set<string>();
+  /** Tests, types, build… run since the turn started. */
+  private turnChecks = new TurnChecks();
   queue: QueuedPrompt[];
   /** The last turn ended normally (Stop), so the next queued prompt may go. */
   private cleanStop = false;
@@ -446,6 +451,7 @@ export class Session extends EventEmitter {
       this.summary = null;
       this.blocks = [];
       this.turnFiles.clear();
+      this.turnChecks.reset();
       this.answerLots = null;
       this.lotsAsked = /^\s*(\/(orchia:)?lots\b|Restate the plan you just proposed as lots)/.test(String(payload.prompt ?? ''));
       // A prompt that isn't one of the run's lots ends the "all lots done" state.
@@ -479,10 +485,22 @@ export class Session extends EventEmitter {
       const file = payload.tool_input?.file_path ?? payload.tool_input?.notebook_path;
       if (typeof file === 'string') this.turnFiles.add(file);
     }
+    if ((event === 'PostToolUse' || event === 'PostToolUseFailure') && SHELL_TOOLS.has(payload.tool_name)) {
+      const ok = event === 'PostToolUse' && !shellFailed(payload.tool_response);
+      if (this.turnChecks.record(payload.tool_input?.command, ok)) this.emit('change');
+    }
     if (event === 'Stop') {
       const text = summarize(payload.last_assistant_message);
-      this.summary = text ? { text, files: this.turnFiles.size, at: Date.now() } : null;
+      const checks = this.turnChecks.list();
+      const question = closingQuestion(payload.last_assistant_message);
+      this.summary = text ? { text, files: this.turnFiles.size, at: Date.now(), checks, question } : null;
       this.blocks = codeBlocks(payload.last_assistant_message);
+      this.turnChecks.stuck = null;
+    }
+    if (event === 'StopFailure') {
+      const error = String(payload.error ?? 'error').replace(/_/g, ' ');
+      this.summary = { text: `Stopped: ${error}`, files: this.turnFiles.size, at: Date.now(), checks: this.turnChecks.list(), failed: true };
+      this.turnChecks.stuck = null;
     }
     if (event === 'PostToolUse' && payload.tool_name === 'Skill') {
       const input = payload.tool_input ?? {};
@@ -492,7 +510,7 @@ export class Session extends EventEmitter {
     const mcp = event === 'PostToolUse' && String(payload.tool_name ?? '').match(/^mcp__(.+?)__/);
     if (mcp) this.lastConnector = { toolPrefix: mcp[1], at: Date.now() };
     // The user answered Claude Code's own prompt: the call ran, or the turn moved on.
-    if (event === 'PostToolUse') this.releasePermissions((p) => p.key === permissionKey(payload));
+    if (event === 'PostToolUse' || event === 'PostToolUseFailure') this.releasePermissions((p) => p.key === permissionKey(payload));
     if (event === 'PostToolUse' && payload.tool_name === 'ExitPlanMode') this.releasePlan();
     if (event === 'UserPromptSubmit' || event === 'Stop' || event === 'StopFailure') this.releasePermissions();
     const plan = nextPlan(this.plan, payload);
@@ -888,6 +906,7 @@ export class Session extends EventEmitter {
           }
         : null,
       summary: this.summary,
+      stuck: this.activity === 'working' ? this.turnChecks.stuck : null,
       queue: this.queue,
       queueHeld: this.queueHeld(),
       stoppedByUser: this.stoppedByUser,
@@ -924,6 +943,7 @@ export class Session extends EventEmitter {
 }
 
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 
 /** The queue waits this long after the user's last keystroke. */
 const TYPING_PAUSE_MS = 3000;

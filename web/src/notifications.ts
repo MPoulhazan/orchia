@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Project, SessionInfo } from './api';
-import { filesChanged, statusOf, type Status } from './status';
+import { filesChanged, proofText, statusOf, waitingText, type Status } from './status';
 
 /** "Pins cluster above 40 markers. (3 files changed)"; at the end of a run of lots, how it went. */
 function doneText(s: SessionInfo): string {
@@ -12,7 +12,9 @@ function doneText(s: SessionInfo): string {
   }
   if (!s.summary) return 'Finished';
   const files = filesChanged(s.summary.files);
-  return files ? `${s.summary.text} (${files})` : s.summary.text;
+  const proof = proofText(s.summary);
+  const text = files ? `${s.summary.text} (${files})` : s.summary.text;
+  return proof ? `${proof} · ${text}` : text;
 }
 import { storage } from './storage';
 
@@ -62,13 +64,21 @@ export function useNotifications(sessions: SessionInfo[], projects: Project[], o
       next.set(s.id, status);
       // `before` is unknown on first load, so reopening the page does not replay old events.
       if (state !== 'on' || !before || before === status || pageActive()) continue;
-      if (status !== 'waiting' && status !== 'done') continue;
+      if (status !== 'waiting' && status !== 'done' && status !== 'blocked' && status !== 'stuck') continue;
       // A lot that ended well with more to come: one notification for the whole plan, at its end.
       if (status === 'done' && s.lotRun?.state === 'running') continue;
 
       const project = projects.find((p) => p.id === s.projectId)?.name ?? '';
-      const notification = new Notification(`${project} / ${s.name}`, {
-        body: status === 'waiting' ? (s.detail ?? 'Needs your input') : s.lotRun ? doneText(s) : (s.detail ?? doneText(s)),
+      // The verdict leads the title, so the notification alone says whether to come back.
+      const verdict = { waiting: 'Needs you', blocked: 'Blocked', stuck: 'Stuck?', done: 'Done' }[status];
+      const body =
+        status === 'waiting' ? waitingText(s)
+        : status === 'stuck' ? (s.stuck ?? 'Going in circles')
+        : status === 'blocked' ? (s.detail ?? 'Stopped on an error')
+        : s.lotRun ? doneText(s)
+        : (s.detail ?? doneText(s));
+      const notification = new Notification(`${verdict}: ${project} / ${s.name}`, {
+        body,
         tag: s.id,
       });
       notification.onclick = () => {

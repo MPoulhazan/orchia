@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GitBranch, Plus, X } from 'lucide-react';
 import type { SessionInfo } from './api';
 import { ConfirmButton, RenameInput } from './ui';
-import { StatusDot, statusLabel, statusOf } from './status';
+import { StatusDot, statusLabel, statusOf, waitingText } from './status';
 import { QueueBadge } from './UpNext';
 
 interface Props {
@@ -33,7 +33,7 @@ export function SessionTabs({ sessions, selectedId, onSelect, onClose, onRename,
             aria-selected={on}
             data-on={on}
             data-status={status}
-            title={editing ? undefined : `${s.name} · ${s.detail ?? statusLabel[status]} (double-click to rename)`}
+            title={editing ? undefined : `${s.name} · ${status === 'waiting' ? waitingText(s) : status === 'stuck' ? s.stuck : (s.detail ?? statusLabel[status])} (double-click to rename)`}
             onClick={() => !on && onSelect(s)}
             onDoubleClick={() => setEditingId(s.id)}
           >
@@ -56,6 +56,7 @@ export function SessionTabs({ sessions, selectedId, onSelect, onClose, onRename,
             )}
             {!editing && <QueueBadge session={s} />}
             {!editing && !on && status === 'waiting' && <span className="tab-mark">Needs you</span>}
+            {!editing && !on && status === 'blocked' && s.unseen && <span className="tab-mark" data-tone="danger">Blocked</span>}
             {!editing && on && (s.status === 'exited' ? (
               <button className="icon-btn tab-close" title="Close" onClick={(e) => (e.stopPropagation(), onClose(s))}>
                 <X size={13} />
