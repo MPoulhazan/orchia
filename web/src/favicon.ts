@@ -23,13 +23,59 @@ function faviconSvg(badge: FaviconBadge): string {
   );
 }
 
-export function setFavicon(badge: FaviconBadge) {
+function faviconLink(): HTMLLinkElement {
   let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!link) {
     link = document.createElement('link');
     link.rel = 'icon';
     document.head.appendChild(link);
   }
+  return link;
+}
+
+export function setFavicon(badge: FaviconBadge) {
+  const link = faviconLink();
   link.type = 'image/svg+xml';
   link.href = `data:image/svg+xml,${encodeURIComponent(faviconSvg(badge))}`;
+}
+
+let drawing = 0;
+
+/**
+ * The tab icon for the project on screen: its own icon, with the same attention dot on top.
+ * Falls back to Orchia's mark when the project has no icon or it cannot be drawn.
+ */
+export function setProjectFavicon(badge: FaviconBadge, iconUrl: string | undefined) {
+  const turn = ++drawing;
+  if (!iconUrl) return setFavicon(badge);
+  const img = new Image();
+  img.onload = () => {
+    if (turn !== drawing) return;
+    try {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return setFavicon(badge);
+      ctx.drawImage(img, 0, 0, size, size);
+      if (badge !== 'none') {
+        ctx.beginPath();
+        ctx.arc(50, 14, 13, 0, Math.PI * 2);
+        ctx.fillStyle = BADGE_COLOR[badge];
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#111418';
+        ctx.stroke();
+      }
+      const link = faviconLink();
+      link.type = 'image/png';
+      link.href = canvas.toDataURL('image/png');
+    } catch {
+      setFavicon(badge);
+    }
+  };
+  img.onerror = () => {
+    if (turn === drawing) setFavicon(badge);
+  };
+  img.src = iconUrl;
 }

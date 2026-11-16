@@ -4214,3 +4214,18 @@ a.btn {
   background: var(--focus);
   pointer-events: none;
 }
+
+/* A project's own icon or logo, else its initial on a color of its own. */
+.project-icon {
+  flex: none;
+  display: block;
+  object-fit: contain;
+}
+
+.project-icon-letter {
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+}

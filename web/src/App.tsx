@@ -15,7 +15,8 @@ import { SkillPicker, type SkillsChange } from './Skills';
 import { SettingsDialog } from './Settings';
 import { NewSessionDialog, type Where } from './NewSession';
 import { needsAttention, statusOf, timeAgo } from './status';
-import { setFavicon } from './favicon';
+import { setProjectFavicon } from './favicon';
+import { projectIconUrl } from './ProjectIcon';
 import { pageActive, useNotifications } from './notifications';
 import { LimitBanner, LimitToasts, topLevel, useLimitAlerts } from './Limits';
 
@@ -162,9 +163,11 @@ export function App() {
   useEffect(() => {
     document.title = (attentionCount ? `(${attentionCount}) ` : '') + (shown ? `${shown} — Orchia` : 'Orchia');
   }, [attentionCount, shown]);
+  // In focus view the tab wears the project's own icon, so each Orchia tab is told apart at a glance.
+  const tabIcon = view === 'focus' ? projectIconUrl(selectedProject) : undefined;
   useEffect(() => {
-    setFavicon(anyWaiting ? 'waiting' : nearLimit || anyBlocked ? 'limit' : attentionCount ? 'done' : 'none');
-  }, [anyWaiting, anyBlocked, nearLimit, attentionCount > 0]);
+    setProjectFavicon(anyWaiting ? 'waiting' : nearLimit || anyBlocked ? 'limit' : attentionCount ? 'done' : 'none', tabIcon);
+  }, [anyWaiting, anyBlocked, nearLimit, attentionCount > 0, tabIcon]);
 
   function setView(next: View) {
     // First time in an empty grid: show what is running instead of a blank screen.

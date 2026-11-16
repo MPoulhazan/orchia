@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Session } from './session.ts';
 import { CONFIG_DIR, ProjectStore, isCopyMode } from './projects.ts';
+import { iconMime, projectIcon } from './projectIcon.ts';
 import { cloneRepo, cloneTarget } from './clone.ts';
 import { MergeConflictError, canCopy, copyChanges, copyIsEmpty, createCopy, mergeCopy, removeCopy, resolvePrompt, type SessionCopy } from './copies.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
@@ -373,7 +374,7 @@ let limits: RateLimits | null = null;
 function state() {
   return {
     t: 'state',
-    projects: projects.list(),
+    projects: projects.list().map((p) => ({ ...p, icon: projectIcon(p.path)?.version })),
     sessions: [...sessions.values()].map((s) => s.info()),
     limits,
     settings: settings.get(),
@@ -1399,6 +1400,8 @@ async function handleStatusLine(req: http.IncomingMessage, res: http.ServerRespo
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   if (url.pathname === '/api/hook' && req.method === 'POST') return handleHook(req, res);
   if (url.pathname === '/api/statusline' && req.method === 'POST') return handleStatusLine(req, res);
+  const icon = req.method === 'GET' ? url.pathname.match(/^\/api\/projects\/([\w-]+)\/icon$/) : null;
+  if (icon) return serveProjectIcon(res, icon[1]);
   for (const [method, pattern, handler] of routes) {
     const match = url.pathname.match(pattern);
     if (match && req.method === method) return sendJson(res, 200, await handler(req, url, match.slice(1)));
@@ -1414,6 +1417,20 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.webmanifest': 'application/manifest+json',
 };
+
+/** A project's own icon. Locked down so an SVG opened on its own cannot run scripts on Orchia's origin. */
+function serveProjectIcon(res: http.ServerResponse, id: string) {
+  const project = projects.get(id);
+  const found = project && projectIcon(project.path);
+  if (!found) throw new HttpError(404, 'No icon');
+  res.writeHead(200, {
+    'content-type': iconMime(found.file),
+    'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    'x-content-type-options': 'nosniff',
+    'cache-control': 'private, max-age=86400',
+  });
+  createReadStream(found.file).on('error', () => res.destroy()).pipe(res);
+}
 
 function serveStatic(res: http.ServerResponse, path: string) {
   let file = normalize(join(STATIC_DIR, path));

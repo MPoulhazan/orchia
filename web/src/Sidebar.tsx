@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, ShieldAlert, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
+import { ProjectIcon } from './ProjectIcon';
 import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
@@ -168,6 +169,7 @@ export function Sidebar(props: Props) {
                 onDragEnd={() => setDrag(null)}
               >
                 <ChevronRight size={13} className={`chevron ${isCollapsed ? '' : 'is-open'}`} />
+                <ProjectIcon project={project} size={18} />
                 <span className="tree-label">{project.name}</span>
                 {isCollapsed && running > 0 && <span className="tree-count">{running}</span>}
                 <span className="tree-actions">

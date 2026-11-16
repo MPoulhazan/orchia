@@ -13,6 +13,7 @@ import { PermissionButtons, PermissionText } from './Permission';
 import { PlanLots, showPlanLots } from './PlanLots';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
 import { ChangesView, useCopyChanges } from './Changes';
+import { ProjectIcon } from './ProjectIcon';
 
 interface Props {
   session: SessionInfo;
@@ -54,10 +55,12 @@ export function SessionPane(props: Props) {
         {compact && <StatusDot session={session} />}
         {tabbed ? (
           <div className="crumbs">
+            {project && <ProjectIcon project={project} size={22} />}
             <span className="crumb-session">{project?.name}</span>
           </div>
         ) : (
           <div className="crumbs">
+            {project && <ProjectIcon project={project} size={14} />}
             <span className="crumb-project">{project?.name}</span>
             <span className="crumb-sep">/</span>
             <span className="crumb-session">{session.name}</span>

@@ -9,6 +9,8 @@ export interface Project {
   copyMode?: CopyMode;
   /** Keep one comment on this project's pull requests saying how they were made; off when missing. */
   prEvidence?: boolean;
+  /** Version of the icon or logo found in the project's folder; missing when it has none. */
+  icon?: string;
 }
 
 export type CopyMode = 'ask' | 'copy' | 'same';
