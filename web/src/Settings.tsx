@@ -6,6 +6,7 @@ import type { ThemePref } from './theme';
 import { HELP, permissionHelp } from './help';
 import type { NotifyState } from './notifications';
 import { useSmoothScroll, type SmoothScrollPref } from './smoothScroll';
+import { useProjectIcons } from './ProjectIcon';
 
 const PERMISSION_MODES: { value: PermissionMode | null; label: string; description: string }[] = (
   [null, 'manual', 'acceptEdits', 'plan', 'auto'] as const
@@ -59,6 +60,7 @@ export function SettingsDialog(props: {
   const { settings } = props;
   const [error, setError] = useState('');
   const smoothScroll = useSmoothScroll();
+  const projectIcons = useProjectIcons();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose();
@@ -183,6 +185,12 @@ export function SettingsDialog(props: {
                   </button>
                 ))}
               </div>
+            </Field>
+            <Field
+              label="Project icons"
+              description="Shows each project's own icon or logo, found in its folder, in the sidebar, the session bar and the browser tab. A project without one gets its initial."
+            >
+              <Options items={ON_OFF} value={projectIcons.on ? 'on' : 'off'} onChange={(v) => projectIcons.set(v === 'on')} />
             </Field>
             <Field label="Smooth scrolling" description="Animates scrolling in terminals and panels. System follows your computer's reduce-motion setting.">
               <Options items={SMOOTH_SCROLL} value={smoothScroll.pref} onChange={smoothScroll.setPref} />

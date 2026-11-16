@@ -1,5 +1,33 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import type { Project } from './api';
+import { storage } from './storage';
+
+// Project icons can be turned off in Settings › This browser; the choice stays in this browser.
+const KEY = 'orchia.projectIcons';
+const listeners = new Set<() => void>();
+let iconsOn = storage.get(KEY) !== 'off';
+
+function apply() {
+  document.documentElement.toggleAttribute('data-no-project-icons', !iconsOn);
+}
+apply();
+
+function setProjectIcons(on: boolean) {
+  iconsOn = on;
+  storage.set(KEY, on ? 'on' : 'off');
+  apply();
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Whether project icons are shown, and the switch for Settings. */
+export function useProjectIcons() {
+  return { on: useSyncExternalStore(subscribe, () => iconsOn), set: setProjectIcons };
+}
 
 /** Where the browser loads a project's own icon; undefined when the project has none. */
 export function projectIconUrl(project: Pick<Project, 'id' | 'icon'> | null | undefined): string | undefined {

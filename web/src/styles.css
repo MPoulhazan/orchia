@@ -4222,6 +4222,10 @@ a.btn {
   object-fit: contain;
 }
 
+:root[data-no-project-icons] .project-icon {
+  display: none;
+}
+
 .project-icon-letter {
   display: inline-grid;
   place-items: center;

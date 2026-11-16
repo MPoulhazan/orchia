@@ -16,7 +16,7 @@ import { SettingsDialog } from './Settings';
 import { NewSessionDialog, type Where } from './NewSession';
 import { needsAttention, statusOf, timeAgo } from './status';
 import { setProjectFavicon } from './favicon';
-import { projectIconUrl } from './ProjectIcon';
+import { projectIconUrl, useProjectIcons } from './ProjectIcon';
 import { pageActive, useNotifications } from './notifications';
 import { LimitBanner, LimitToasts, topLevel, useLimitAlerts } from './Limits';
 
@@ -164,7 +164,8 @@ export function App() {
     document.title = (attentionCount ? `(${attentionCount}) ` : '') + (shown ? `${shown} — Orchia` : 'Orchia');
   }, [attentionCount, shown]);
   // In focus view the tab wears the project's own icon, so each Orchia tab is told apart at a glance.
-  const tabIcon = view === 'focus' ? projectIconUrl(selectedProject) : undefined;
+  const projectIcons = useProjectIcons().on;
+  const tabIcon = projectIcons && view === 'focus' ? projectIconUrl(selectedProject) : undefined;
   useEffect(() => {
     setProjectFavicon(anyWaiting ? 'waiting' : nearLimit || anyBlocked ? 'limit' : attentionCount ? 'done' : 'none', tabIcon);
   }, [anyWaiting, anyBlocked, nearLimit, attentionCount > 0, tabIcon]);
