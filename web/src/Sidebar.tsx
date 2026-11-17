@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { Bell, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeft, Plus, Search, Settings, ShieldAlert, Square, X } from 'lucide-react';
 import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type SecretExposure, type SecurityNeeded, type SessionInfo, type SignInNeeded } from './api';
-import { ProjectIcon } from './ProjectIcon';
+import { IconPicker, ProjectIcon } from './ProjectIcon';
 import { ConfigRow, CveRow, SecretRow, SecurityPanel, isOpen, isUrgent } from './Security';
 import { ConfirmButton, Menu, RenameInput } from './ui';
 import { storage } from './storage';
@@ -60,6 +60,7 @@ export function Sidebar(props: Props) {
   );
   // A dropped project moves at once; the server's order takes over once it says the same.
   const [order, setOrder] = useState<string[] | null>(null);
+  const [iconFor, setIconFor] = useState<Project | null>(null);
   const [drag, setDrag] = useState<{ from: string; over: string | null; after: boolean } | null>(null);
   const serverOrder = props.projects.map((p) => p.id).join();
   useEffect(() => {
@@ -189,6 +190,7 @@ export function Sidebar(props: Props) {
                     items={[
                       { label: 'New session', onSelect: () => props.onNewSession(project) },
                       { label: 'Copy path', onSelect: () => navigator.clipboard.writeText(project.path) },
+                      { label: 'Change icon…', onSelect: () => setIconFor(project) },
                       {
                         label: running ? `Remove project (ends ${running} session${running > 1 ? 's' : ''})` : 'Remove project',
                         danger: true,
@@ -244,6 +246,7 @@ export function Sidebar(props: Props) {
           <Settings size={14} />
         </button>
       </div>
+      {iconFor && <IconPicker project={iconFor} onClose={() => setIconFor(null)} />}
     </aside>
   );
 }

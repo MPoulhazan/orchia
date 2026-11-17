@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Session } from './session.ts';
 import { CONFIG_DIR, ProjectStore, isCopyMode } from './projects.ts';
-import { iconMime, projectIcon } from './projectIcon.ts';
+import { iconCandidates, iconCandidatesNow, onIconsChange, projectIcon } from './projectIcon.ts';
 import { cloneRepo, cloneTarget } from './clone.ts';
 import { MergeConflictError, canCopy, copyChanges, copyIsEmpty, createCopy, mergeCopy, removeCopy, resolvePrompt, type SessionCopy } from './copies.ts';
 import { PERMISSION_WAIT_S, activityFromHook, permissionAsk, permissionDecision, writeHookSettings } from './hooks.ts';
@@ -374,7 +374,7 @@ let limits: RateLimits | null = null;
 function state() {
   return {
     t: 'state',
-    projects: projects.list().map((p) => ({ ...p, icon: projectIcon(p.path)?.version })),
+    projects: projects.list().map((p) => ({ ...p, icon: projectIcon(p.path, p.iconChoice)?.version })),
     sessions: [...sessions.values()].map((s) => s.info()),
     limits,
     settings: settings.get(),
@@ -553,6 +553,9 @@ function broadcast() {
   sessionStore.save(() => [...sessions.values()].map((s) => s.record()));
   cloud.report();
 }
+
+// Project icons are looked for in the background; send the state again when one shows up.
+onIconsChange(() => broadcast());
 
 function addSession(session: Session) {
   session.on('change', broadcast);
@@ -864,6 +867,27 @@ const routes: [string, RegExp, Handler][] = [
       throw new HttpError(400, 'Expected { ids: string[] }');
     }
     projects.reorder(ids);
+    broadcast();
+    return { ok: true };
+  }],
+  ['GET', /^\/api\/projects\/([\w-]+)\/icons$/, (_req, _url, [id]) => {
+    const project = projects.get(id);
+    if (!project) throw new HttpError(404, 'No such project');
+    const candidates = iconCandidatesNow(project.path).map(({ id, label, version }) => ({ id, label, version }));
+    return { choice: project.iconChoice ?? null, candidates };
+  }],
+  ['PUT', /^\/api\/projects\/([\w-]+)\/icon$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    const choice = body.choice;
+    if (choice !== null && (typeof choice !== 'string' || choice.length > 600)) {
+      throw new HttpError(400, 'Expected { choice: string | null }');
+    }
+    const project = projects.get(id);
+    if (!project) throw new HttpError(404, 'No such project');
+    if (choice && choice !== 'none' && !iconCandidates(project.path).some((c) => c.id === choice)) {
+      throw new HttpError(400, 'This icon is no longer in the project folder.');
+    }
+    projects.setIconChoice(id, choice);
     broadcast();
     return { ok: true };
   }],
@@ -1401,7 +1425,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
   if (url.pathname === '/api/hook' && req.method === 'POST') return handleHook(req, res);
   if (url.pathname === '/api/statusline' && req.method === 'POST') return handleStatusLine(req, res);
   const icon = req.method === 'GET' ? url.pathname.match(/^\/api\/projects\/([\w-]+)\/icon$/) : null;
-  if (icon) return serveProjectIcon(res, icon[1]);
+  if (icon) return serveProjectIcon(res, url, icon[1]);
   for (const [method, pattern, handler] of routes) {
     const match = url.pathname.match(pattern);
     if (match && req.method === method) return sendJson(res, 200, await handler(req, url, match.slice(1)));
@@ -1419,17 +1443,21 @@ const MIME: Record<string, string> = {
 };
 
 /** A project's own icon. Locked down so an SVG opened on its own cannot run scripts on Orchia's origin. */
-function serveProjectIcon(res: http.ServerResponse, id: string) {
+function serveProjectIcon(res: http.ServerResponse, url: URL, id: string) {
   const project = projects.get(id);
-  const found = project && projectIcon(project.path);
+  if (!project) throw new HttpError(404, 'No such project');
+  // `c` previews one candidate in the picker; it must be one Orchia found, never any path.
+  const pick = url.searchParams.get('c');
+  const found = pick ? iconCandidates(project.path).find((c) => c.id === pick) : projectIcon(project.path, project.iconChoice);
   if (!found) throw new HttpError(404, 'No icon');
   res.writeHead(200, {
-    'content-type': iconMime(found.file),
+    'content-type': found.mime,
     'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     'x-content-type-options': 'nosniff',
     'cache-control': 'private, max-age=86400',
   });
-  createReadStream(found.file).on('error', () => res.destroy()).pipe(res);
+  if (found.data) return res.end(found.data);
+  createReadStream(found.file!).on('error', () => res.destroy()).pipe(res);
 }
 
 function serveStatic(res: http.ServerResponse, path: string) {

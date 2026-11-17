@@ -9,6 +9,8 @@ export interface Project {
   copyMode?: CopyMode;
   /** Keep one comment on this project's pull requests saying how they were made; off when missing. */
   prEvidence?: boolean;
+  /** The icon picked in Orchia (a candidate id), or `none` for the initial; missing lets Orchia choose. */
+  iconChoice?: string;
   /** Version of the icon or logo found in the project's folder; missing when it has none. */
   icon?: string;
 }
@@ -478,6 +480,8 @@ export const api = {
   tokenDiet: (projectId: string) => request<TokenDiet>(`/api/projects/${projectId}/token-diet`),
   setCopyMode: (projectId: string, copyMode: CopyMode) => request(`/api/projects/${projectId}`, 'PATCH', { copyMode }),
   setPrEvidence: (projectId: string, prEvidence: boolean) => request(`/api/projects/${projectId}`, 'PATCH', { prEvidence }),
+  projectIcons: (projectId: string) => request<{ choice: string | null; candidates: { id: string; label: string; version: string }[] }>(`/api/projects/${projectId}/icons`),
+  setProjectIcon: (projectId: string, choice: string | null) => request(`/api/projects/${projectId}/icon`, 'PUT', { choice }),
   copyChanges: (id: string) => request<CopyChanges>(`/api/sessions/${id}/changes`),
   mergeCopy: (id: string) => request<{ ok: boolean; conflict?: string }>(`/api/sessions/${id}/merge`, 'POST'),
   discardCopy: (id: string) => request(`/api/sessions/${id}/discard`, 'POST'),

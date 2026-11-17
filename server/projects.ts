@@ -14,6 +14,8 @@ export interface Project {
   copyMode?: CopyMode;
   /** Keep one comment on this project's pull requests saying how they were made; off when missing. */
   prEvidence?: boolean;
+  /** The icon picked in Orchia: a candidate id from projectIcon.ts, or `none` for the initial. Missing: Orchia's best find. */
+  iconChoice?: string;
 }
 
 export type CopyMode = 'ask' | 'copy' | 'same';
@@ -113,6 +115,15 @@ export class ProjectStore {
     if (!project) throw new Error('Project not found');
     if (on) project.prEvidence = true;
     else delete project.prEvidence;
+    this.save();
+  }
+
+  /** The icon the user picked (a candidate id), `none` for the initial only, or null to let Orchia choose. */
+  setIconChoice(id: string, choice: string | null) {
+    const project = this.get(id);
+    if (!project) throw new Error('Project not found');
+    if (choice) project.iconChoice = choice;
+    else delete project.iconChoice;
     this.save();
   }
 
