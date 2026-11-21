@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Project, SessionInfo } from './api';
+import type { Project, ScheduledItem, SessionInfo } from './api';
 import { filesChanged, proofText, statusOf, waitingText, type Status } from './status';
 
 /** "Pins cluster above 40 markers. (3 files changed)"; at the end of a run of lots, how it went. */
@@ -32,7 +32,7 @@ export function pageActive(): boolean {
  * Desktop notifications when a session starts waiting on the user or finishes,
  * only while the tab is not in front. Clicking one brings the session up.
  */
-export function useNotifications(sessions: SessionInfo[], projects: Project[], onOpen: (id: string) => void) {
+export function useNotifications(sessions: SessionInfo[], projects: Project[], onOpen: (id: string) => void, scheduled: ScheduledItem[] = []) {
   const [enabled, setEnabled] = useState(() => storage.get(KEY) === 'on');
   const [permission, setPermission] = useState<NotificationPermission>(supported ? Notification.permission : 'denied');
   const previous = useRef(new Map<string, Status>());
@@ -89,6 +89,23 @@ export function useNotifications(sessions: SessionInfo[], projects: Project[], o
     }
     previous.current = next;
   }, [sessions, state]);
+
+  // A scheduled prompt that comes due while the page is open; one already due on load stays quiet (Needs you shows it).
+  const scheduledBefore = useRef<Map<string, ScheduledItem['state']> | null>(null);
+  useEffect(() => {
+    const before = scheduledBefore.current;
+    scheduledBefore.current = new Map(scheduled.map((i) => [i.id, i.state]));
+    if (!before || state !== 'on' || pageActive()) return;
+    for (const item of scheduled) {
+      if (item.state !== 'due' || before.get(item.id) === 'due') continue;
+      const project = projects.find((p) => p.id === item.projectId)?.name ?? '';
+      const notification = new Notification(`Due: ${project}`, { body: item.title, tag: `scheduled:${item.id}` });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
+  }, [scheduled, state]);
 
   return { state, toggle };
 }

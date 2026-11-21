@@ -18,6 +18,7 @@ import { needsAttention, statusOf, timeAgo } from './status';
 import { setProjectFavicon } from './favicon';
 import { projectIconUrl, useProjectIcons } from './ProjectIcon';
 import { pageActive, useNotifications } from './notifications';
+import { ScheduledHost } from './Scheduled';
 import { LimitBanner, LimitToasts, topLevel, useLimitAlerts } from './Limits';
 
 const SELECTED_KEY = 'orchia.selectedSession';
@@ -122,7 +123,7 @@ export function App() {
     select(sibling ?? null);
   }, [state, selected, selectedId]);
 
-  const notify = useNotifications(sessions, projects, (id) => open(id));
+  const notify = useNotifications(sessions, projects, (id) => open(id), state?.scheduled ?? []);
   const limits = state?.limits ?? null;
   const limitAlerts = useLimitAlerts(limits, notify.state);
 
@@ -236,6 +237,12 @@ export function App() {
       else setView('focus');
     }
     refocus();
+  }
+
+  /** Opens a session the server may have just made, before the state lists it. */
+  function openNew(id: string) {
+    pendingId.current = id;
+    open(id);
   }
 
   function maximize(id: string) {
@@ -357,6 +364,8 @@ export function App() {
           secretsResolved={state?.secretsResolved ?? []}
           configNeeded={state?.configNeeded ?? []}
           pullRequestsNeeded={state?.pullRequestsNeeded ?? []}
+          scheduled={state?.scheduled ?? []}
+          onOpenSessionId={openNew}
         />
       ) : (
         <Rail
@@ -609,6 +618,7 @@ export function App() {
           }}
         />
       )}
+      <ScheduledHost items={state?.scheduled ?? []} projects={projects} onOpenSession={openNew} />
     </div>
   );
 }

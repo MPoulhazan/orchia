@@ -1,5 +1,6 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import { GripVertical, ListOrdered, Plus, X } from 'lucide-react';
+import { CalendarClock, GripVertical, ListOrdered, Plus, X } from 'lucide-react';
+import { openScheduleSheet } from './Scheduled';
 import { api, type SessionInfo } from './api';
 import { Help } from './HelpCard';
 import { HELP } from './help';
@@ -97,6 +98,15 @@ export function UpNext({ session }: { session: SessionInfo }) {
           <span className="upnext-n">{i + 1}</span>
           {q.lot ? <QueuedLot text={q.text} lot={q.lot} /> : <QueuedText text={q.text} />}
           {queue.length > 1 && <GripVertical size={13} className="upnext-grip" aria-hidden />}
+          {!q.lot && (
+            <button
+              className="icon-btn"
+              title="Not now: schedule it for a date"
+              onClick={() => openScheduleSheet({ projectId: session.projectId, text: q.text, fromQueue: { sessionId: session.id, queuedId: q.id } })}
+            >
+              <CalendarClock size={13} />
+            </button>
+          )}
           <button className="icon-btn" title="Remove from the queue" onClick={() => api.dequeue(session.id, q.id).catch(() => {})}>
             <X size={13} />
           </button>

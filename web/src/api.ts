@@ -1,5 +1,6 @@
 import type { McpServerConfig } from '../../server/mcpSource';
-export type { ScheduledItem } from '../../server/schedule';
+import type { ScheduledItem } from '../../server/schedule';
+export type { ScheduledItem };
 
 export interface Project {
   id: string;
@@ -507,6 +508,12 @@ export const api = {
   fixConfigRisk: (sessionId: string, riskId: string) => request(`/api/sessions/${sessionId}/config-risks/fix`, 'POST', { id: riskId }),
   sendPullRequest: (key: string) => request('/api/pull-requests/send', 'POST', { key }),
   laterPullRequest: (key: string) => request('/api/pull-requests/later', 'POST', { key }),
+  /** Scheduled prompts (server/schedule.ts). */
+  addScheduled: (item: { projectId: string; text: string; at: number; title?: string }) => request<ScheduledItem>('/api/scheduled', 'POST', item),
+  updateScheduled: (id: string, patch: { text?: string; title?: string; at?: number; run?: boolean }) => request<ScheduledItem>(`/api/scheduled/${id}`, 'PATCH', patch),
+  skipScheduled: (id: string) => request(`/api/scheduled/${id}`, 'DELETE'),
+  /** Puts it in Up next of the project's newest running session, or of a new one. */
+  runScheduled: (id: string) => request<{ sessionId: string }>(`/api/scheduled/${id}/run`, 'POST'),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
   dequeue: (id: string, queuedId: string) => request(`/api/sessions/${id}/queue/${queuedId}`, 'DELETE'),
   reorderQueue: (id: string, ids: string[]) => request(`/api/sessions/${id}/queue`, 'PUT', { ids }),

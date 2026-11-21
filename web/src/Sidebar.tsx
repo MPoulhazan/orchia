@@ -10,6 +10,8 @@ import { DoneSummary, StatusDot, attentionRank, initials, needsAttention, status
 import type { RateLimits } from './api';
 import { UsageMeters } from './Limits';
 import { TokenPanel } from './Connectors';
+import { ScheduledLine, ScheduledRow } from './Scheduled';
+import type { ScheduledItem } from './api';
 
 export type View = 'focus' | 'grid';
 
@@ -37,6 +39,9 @@ interface Props {
   secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
   pullRequestsNeeded: PullRequestNeeded[];
+  scheduled: ScheduledItem[];
+  /** Opens a session by id, also one the server just made and the state doesn't list yet. */
+  onOpenSessionId: (id: string) => void;
 }
 
 const COLLAPSED_KEY = 'orchia.collapsedProjects';
@@ -114,7 +119,7 @@ export function Sidebar(props: Props) {
         <kbd>Ctrl K</kbd>
       </button>
 
-      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} config={props.configNeeded} pullRequests={props.pullRequestsNeeded} selectedId={selectedId} onSelect={props.onSelect} />
+      <Attention projects={projects} sessions={sessions} signIns={props.signInNeeded} security={props.securityNeeded} secrets={props.secretsExposed} config={props.configNeeded} pullRequests={props.pullRequestsNeeded} scheduled={props.scheduled} onOpenSessionId={props.onOpenSessionId} selectedId={selectedId} onSelect={props.onSelect} />
 
       <div className="sidebar-section">
         <span>Projects</span>
@@ -224,6 +229,8 @@ export function Sidebar(props: Props) {
         })}
       </nav>
 
+      <ScheduledLine items={props.scheduled} />
+
       <SecurityLine
         secrets={props.secretsExposed}
         secretsResolved={props.secretsResolved}
@@ -304,6 +311,8 @@ function Attention(props: {
   secrets: SecretExposure[];
   config: ConfigNeeded[];
   pullRequests: PullRequestNeeded[];
+  scheduled: ScheduledItem[];
+  onOpenSessionId: (id: string) => void;
   selectedId: string | null;
   onSelect: (s: SessionInfo) => void;
 }) {
@@ -326,16 +335,20 @@ function Attention(props: {
     if (session) props.onSelect(session);
   };
   const pullRequests = props.pullRequests.filter((p) => !p.later);
-  if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length && !pullRequests.length) return null;
+  const scheduled = props.scheduled.filter((i) => i.state !== 'waiting');
+  if (!list.length && !signIns.length && !security.length && !secrets.length && !config.length && !pullRequests.length && !scheduled.length) return null;
   const projectName = (id: string) => props.projects.find((p) => p.id === id)?.name ?? '';
 
   return (
     <>
       <div className="sidebar-section">
         <span>Needs you</span>
-        <span className="section-count">{list.length + signIns.length + security.length + secrets.length + config.length + pullRequests.length}</span>
+        <span className="section-count">{list.length + signIns.length + security.length + secrets.length + config.length + pullRequests.length + scheduled.length}</span>
       </div>
       <div className="attention">
+        {scheduled.map((i) => (
+          <ScheduledRow key={i.id} item={i} project={props.projects.find((p) => p.id === i.projectId)} onOpenSession={props.onOpenSessionId} narrow />
+        ))}
         {pullRequests.map((p) => (
           <PullRequestRow key={p.key} item={p} projectName={projectName(p.projectId)} selected={p.sessionId === props.selectedId} onOpen={() => openSession(p.sessionId)} />
         ))}
