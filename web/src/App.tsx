@@ -538,6 +538,7 @@ export function App() {
             // Through Up next: typed once Claude is free, never over a draft.
             selected?.status === 'running' ? () => void api.enqueue(selected.id, '/lots').catch(() => {}) : undefined
           }
+          onScheduleDated={selected?.status === 'running' ? () => void api.enqueue(selected.id, '/orchia:dated').catch(() => {}) : undefined}
         />
       )}
 

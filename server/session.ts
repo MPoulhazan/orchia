@@ -7,6 +7,7 @@ import type { Activity, ActivityUpdate, PermissionAsk } from './hooks.ts';
 import type { PermissionMode } from './settings.ts';
 import { describeRule, type PermissionRule, type RuleView } from './permissionRules.ts';
 import { DEFAULT_LOT_OPTIONS, lotNotDone, lotPrompt, splitAnswer, type LotOptions } from './planLots.ts';
+import { splitDated, type DatedStep } from './schedule.ts';
 import { codeBlocks, summarize, type CodeBlock, type TurnSummary } from './summary.ts';
 import { TurnChecks, closingQuestion, shellFailed } from './turnCheck.ts';
 import { copyInstructions, type SessionCopy } from './copies.ts';
@@ -54,6 +55,10 @@ export interface SessionInfo {
   answerLots: string[] | null;
   /** The user asked for these lots with /lots: the lot editor opens right away. */
   answerLotsAsked: boolean;
+  /** The dated steps of Claude's last answer (`### On 2026-12-01: …`), offered as "Schedule…". */
+  answerDated: DatedStep[] | null;
+  /** The user asked for these steps with /dated: the schedule sheet opens right away. */
+  answerDatedAsked: boolean;
   /** The permission request Orchia can answer right now, oldest first. */
   permission: (PermissionAsk & { id: string; always: RuleView[] }) | null;
   /** What the last finished turn did; cleared when a new one starts. */
@@ -209,6 +214,10 @@ export class Session extends EventEmitter {
   private answerLots: string[] | null = null;
   /** The current turn answers /lots (typed, or its expanded prompt as some hooks report it). */
   private lotsAsked = false;
+  /** The dated steps of Claude's last answer, offered as "Schedule…" until the next turn starts or they are scheduled. */
+  answerDated: DatedStep[] | null = null;
+  /** The current turn answers /dated: the schedule sheet opens right away. */
+  private datedAsked = false;
   lotBlocked: LotBlocked | null = null;
   /** The last lot that said `LOT n DONE`; kept until a turn outside the run starts. */
   private lastLotDone: { n: number; total: number } | null = null;
@@ -454,6 +463,8 @@ export class Session extends EventEmitter {
       this.turnChecks.reset();
       this.answerLots = null;
       this.lotsAsked = /^\s*(\/(orchia:)?lots\b|Restate the plan you just proposed as lots)/.test(String(payload.prompt ?? ''));
+      this.answerDated = null;
+      this.datedAsked = /^\s*(\/(orchia:)?dated\b|Restate, as dated steps)/.test(String(payload.prompt ?? ''));
       // A prompt that isn't one of the run's lots ends the "all lots done" state.
       if (!this.runningLot) this.lastLotDone = null;
       this.cleanStop = false;
@@ -477,6 +488,7 @@ export class Session extends EventEmitter {
       // An answer in lots is offered only outside a run of lots, so a lot's report isn't taken for a new plan.
       const inRun = !!this.runningLot || !!this.lotBlocked || this.queue.some((q) => q.lot);
       this.answerLots = inRun ? null : splitAnswer(payload.last_assistant_message);
+      this.answerDated = inRun ? null : splitDated(payload.last_assistant_message);
       this.checkLot(payload.last_assistant_message);
       this.cleanStop = true;
       this.scheduleSend();
@@ -896,6 +908,8 @@ export class Session extends EventEmitter {
       planLots: this.planOffer?.lots ?? null,
       answerLots: this.answerLots,
       answerLotsAsked: !!this.answerLots && this.lotsAsked,
+      answerDated: this.answerDated,
+      answerDatedAsked: !!this.answerDated && this.datedAsked,
       permission: this.held[0]
         ? {
             id: this.held[0].id,

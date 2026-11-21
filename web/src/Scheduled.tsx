@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { CalendarClock, ChevronRight, Clock, Plus, X } from 'lucide-react';
-import { api, type Project, type ScheduledItem } from './api';
+import { api, type DatedStep, type Project, type ScheduledItem, type SessionInfo } from './api';
 import { ProjectIcon } from './ProjectIcon';
 
 /**
@@ -241,7 +241,7 @@ function ScheduledList({ items, projects, onOpenSession, onClose }: { items: Sch
             <div className="scheduled-empty">
               <p>Nothing scheduled.</p>
               <p className="security-hint">
-                Keep a prompt for a date: Orchia reminds you when it is due, and puts it in Up next when you say so. Agents often say “check this again on Monday”: schedule it here, or from the clock on an Up next prompt.
+                Keep a prompt for a date: Orchia reminds you when it is due, and puts it in Up next when you say so. Agents often say “check this again on Monday”: type /orchia:dated in that session to schedule what it said, or use the clock on an Up next prompt.
               </p>
             </div>
           ) : (
@@ -406,6 +406,101 @@ function ScheduleSheet({
             {existing ? 'Save' : 'Schedule'}
           </button>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+// ---- Dated steps in Claude's answer (/dated) --------------------------------
+
+/** Shown under the terminal once Claude's answer has `### On 2026-12-01: …` steps. */
+export function showDatedSteps(session: SessionInfo): boolean {
+  return session.status === 'running' && session.activity === 'idle' && !!session.answerDated?.length;
+}
+
+/**
+ * "Claude's answer has 3 dated steps · Schedule…": each step kept goes to Scheduled for its
+ * date, with its text as the prompt. Asked for with /dated, the list opens right away.
+ */
+export function DatedSteps({ session }: { session: SessionInfo }) {
+  const found = session.answerDated ?? [];
+  const opened = session.answerDatedAsked ? found : null;
+  const [steps, setSteps] = useState<(DatedStep & { keep: boolean })[] | null>(opened && opened.map((s) => ({ ...s, keep: true })));
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  // A new answer starts over.
+  const key = found.map((s) => `${s.at}:${s.title}`).join('\n');
+  useEffect(() => {
+    setSteps(opened && opened.map((s) => ({ ...s, keep: true })));
+    setError(null);
+  }, [key]);
+
+  const send = (chosen: DatedStep[]) => {
+    setSending(true);
+    setError(null);
+    api
+      .scheduleDated(session.id, chosen.map(({ at, title, text }) => ({ at, title, text })))
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setSending(false));
+  };
+
+  const n = found.length;
+  if (!steps) {
+    return (
+      <div className="planlots" aria-label="Dated steps">
+        <div className="upnext-head">
+          <CalendarClock size={13} />
+          <b>
+            Claude's answer has {n} dated step{n > 1 ? 's' : ''}.
+          </b>
+          <span className="upnext-hint">Keep {n > 1 ? 'them' : 'it'} for {n > 1 ? 'their dates' : 'its date'}: Orchia reminds you then.</span>
+          <button className="btn btn-ghost upnext-send" disabled={sending} onClick={() => send([])}>
+            Dismiss
+          </button>
+          <button className="btn btn-secondary" onClick={() => setSteps(found.map((s) => ({ ...s, keep: true })))}>
+            Schedule…
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const kept = steps.filter((s) => s.keep);
+  const now = Date.now();
+  return (
+    <div className="planlots" aria-label="Dated steps">
+      <div className="upnext-head">
+        <CalendarClock size={13} />
+        <b>Schedule {n > 1 ? 'these steps' : 'this step'}</b>
+        <span className="upnext-hint">each one waits in Scheduled, and shows in Needs you on its date</span>
+      </div>
+      <div className="planlots-list">
+        {steps.map((s, i) => (
+          <div key={i} className="planlots-item dated-item" data-off={!s.keep || undefined}>
+            <input type="checkbox" checked={s.keep} aria-label={`Keep ${s.title}`} onChange={(e) => setSteps(steps.map((x, j) => (j === i ? { ...x, keep: e.target.checked } : x)))} />
+            <span className="dated-what" title={s.text}>
+              <b>{s.title}</b>
+              <small>{s.at <= now ? 'In the past: due right away' : whenLabel(s.at, now)}</small>
+            </span>
+            <input
+              className="schedule-input dated-at"
+              type="datetime-local"
+              aria-label={`Date of ${s.title}`}
+              value={toLocalInput(s.at)}
+              disabled={!s.keep}
+              onChange={(e) => e.target.value && setSteps(steps.map((x, j) => (j === i ? { ...x, at: new Date(e.target.value).getTime() } : x)))}
+            />
+          </div>
+        ))}
+      </div>
+      {error && <p className="skill-error">{error}</p>}
+      <div className="planlots-actions">
+        <button className="btn btn-ghost" onClick={() => setSteps(null)}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" disabled={sending || !kept.length} onClick={() => send(kept)}>
+          Schedule {kept.length}
+        </button>
       </div>
     </div>
   );

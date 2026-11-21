@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MISSED_AFTER_MS, ScheduleStore, parseScheduled, titleOf } from '../server/schedule.ts';
+import { MISSED_AFTER_MS, ScheduleStore, parseScheduled, splitDated, titleOf } from '../server/schedule.ts';
 
 const HOUR = 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 21, 15, 0);
@@ -79,4 +79,40 @@ test('a request needs a prompt, a date and a project; run defaults to off', () =
 test('a change only touches what it names', () => {
   assert.deepEqual(parseScheduled({ at: NOW }, true), { at: NOW });
   assert.deepEqual(parseScheduled({ run: true }, true), { run: true });
+});
+
+const local = (y: number, mo: number, d: number, h = 9, mi = 0) => new Date(y, mo - 1, d, h, mi).getTime();
+
+test('dated headings become steps, with their text, at 09:00 unless a time is given', () => {
+  const answer = [
+    'The tracking change is live. The rest waits for real traffic:',
+    '',
+    '### On 2026-11-24: Check the first events',
+    'Open the analytics report and confirm `lot_scheduled` events arrive.',
+    '',
+    '### On 2026-11-28 14:30: Compare reminders vs auto-runs',
+    '- count runs',
+    '- count skips',
+    '',
+    'Want me to start on lot 4 now?',
+  ].join('\n');
+  const steps = splitDated(answer)!;
+  assert.deepEqual(steps.map((s) => s.title), ['Check the first events', 'Compare reminders vs auto-runs']);
+  assert.deepEqual(steps.map((s) => s.at), [local(2026, 11, 24), local(2026, 11, 28, 14, 30)]);
+  assert.equal(steps[0].text, 'Check the first events\n\nOpen the analytics report and confirm `lot_scheduled` events arrive.');
+  // The closing question is not part of the last step.
+  assert.equal(steps[1].text, 'Compare reminders vs auto-runs\n\n- count runs\n- count skips');
+});
+
+test('a single dated step counts; a heading without the strict form does not', () => {
+  assert.equal(splitDated('## On 2026-12-05: Remove the export')?.length, 1);
+  assert.equal(splitDated('### Next Monday: check the events'), null);
+  assert.equal(splitDated('### On 05/12/2026: check'), null);
+  assert.equal(splitDated('On 2026-12-05: not a heading'), null);
+  assert.equal(splitDated('Nothing dated here.'), null);
+});
+
+test('an impossible date or time is not a step', () => {
+  assert.equal(splitDated('### On 2026-02-31: Never'), null);
+  assert.equal(splitDated('### On 2026-12-01 25:00: Never'), null);
 });

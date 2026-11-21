@@ -1,6 +1,6 @@
 import type { McpServerConfig } from '../../server/mcpSource';
-import type { ScheduledItem } from '../../server/schedule';
-export type { ScheduledItem };
+import type { DatedStep, ScheduledItem } from '../../server/schedule';
+export type { DatedStep, ScheduledItem };
 
 export interface Project {
   id: string;
@@ -82,6 +82,10 @@ export interface SessionInfo {
   answerLots: string[] | null;
   /** The user asked for these lots with /lots: the lot editor opens right away. */
   answerLotsAsked: boolean;
+  /** The dated steps of Claude's last answer (`### On 2026-12-01: …`), offered as "Schedule…". */
+  answerDated: DatedStep[] | null;
+  /** The user asked for these steps with /dated: the schedule list opens right away. */
+  answerDatedAsked: boolean;
   permission: { id: string; tool: string; verb: string; target: string; always: AllowRule[] } | null;
   /** What the last finished turn did, from Claude's final reply; null while a turn runs. */
   summary: TurnSummary | null;
@@ -512,6 +516,8 @@ export const api = {
   addScheduled: (item: { projectId: string; text: string; at: number; title?: string }) => request<ScheduledItem>('/api/scheduled', 'POST', item),
   updateScheduled: (id: string, patch: { text?: string; title?: string; at?: number; run?: boolean }) => request<ScheduledItem>(`/api/scheduled/${id}`, 'PATCH', patch),
   skipScheduled: (id: string) => request(`/api/scheduled/${id}`, 'DELETE'),
+  /** Schedules the steps kept from Claude's dated answer; none dismisses the offer. */
+  scheduleDated: (sessionId: string, steps: { at: number; title: string; text: string }[]) => request(`/api/sessions/${sessionId}/dated`, 'POST', { steps }),
   /** Puts it in Up next of the project's newest running session, or of a new one. */
   runScheduled: (id: string) => request<{ sessionId: string }>(`/api/scheduled/${id}/run`, 'POST'),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),

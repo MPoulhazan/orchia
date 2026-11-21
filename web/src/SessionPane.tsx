@@ -11,6 +11,7 @@ import { Help } from './HelpCard';
 import { HELP } from './help';
 import { PermissionButtons, PermissionText } from './Permission';
 import { PlanLots, showPlanLots } from './PlanLots';
+import { DatedSteps, showDatedSteps } from './Scheduled';
 import { QueueBadge, UpNext, showUpNext } from './UpNext';
 import { ChangesView, useCopyChanges } from './Changes';
 import { ProjectIcon } from './ProjectIcon';
@@ -174,6 +175,7 @@ export function SessionPane(props: Props) {
       )}
 
       {!compact && showPlanLots(session) && <PlanLots session={session} />}
+      {!compact && showDatedSteps(session) && <DatedSteps session={session} />}
       {!compact && showUpNext(session) && <UpNext session={session} />}
 
       {compact && session.summary && ['done', 'idle', 'blocked'].includes(statusOf(session)) && (

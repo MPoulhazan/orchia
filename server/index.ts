@@ -966,6 +966,22 @@ const routes: [string, RegExp, Handler][] = [
     return { ok: true };
   }],
   ['POST', /^\/api\/scheduled\/([\w-]+)\/run$/, (_req, _url, [id]) => ({ sessionId: runScheduled(id) })],
+  // The dated steps of Claude's last answer: the ones kept go to Scheduled, and the offer goes away (none kept: dismissed).
+  ['POST', /^\/api\/sessions\/([\w-]+)\/dated$/, async (req, _url, [id]) => {
+    const session = findSession(id);
+    const body = await readJson(req);
+    if (!Array.isArray(body.steps)) throw new HttpError(400, 'Expected { steps }');
+    let inputs;
+    try {
+      inputs = body.steps.map((s: any) => parseScheduled({ ...s, projectId: session.projectId }, false));
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    for (const input of inputs) schedule.add(input);
+    session.answerDated = null;
+    broadcast();
+    return { ok: true, scheduled: inputs.length };
+  }],
 
   ['POST', /^\/api\/sessions$/, async (req) => {
     const body = await readJson(req);

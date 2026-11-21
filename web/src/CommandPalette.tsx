@@ -10,6 +10,7 @@ import {
   History,
   LayoutGrid,
   ListOrdered,
+  CalendarClock,
   Monitor,
   Package,
   Plug,
@@ -24,6 +25,7 @@ import {
   OctagonX,
 } from 'lucide-react';
 import { api, type FolderListing, type Project, type SessionInfo, type Suggestion } from './api';
+import { openScheduled } from './Scheduled';
 import { HELP, PERMISSION_HELP, matchesHelp, type HelpEntry } from './help';
 import { ICONS as MODE_ICONS, OFFERED as MODES } from './ModeChip';
 import { fuzzyScore } from './fuzzy';
@@ -67,6 +69,8 @@ interface Props {
   onPickIssues?: () => void;
   /** Types /lots in the current session: Claude restates its plan as lots to run one after another. */
   onRunAsLots?: () => void;
+  /** Types /orchia:dated in the current session: Claude restates what it said to do later as dated steps. */
+  onScheduleDated?: () => void;
 }
 
 const ICON = 15;
@@ -228,6 +232,10 @@ export function CommandPalette(props: Props) {
       ...(props.onRunAsLots
         ? [{ id: 'lots', group: 'Actions', label: 'Run the last plan as lots', detail: '/lots', icon: <ListOrdered size={ICON} />, run: () => props.onRunAsLots!() }]
         : []),
+      ...(props.onScheduleDated
+        ? [{ id: 'dated', group: 'Actions', label: 'Schedule what Claude said to do later', detail: '/orchia:dated', icon: <CalendarClock size={ICON} />, run: () => props.onScheduleDated!() }]
+        : []),
+      { id: 'scheduled', group: 'Actions', label: 'Scheduled prompts', detail: 'by date', icon: <CalendarClock size={ICON} />, run: () => openScheduled() },
       ...(props.session?.status === 'running' && props.session.activity === 'working'
         ? [{ id: 'stop', group: 'Actions', label: 'Stop this session', detail: 'Esc', icon: <OctagonX size={ICON} />, run: () => void api.stopSession(props.session!.id).catch(() => {}) }]
         : []),
@@ -285,7 +293,7 @@ export function CommandPalette(props: Props) {
       out.unshift({ id: 'clone', group: 'GitHub', label: `Clone ${owner}/${repo}`, detail: '…', icon: <GitBranch size={ICON} />, run: () => true });
     }
     return out;
-  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.session, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues, !props.onRunAsLots]);
+  }, [mode, query, listing, target, cloning, projects, suggestions, currentProject, props.session, props.view, !props.onToggleInspector, !props.onAddSkill, !props.onAddConnector, !props.onPickIssues, !props.onRunAsLots, !props.onScheduleDated]);
 
   useEffect(() => {
     setActive(0);

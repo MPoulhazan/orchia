@@ -4472,3 +4472,39 @@ textarea.schedule-input {
     grid-column: 1;
   }
 }
+
+/* Dated steps of Claude's answer, set like the lots under the terminal. */
+.dated-item {
+  align-items: center;
+  padding: 6px 8px 6px 10px;
+}
+
+.dated-item[data-off] .dated-what {
+  opacity: 0.5;
+}
+
+.dated-what {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dated-what b {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dated-what small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.schedule-input.dated-at {
+  width: auto;
+  flex: none;
+  padding: 4px 8px;
+  font-size: 12.5px;
+}

@@ -35,6 +35,58 @@ export interface ScheduledItem {
 export type ScheduledInput = Pick<ScheduledItem, 'projectId' | 'title' | 'text' | 'at' | 'run'>;
 export type ScheduledPatch = Partial<Pick<ScheduledItem, 'title' | 'text' | 'at' | 'run'>>;
 
+/** A step of Claude's answer to do on a date, from a `### On 2026-12-01: Title` heading (`/dated`). */
+export interface DatedStep {
+  /** Local time on this computer; 09:00 when the heading gives no time. */
+  at: number;
+  title: string;
+  /** The heading's title and the lines under it: the prompt to send then. */
+  text: string;
+}
+
+const MAX_STEPS = 12;
+/** "### On 2026-12-01: Title" or "### On 2026-12-01 14:30: Title"; nothing looser, so no date is guessed. */
+const DATED = /^#{2,4}\s+On\s+(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?\s*[:—–-]\s*(.+?)\s*$/i;
+
+/**
+ * The dated steps of an answer, in order, or null without any. Each runs to the next dated
+ * heading; the last stops before the closing remarks (a rule, a heading of its level or above,
+ * or a plain paragraph after a blank line once the step has some content).
+ */
+export function splitDated(answer: unknown): DatedStep[] | null {
+  if (typeof answer !== 'string') return null;
+  const lines = answer.replace(/\r\n/g, '\n').split('\n');
+  const starts: { i: number; at: number; title: string; level: number }[] = [];
+  for (const [i, line] of lines.entries()) {
+    const m = line.trim().match(DATED);
+    if (!m) continue;
+    const [, y, mo, d, h, mi, title] = m;
+    const hour = h === undefined ? 9 : Number(h);
+    const date = new Date(Number(y), Number(mo) - 1, Number(d), hour, mi === undefined ? 0 : Number(mi));
+    // 2026-02-31 or 25:00 roll over in Date: not a real date, so not a step.
+    if (date.getMonth() !== Number(mo) - 1 || date.getDate() !== Number(d) || hour > 23) continue;
+    starts.push({ i, at: date.getTime(), title: title.replace(/\*+/g, '').trim(), level: line.trim().match(/^#+/)![0].length });
+  }
+  if (!starts.length || starts.length > MAX_STEPS) return null;
+  return starts.map((s, n) => {
+    let end = n + 1 < starts.length ? starts[n + 1].i : lines.length;
+    if (n + 1 === starts.length) {
+      let body = false;
+      for (let i = s.i + 1; i < lines.length; i++) {
+        const heading = lines[i].match(/^(#{1,6})\s/);
+        const remark = body && !lines[i - 1].trim() && /^\S/.test(lines[i]) && !/^([-*+>|]|\d+[.)]|```)/.test(lines[i]);
+        if (lines[i].trim()) body = true;
+        if (/^---\s*$/.test(lines[i]) || (heading && heading[1].length <= s.level) || remark) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const body = lines.slice(s.i + 1, end).join('\n').trim();
+    return { at: s.at, title: s.title.slice(0, MAX_TITLE), text: body ? `${s.title}\n\n${body}` : s.title };
+  });
+}
+
 /** The title shown for a prompt: its first non-empty line, without Markdown heading marks. */
 export function titleOf(text: string): string {
   const line = text.split('\n').map((l) => l.replace(/^#+\s*/, '').trim()).find(Boolean) ?? '';
