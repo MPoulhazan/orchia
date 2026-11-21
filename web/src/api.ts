@@ -1,4 +1,5 @@
 import type { McpServerConfig } from '../../server/mcpSource';
+export type { ScheduledItem } from '../../server/schedule';
 
 export interface Project {
   id: string;

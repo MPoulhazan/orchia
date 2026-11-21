@@ -25,6 +25,7 @@ import { RepoScanner, ignoreEnvFiles } from './repoScan.ts';
 import { enableGitHubSecretScanning } from './githubSecurity.ts';
 import { TriageStore, configKey, cveKey, secretKey } from './triage.ts';
 import { LaterStore } from './later.ts';
+import { ScheduleStore, parseScheduled } from './schedule.ts';
 import { PullRequestWatcher, promptFor } from './pullRequests.ts';
 import { IssueLabelWatcher } from './issueLabels.ts';
 import type { LaunchChoices, SessionInfo } from './session.ts';
@@ -72,6 +73,8 @@ const settings = new SettingsStore(CONFIG_DIR);
 const secrets = new SecretStore();
 const triage = new TriageStore();
 const later = new LaterStore();
+/** Prompts kept for a date (Scheduled): due ones show in Needs you. */
+const schedule = new ScheduleStore();
 const answerCounts = new AnswerCounts();
 /** Pull request cards put off with ✕ or handed to Claude: back with the next commit's result. */
 const pullRequestsLater = new LaterStore(join(CONFIG_DIR, 'pull-requests-later.json'));
@@ -390,6 +393,7 @@ function state() {
     secretsResolved: secrets.list().filter((e) => e.resolvedAt).map((e) => ({ ...e, key: secretKey(e.fingerprint) })),
     configNeeded: configNeeded(),
     pullRequestsNeeded: pullRequestsNeeded(),
+    scheduled: schedule.list(),
   };
 }
 
@@ -545,6 +549,22 @@ refreshAdvisories().then(broadcast);
 refreshUsage().catch((err) => console.error('Could not add up token use:', err));
 setInterval(() => refreshUsage().catch((err) => console.error('Could not add up token use:', err)), USAGE_REFRESH_MS).unref();
 setInterval(() => refreshAdvisories().then(broadcast), 60 * 60 * 1000).unref();
+// Scheduled prompts come due on the minute; the UI reminds the user.
+setInterval(() => {
+  if (schedule.tick().length) broadcast();
+}, 30 * 1000).unref();
+
+/** Hands a scheduled prompt to Up next of the project's newest running session, or of a new one. */
+function runScheduled(id: string): string {
+  const item = schedule.get(id);
+  if (!item) throw new HttpError(404, 'This scheduled prompt is gone');
+  if (!projects.get(item.projectId)) throw new HttpError(404, 'Its project is not in Orchia any more');
+  const session = latestSessions(true).find((s) => s.projectId === item.projectId) ?? createSession(item.projectId);
+  session.enqueue(item.text);
+  schedule.remove(id);
+  broadcast();
+  return session.id;
+}
 
 /** Push the new state to every client and persist the sessions. */
 function broadcast() {
@@ -908,9 +928,44 @@ const routes: [string, RegExp, Handler][] = [
   ['DELETE', /^\/api\/projects\/([\w-]+)$/, (_req, _url, [id]) => {
     for (const s of sessions.values()) if (s.projectId === id) closeSession(s);
     projects.remove(id);
+    schedule.removeProject(id);
     broadcast();
     return { ok: true };
   }],
+
+  ['POST', /^\/api\/scheduled$/, async (req) => {
+    const body = await readJson(req);
+    let input;
+    try {
+      input = parseScheduled(body, false);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    if (!projects.get(input.projectId)) throw new HttpError(404, 'Project not found');
+    const item = schedule.add(input);
+    broadcast();
+    return item;
+  }],
+  ['PATCH', /^\/api\/scheduled\/([\w-]+)$/, async (req, _url, [id]) => {
+    const body = await readJson(req);
+    let patch;
+    try {
+      patch = parseScheduled(body, true);
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message);
+    }
+    const item = schedule.update(id, patch);
+    if (!item) throw new HttpError(404, 'This scheduled prompt is gone');
+    broadcast();
+    return item;
+  }],
+  // Skipped: it leaves the list without running.
+  ['DELETE', /^\/api\/scheduled\/([\w-]+)$/, (_req, _url, [id]) => {
+    if (!schedule.remove(id)) throw new HttpError(404, 'This scheduled prompt is gone');
+    broadcast();
+    return { ok: true };
+  }],
+  ['POST', /^\/api\/scheduled\/([\w-]+)\/run$/, (_req, _url, [id]) => ({ sessionId: runScheduled(id) })],
 
   ['POST', /^\/api\/sessions$/, async (req) => {
     const body = await readJson(req);

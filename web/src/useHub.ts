@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type RateLimits, type SessionInfo, type SecretExposure, type SecurityNeeded, type Settings, type SignInNeeded, type CloudStatus, type AnswerCounts } from './api';
+import { api, type ConfigNeeded, type PullRequestNeeded, type Project, type RateLimits, type SessionInfo, type SecretExposure, type SecurityNeeded, type Settings, type SignInNeeded, type CloudStatus, type AnswerCounts, type ScheduledItem } from './api';
 
 export interface HubState {
   projects: Project[];
@@ -15,6 +15,8 @@ export interface HubState {
   secretsResolved: SecretExposure[];
   configNeeded: ConfigNeeded[];
   pullRequestsNeeded: PullRequestNeeded[];
+  /** Prompts kept for a date, soonest first (server/schedule.ts). */
+  scheduled: ScheduledItem[];
 }
 
 const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false, remoteSessions: false, remoteRunNext: false, remoteUsage: false, remoteDietActions: false };
@@ -36,7 +38,7 @@ export function useHub() {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, answerCounts: msg.answerCounts ?? { phone: 0, computer: 0 }, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], secretsResolved: msg.secretsResolved ?? [], configNeeded: msg.configNeeded ?? [], pullRequestsNeeded: msg.pullRequestsNeeded ?? [] });
+        if (msg.t === 'state') setState({ projects: msg.projects, sessions: msg.sessions, limits: msg.limits ?? null, settings: msg.settings ?? NO_SETTINGS, cloud: msg.cloud ?? NO_CLOUD, answerCounts: msg.answerCounts ?? { phone: 0, computer: 0 }, signInNeeded: msg.signInNeeded ?? [], securityNeeded: msg.securityNeeded ?? [], secretsExposed: msg.secretsExposed ?? [], secretsResolved: msg.secretsResolved ?? [], configNeeded: msg.configNeeded ?? [], pullRequestsNeeded: msg.pullRequestsNeeded ?? [], scheduled: msg.scheduled ?? [] });
       };
       ws.onclose = () => {
         if (closed) return;
