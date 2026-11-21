@@ -4328,7 +4328,7 @@ a.btn {
 
 .scheduled-entry {
   display: grid;
-  grid-template-columns: 84px 18px minmax(0, 1fr);
+  grid-template-columns: 84px 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -4507,4 +4507,51 @@ textarea.schedule-input {
   flex: none;
   padding: 4px 8px;
   font-size: 12.5px;
+}
+
+/* "Run on its own when due": in the sheet, and under the dated steps. */
+.schedule-run {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 6px;
+}
+
+.schedule-run label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planlots .schedule-run {
+  padding: 8px 12px 0;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--focus);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.scheduled-runs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--focus);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scheduled-runs[data-off] {
+  color: var(--text-faint);
+  text-decoration: line-through;
 }

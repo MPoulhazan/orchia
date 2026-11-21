@@ -122,6 +122,16 @@ export function SettingsDialog(props: {
           </section>
 
           <section className="settings-section">
+            <h3>Scheduled</h3>
+            <Field
+              label="Run on their own"
+              description="A scheduled prompt you mark “Run on its own” goes to Up next by itself when it comes due, in the project's newest session or a new one, with the permissions above. Orchia has to be open then; one that came due while it was closed is never run late. Off: Orchia only reminds you."
+            >
+              <Options items={ON_OFF} value={settings.scheduledRun ? 'on' : 'off'} onChange={(v) => change({ scheduledRun: v === 'on' })} />
+            </Field>
+          </section>
+
+          <section className="settings-section">
             <h3>Connectors</h3>
             <Field
               label="Restart by itself"

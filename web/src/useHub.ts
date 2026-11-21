@@ -19,7 +19,7 @@ export interface HubState {
   scheduled: ScheduledItem[];
 }
 
-const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false, remoteSessions: false, remoteRunNext: false, remoteUsage: false, remoteDietActions: false };
+const NO_SETTINGS: Settings = { model: null, effort: null, permissionMode: null, compactBetweenTasks: true, restartAfterConnectorChange: true, scheduledRun: false, remoteNeeds: false, remoteAnswers: 'all', remoteSecurity: false, remoteSessions: false, remoteRunNext: false, remoteUsage: false, remoteDietActions: false };
 
 const NO_CLOUD: CloudStatus = { state: 'off', url: '', note: null };
 

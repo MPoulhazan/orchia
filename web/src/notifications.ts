@@ -97,11 +97,13 @@ export function useNotifications(sessions: SessionInfo[], projects: Project[], o
     scheduledBefore.current = new Map(scheduled.map((i) => [i.id, i.state]));
     if (!before || state !== 'on' || pageActive()) return;
     for (const item of scheduled) {
-      if (item.state !== 'due' || before.get(item.id) === 'due') continue;
+      if ((item.state !== 'due' && item.state !== 'started') || before.get(item.id) === item.state) continue;
       const project = projects.find((p) => p.id === item.projectId)?.name ?? '';
-      const notification = new Notification(`Due: ${project}`, { body: item.title, tag: `scheduled:${item.id}` });
+      const verdict = item.state === 'started' ? 'Started on schedule' : 'Due';
+      const notification = new Notification(`${verdict}: ${project}`, { body: item.title, tag: `scheduled:${item.id}` });
       notification.onclick = () => {
         window.focus();
+        if (item.sessionId) openRef.current(item.sessionId);
         notification.close();
       };
     }

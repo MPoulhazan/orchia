@@ -619,7 +619,7 @@ export function App() {
           }}
         />
       )}
-      <ScheduledHost items={state?.scheduled ?? []} projects={projects} onOpenSession={openNew} />
+      <ScheduledHost items={state?.scheduled ?? []} projects={projects} onOpenSession={openNew} runOn={state?.settings.scheduledRun ?? false} />
     </div>
   );
 }

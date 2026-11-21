@@ -549,21 +549,41 @@ refreshAdvisories().then(broadcast);
 refreshUsage().catch((err) => console.error('Could not add up token use:', err));
 setInterval(() => refreshUsage().catch((err) => console.error('Could not add up token use:', err)), USAGE_REFRESH_MS).unref();
 setInterval(() => refreshAdvisories().then(broadcast), 60 * 60 * 1000).unref();
-// Scheduled prompts come due on the minute; the UI reminds the user.
+// Scheduled prompts come due on the minute. The UI reminds the user; the ones marked to run
+// go to Up next by themselves, if Settings allows it. Only at the moment they come due:
+// one missed while Orchia was closed, or already due when the setting is turned on, waits for the user.
 setInterval(() => {
-  if (schedule.tick().length) broadcast();
+  const due = schedule.tick();
+  if (!due.length) return;
+  if (settings.get().scheduledRun) {
+    for (const item of due.filter((i) => i.run)) {
+      try {
+        schedule.markStarted(item.id, sendScheduled(item.id));
+      } catch (err) {
+        // Its project is gone, or Claude did not start: it stays due, as a reminder.
+        console.warn(`Could not start the scheduled prompt "${item.title}": ${(err as Error).message}`);
+      }
+    }
+  }
+  broadcast();
 }, 30 * 1000).unref();
 
-/** Hands a scheduled prompt to Up next of the project's newest running session, or of a new one. */
-function runScheduled(id: string): string {
+/** Puts a scheduled prompt in Up next of the project's newest running session, or of a new one; returns that session. */
+function sendScheduled(id: string): string {
   const item = schedule.get(id);
   if (!item) throw new HttpError(404, 'This scheduled prompt is gone');
   if (!projects.get(item.projectId)) throw new HttpError(404, 'Its project is not in Orchia any more');
   const session = latestSessions(true).find((s) => s.projectId === item.projectId) ?? createSession(item.projectId);
   session.enqueue(item.text);
+  return session.id;
+}
+
+/** "Run now": sent, so it leaves the list. */
+function runScheduled(id: string): string {
+  const sessionId = sendScheduled(id);
   schedule.remove(id);
   broadcast();
-  return session.id;
+  return sessionId;
 }
 
 /** Push the new state to every client and persist the sessions. */
@@ -991,7 +1011,7 @@ const routes: [string, RegExp, Handler][] = [
   ['PATCH', /^\/api\/settings$/, async (req) => {
     const body = await readJson(req);
     const patch: Record<string, unknown> = {};
-    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions', 'remoteRunNext']) if (key in body) patch[key] = body[key] ?? null;
+    for (const key of ['model', 'effort', 'permissionMode', 'compactBetweenTasks', 'restartAfterConnectorChange', 'scheduledRun', 'remoteNeeds', 'remoteAnswers', 'remoteSecurity', 'remoteSessions', 'remoteRunNext']) if (key in body) patch[key] = body[key] ?? null;
     try {
       settings.update(patch);
       if ('remoteUsage' in patch || 'remoteDietActions' in patch) refreshUsage().catch((err) => console.error('Could not add up token use:', err));

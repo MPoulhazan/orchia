@@ -23,6 +23,8 @@ export interface Settings {
   compactBetweenTasks: boolean;
   /** After a connector change, restart the project's sessions once Claude is free, keeping the conversation. */
   restartAfterConnectorChange: boolean;
+  /** A scheduled prompt marked "Run on its own" goes to Up next by itself when due (off: Orchia only reminds). */
+  scheduledRun: boolean;
   /** Once paired, send what needs you (waiting sessions, permission requests, end summaries) to Orchia Cloud. */
   remoteNeeds: boolean;
   remoteAnswers: RemoteAnswers;
@@ -44,6 +46,7 @@ const DEFAULTS: Settings = {
   permissionMode: null,
   compactBetweenTasks: true,
   restartAfterConnectorChange: true,
+  scheduledRun: false,
   remoteNeeds: false,
   remoteAnswers: 'all',
   remoteSecurity: false,
@@ -61,6 +64,7 @@ function clean(raw: any): Settings {
     permissionMode: isPermissionMode(raw?.permissionMode) ? raw.permissionMode : null,
     compactBetweenTasks: raw?.compactBetweenTasks !== false,
     restartAfterConnectorChange: raw?.restartAfterConnectorChange !== false,
+    scheduledRun: raw?.scheduledRun === true,
     remoteNeeds: raw?.remoteNeeds === true,
     remoteAnswers: REMOTE_ANSWERS.includes(raw?.remoteAnswers) ? raw.remoteAnswers : 'all',
     remoteSecurity: raw?.remoteSecurity === true,
@@ -98,6 +102,7 @@ export class SettingsStore {
     if (next.permissionMode !== null && !isPermissionMode(next.permissionMode)) throw new Error('Unknown permission mode');
     if (typeof next.compactBetweenTasks !== 'boolean') throw new Error('compactBetweenTasks must be true or false');
     if (typeof next.restartAfterConnectorChange !== 'boolean') throw new Error('restartAfterConnectorChange must be true or false');
+    if (typeof next.scheduledRun !== 'boolean') throw new Error('scheduledRun must be true or false');
     if (typeof next.remoteNeeds !== 'boolean') throw new Error('remoteNeeds must be true or false');
     if (!REMOTE_ANSWERS.includes(next.remoteAnswers)) throw new Error('Unknown remoteAnswers value');
     if (typeof next.remoteSecurity !== 'boolean') throw new Error('remoteSecurity must be true or false');

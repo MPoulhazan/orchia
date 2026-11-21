@@ -5,7 +5,8 @@ import { CONFIG_DIR } from './projects.ts';
 
 /**
  * Scheduled: prompts kept for a date, per project (sessions come and go, the project stays).
- * When one comes due Orchia reminds the user; with `run` on, it will hand it to Up next itself.
+ * When one comes due Orchia reminds the user; with `run` on (and Run on their own allowed in Settings)
+ * it hands it to Up next itself, and it stays listed as "started" until the user has seen it.
  * One that came due while Orchia was closed is "missed": it is never run late on its own.
  */
 
@@ -15,7 +16,7 @@ export const MISSED_AFTER_MS = 10 * 60 * 1000;
 const MAX_TEXT = 20_000;
 const MAX_TITLE = 120;
 
-export type ScheduledState = 'waiting' | 'due' | 'missed';
+export type ScheduledState = 'waiting' | 'due' | 'missed' | 'started';
 
 export interface ScheduledItem {
   id: string;
@@ -30,6 +31,9 @@ export interface ScheduledItem {
   run: boolean;
   state: ScheduledState;
   createdAt: number;
+  /** Started on schedule: the session it went to, and when. */
+  sessionId?: string;
+  startedAt?: number;
 }
 
 export type ScheduledInput = Pick<ScheduledItem, 'projectId' | 'title' | 'text' | 'at' | 'run'>;
@@ -167,12 +171,25 @@ export class ScheduleStore {
     const item = this.get(id);
     if (!item) return undefined;
     Object.assign(item, patch);
-    if (patch.at !== undefined) item.state = patch.at <= now ? 'due' : 'waiting';
+    if (patch.at !== undefined) {
+      item.state = patch.at <= now ? 'due' : 'waiting';
+      delete item.sessionId;
+      delete item.startedAt;
+    }
     this.save();
     return item;
   }
 
-  /** Run or skipped: it leaves the list. */
+  /** Handed to Up next on schedule: kept, so the user sees what started while away. */
+  markStarted(id: string, sessionId: string, now = Date.now()): ScheduledItem | undefined {
+    const item = this.get(id);
+    if (!item) return undefined;
+    Object.assign(item, { state: 'started', sessionId, startedAt: now });
+    this.save();
+    return item;
+  }
+
+  /** Run, skipped or seen: it leaves the list. */
   remove(id: string): ScheduledItem | undefined {
     const item = this.get(id);
     if (!item) return undefined;
@@ -214,6 +231,6 @@ function isItem(v: any): v is ScheduledItem {
     typeof v.title === 'string' &&
     typeof v.at === 'number' &&
     typeof v.run === 'boolean' &&
-    (v.state === 'waiting' || v.state === 'due' || v.state === 'missed')
+    ['waiting', 'due', 'missed', 'started'].includes(v.state)
   );
 }

@@ -116,3 +116,18 @@ test('an impossible date or time is not a step', () => {
   assert.equal(splitDated('### On 2026-02-31: Never'), null);
   assert.equal(splitDated('### On 2026-12-01 25:00: Never'), null);
 });
+
+test('a prompt started on schedule stays listed, kept across restarts, until a new date or removal', () => {
+  const path = file();
+  const store = new ScheduleStore(path, NOW);
+  const item = store.add({ ...input(NOW + HOUR), run: true }, NOW);
+  store.tick(NOW + HOUR);
+  store.markStarted(item.id, 's1', NOW + HOUR);
+  const reopened = new ScheduleStore(path, NOW + 5 * HOUR);
+  assert.deepEqual({ state: reopened.get(item.id)?.state, sessionId: reopened.get(item.id)?.sessionId }, { state: 'started', sessionId: 's1' });
+  // Never marked missed, never due again by the clock.
+  assert.deepEqual(reopened.tick(NOW + 6 * HOUR), []);
+  const again = reopened.update(item.id, { at: NOW + 7 * HOUR }, NOW + 6 * HOUR)!;
+  assert.equal(again.state, 'waiting');
+  assert.equal(again.sessionId, undefined);
+});

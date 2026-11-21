@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { CalendarClock, ChevronRight, Clock, Plus, X } from 'lucide-react';
+import { CalendarClock, ChevronRight, Clock, Play, Plus, X } from 'lucide-react';
 import { api, type DatedStep, type Project, type ScheduledItem, type SessionInfo } from './api';
 import { ProjectIcon } from './ProjectIcon';
 
@@ -37,6 +37,10 @@ const subscribe = (l: () => void) => {
 };
 
 export const openScheduled = () => set({ list: true });
+
+// Settings › Scheduled › Run on their own, set by ScheduledHost for the sheet and the dated steps.
+let runAllowed = false;
+const useRunAllowed = () => useSyncExternalStore(subscribe, () => runAllowed);
 export const openScheduleSheet = (draft: SheetDraft) => set({ sheet: draft });
 
 // ---- Dates ------------------------------------------------------------------
@@ -136,6 +140,42 @@ export function ScheduledRow({ item, project, onOpenSession, narrow }: { item: S
   };
   const now = Date.now();
   const missed = item.state === 'missed';
+  if (item.state === 'started') {
+    return (
+      <div className="attention-row scheduled-row">
+        <button className="attention-open" onClick={() => openScheduleSheet({ id: item.id })}>
+          <span className="attention-title">
+            <span className="mark" data-tone="done" title="It came due and Orchia put it in Up next, as you asked">
+              Started
+            </span>
+            <b>{item.title}</b>
+          </span>
+          <span className="attention-detail">
+            {project?.name ?? 'Unknown project'} · on schedule, {whenLabel(item.startedAt ?? item.at, now)}
+          </span>
+        </button>
+        <span className="perm-acts" data-small>
+          {item.sessionId && (
+            <button
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() =>
+                act(async () => {
+                  await api.skipScheduled(item.id);
+                  onOpenSession(item.sessionId!);
+                })
+              }
+            >
+              Open
+            </button>
+          )}
+          <button className="icon-btn" disabled={busy} title="Seen: remove it from the list" onClick={() => act(() => api.skipScheduled(item.id))}>
+            <X size={13} />
+          </button>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="attention-row scheduled-row">
       <button className="attention-open" onClick={() => openScheduleSheet({ id: item.id })}>
@@ -186,8 +226,12 @@ export function ScheduledRow({ item, project, onOpenSession, narrow }: { item: S
 
 // ---- The list and the sheet, drawn once by the app --------------------------
 
-export function ScheduledHost({ items, projects, onOpenSession }: { items: ScheduledItem[]; projects: Project[]; onOpenSession: (id: string) => void }) {
+export function ScheduledHost({ items, projects, onOpenSession, runOn }: { items: ScheduledItem[]; projects: Project[]; onOpenSession: (id: string) => void; runOn: boolean }) {
   const { list, sheet } = useSyncExternalStore(subscribe, () => opened);
+  useEffect(() => {
+    runAllowed = runOn;
+    listeners.forEach((l) => l());
+  }, [runOn]);
   const openSession = (id: string) => {
     set({ list: false, sheet: null });
     onOpenSession(id);
@@ -211,6 +255,7 @@ function useEscape(onClose: () => void, active = true) {
 
 function ScheduledList({ items, projects, onOpenSession, onClose }: { items: ScheduledItem[]; projects: Project[]; onOpenSession: (id: string) => void; onClose: () => void }) {
   const now = useNow();
+  const runOn = useRunAllowed();
   const sheetOpen = useSyncExternalStore(subscribe, () => opened.sheet !== null);
   // The sheet on top takes Escape first.
   useEscape(onClose, !sheetOpen);
@@ -241,7 +286,7 @@ function ScheduledList({ items, projects, onOpenSession, onClose }: { items: Sch
             <div className="scheduled-empty">
               <p>Nothing scheduled.</p>
               <p className="security-hint">
-                Keep a prompt for a date: Orchia reminds you when it is due, and puts it in Up next when you say so. Agents often say “check this again on Monday”: type /orchia:dated in that session to schedule what it said, or use the clock on an Up next prompt.
+                Keep a prompt for a date: Orchia reminds you when it is due, and puts it in Up next when you say so, or by itself if you let it. Agents often say “check this again on Monday”: type /orchia:dated in that session to schedule what it said, or use the clock on an Up next prompt.
               </p>
             </div>
           ) : (
@@ -260,6 +305,11 @@ function ScheduledList({ items, projects, onOpenSession, onClose }: { items: Sch
                           <b>{item.title}</b>
                           <small>{project(item.projectId)?.name ?? 'Unknown project'}</small>
                         </span>
+                        {item.run && (
+                          <span className="scheduled-runs" data-off={!runOn || undefined} title={runOn ? 'Goes to Up next by itself when due' : 'Run on their own is off in Settings: Orchia will only remind you'}>
+                            <Play size={9} fill="currentColor" /> Runs
+                          </span>
+                        )}
                       </button>
                     ) : (
                       <ScheduledRow key={item.id} item={item} project={project(item.projectId)} onOpenSession={onOpenSession} />
@@ -295,6 +345,8 @@ function ScheduleSheet({
   const [projectId, setProjectId] = useState(existing?.projectId ?? draft.projectId ?? projects[0]?.id ?? '');
   const [text, setText] = useState(existing?.text ?? draft.text ?? '');
   const [at, setAt] = useState<number | null>(existing?.at ?? draft.at ?? picks[1].at);
+  const [run, setRun] = useState(existing?.run ?? false);
+  const runOn = useRunAllowed();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -307,8 +359,9 @@ function ScheduleSheet({
     setBusy(true);
     setError(null);
     try {
-      if (existing) await api.updateScheduled(existing.id, { text, at, title: text === existing.text ? existing.title : '' });
-      else await api.addScheduled({ projectId, text, at });
+      // The date only when changed: sending it again would put a started prompt back to waiting.
+      if (existing) await api.updateScheduled(existing.id, { text, run, title: text === existing.text ? existing.title : '', ...(at !== existing.at && { at }) });
+      else await api.addScheduled({ projectId, text, at, run });
       if (draft.fromQueue) await api.dequeue(draft.fromQueue.sessionId, draft.fromQueue.queuedId).catch(() => {});
       onClose();
     } catch (err) {
@@ -379,9 +432,12 @@ function ScheduleSheet({
               onChange={(e) => setAt(e.target.value ? new Date(e.target.value).getTime() : null)}
             />
             <span className="settings-desc">
-              <Clock size={11} /> {at === null ? 'Pick a date' : past ? 'In the past: it will be due right away' : whenLabel(at)} · Orchia reminds you, and runs nothing on its own. It has to be open at that time.
+              <Clock size={11} /> {at === null ? 'Pick a date' : past ? 'In the past: it will be due right away' : whenLabel(at)} · {run && runOn && !past ? 'Orchia puts it in Up next then.' : 'Orchia reminds you, and runs nothing on its own.'} It has to be open at that time.
             </span>
           </div>
+
+          <span className="schedule-label">Run</span>
+          <RunSwitch run={run} onChange={setRun} label="Run it on its own when due" />
 
           {error && <p className="schedule-error">{error}</p>}
         </div>
@@ -411,6 +467,38 @@ function ScheduleSheet({
   );
 }
 
+/**
+ * "Run on its own when due": per prompt, and only if Settings allows it, so nothing starts
+ * unattended by surprise. While Settings says no, the switch says so and offers to allow it.
+ */
+function RunSwitch({ run, onChange, label }: { run: boolean; onChange: (run: boolean) => void; label: string }) {
+  const runOn = useRunAllowed();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="schedule-run">
+      <label>
+        <input type="checkbox" checked={run} onChange={(e) => onChange(e.target.checked)} /> {label}
+      </label>
+      <span className="settings-desc">
+        {!run
+          ? 'Off: Orchia shows it in Needs you, and you start it.'
+          : runOn
+            ? "It goes to Up next of the project's newest session, or of a new one, with your usual permissions. Never late: not if it came due while Orchia was closed."
+            : 'Run on their own is off in Settings, so Orchia will only remind you.'}
+        {run && !runOn && (
+          <>
+            {' '}
+            <button className="link-btn" onClick={() => api.updateSettings({ scheduledRun: true }).catch((e) => setError((e as Error).message))}>
+              Allow it
+            </button>
+          </>
+        )}
+      </span>
+      {error && <p className="schedule-error">{error}</p>}
+    </div>
+  );
+}
+
 // ---- Dated steps in Claude's answer (/dated) --------------------------------
 
 /** Shown under the terminal once Claude's answer has `### On 2026-12-01: …` steps. */
@@ -428,6 +516,7 @@ export function DatedSteps({ session }: { session: SessionInfo }) {
   const [steps, setSteps] = useState<(DatedStep & { keep: boolean })[] | null>(opened && opened.map((s) => ({ ...s, keep: true })));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [run, setRun] = useState(false);
   // A new answer starts over.
   const key = found.map((s) => `${s.at}:${s.title}`).join('\n');
   useEffect(() => {
@@ -439,7 +528,7 @@ export function DatedSteps({ session }: { session: SessionInfo }) {
     setSending(true);
     setError(null);
     api
-      .scheduleDated(session.id, chosen.map(({ at, title, text }) => ({ at, title, text })))
+      .scheduleDated(session.id, chosen.map(({ at, title, text }) => ({ at, title, text, run })))
       .catch((err) => setError((err as Error).message))
       .finally(() => setSending(false));
   };
@@ -493,6 +582,7 @@ export function DatedSteps({ session }: { session: SessionInfo }) {
           </div>
         ))}
       </div>
+      <RunSwitch run={run} onChange={setRun} label={n > 1 ? 'Run them on their own when due' : 'Run it on its own when due'} />
       {error && <p className="skill-error">{error}</p>}
       <div className="planlots-actions">
         <button className="btn btn-ghost" onClick={() => setSteps(null)}>

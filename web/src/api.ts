@@ -241,6 +241,8 @@ export interface Settings {
   permissionMode: PermissionMode | null;
   compactBetweenTasks: boolean;
   restartAfterConnectorChange: boolean;
+  /** Scheduled prompts marked to run go to Up next by themselves when due. */
+  scheduledRun: boolean;
   /** Once paired with Orchia Cloud, send what needs you there (server/cloud.ts, RemoteNeed). */
   remoteNeeds: boolean;
   /** What a phone may answer: everything, everything but shell commands, or Deny only. */
@@ -513,11 +515,11 @@ export const api = {
   sendPullRequest: (key: string) => request('/api/pull-requests/send', 'POST', { key }),
   laterPullRequest: (key: string) => request('/api/pull-requests/later', 'POST', { key }),
   /** Scheduled prompts (server/schedule.ts). */
-  addScheduled: (item: { projectId: string; text: string; at: number; title?: string }) => request<ScheduledItem>('/api/scheduled', 'POST', item),
+  addScheduled: (item: { projectId: string; text: string; at: number; title?: string; run?: boolean }) => request<ScheduledItem>('/api/scheduled', 'POST', item),
   updateScheduled: (id: string, patch: { text?: string; title?: string; at?: number; run?: boolean }) => request<ScheduledItem>(`/api/scheduled/${id}`, 'PATCH', patch),
   skipScheduled: (id: string) => request(`/api/scheduled/${id}`, 'DELETE'),
   /** Schedules the steps kept from Claude's dated answer; none dismisses the offer. */
-  scheduleDated: (sessionId: string, steps: { at: number; title: string; text: string }[]) => request(`/api/sessions/${sessionId}/dated`, 'POST', { steps }),
+  scheduleDated: (sessionId: string, steps: { at: number; title: string; text: string; run?: boolean }[]) => request(`/api/sessions/${sessionId}/dated`, 'POST', { steps }),
   /** Puts it in Up next of the project's newest running session, or of a new one. */
   runScheduled: (id: string) => request<{ sessionId: string }>(`/api/scheduled/${id}/run`, 'POST'),
   enqueue: (id: string, text: string) => request(`/api/sessions/${id}/queue`, 'POST', { text }),
